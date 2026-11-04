@@ -92,7 +92,9 @@ func BenchmarkNewMapping_GoToEnum(b *testing.B) {
 
 func BenchmarkTable_ToGo(b *testing.B) {
 	table := enumpb.MustNewTable(cardinalities)
+
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_, _ = table.ToGo("cardinality", typepb.Field_CARDINALITY_REQUIRED)
 	}

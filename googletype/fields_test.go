@@ -11,11 +11,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/googletype"
-
 	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/genproto/googleapis/type/dayofweek"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"github.com/altessa-s/go-convert/googletype"
 
 	coreerrs "github.com/altessa-s/go-atlas-core/errors"
 )
@@ -24,10 +24,12 @@ import (
 // that also wraps cause (when cause is not nil).
 func requireFieldError(t *testing.T, err error, field, reason string, cause error) {
 	t.Helper()
+
 	fe, ok := errors.AsType[*coreerrs.FieldError](err)
 	require.True(t, ok, "err = %v, want a FieldError", err)
 	require.Equal(t, field, fe.Field)
 	require.Equal(t, reason, fe.Reason)
+
 	if cause != nil {
 		require.ErrorIs(t, err, cause)
 	}

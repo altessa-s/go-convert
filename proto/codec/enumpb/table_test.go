@@ -10,10 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/proto/codec/enumpb"
-
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/typepb"
+
+	"github.com/altessa-s/go-convert/proto/codec/enumpb"
 
 	converter "github.com/altessa-s/go-convert"
 )
@@ -71,6 +71,7 @@ func TestTable_Codec(t *testing.T) {
 	t.Parallel()
 
 	type src struct{ Cardinality typepb.Field_Cardinality }
+
 	type dst struct{ Cardinality cardinality }
 
 	codec := enumpb.MustNewTable(cardinalities).Codec()

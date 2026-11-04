@@ -12,13 +12,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-atlas-core/time/civil"
-
-	"github.com/altessa-s/go-convert/googletype"
-
 	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/genproto/googleapis/type/dayofweek"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"github.com/altessa-s/go-atlas-core/time/civil"
+
+	"github.com/altessa-s/go-convert/googletype"
 )
 
 func TestDateFromProto(t *testing.T) {
@@ -37,6 +37,7 @@ func TestDateFromProto(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			got, err := googletype.DateFromProto(tc.d)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, got)
@@ -57,6 +58,7 @@ func TestDateFromProto(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
 			got, err := googletype.DateFromProto(tc.d)
 			require.ErrorIs(t, err, googletype.ErrImpossibleDate)
 			require.EqualError(t, err, tc.msg)
@@ -99,6 +101,7 @@ func TestWeekdays(t *testing.T) {
 		_, err := googletype.WeekdayFromProto(bad)
 		require.ErrorIs(t, err, googletype.ErrUnknownWeekday)
 	}
+
 	require.Equal(t, dayofweek.DayOfWeek_DAY_OF_WEEK_UNSPECIFIED, googletype.WeekdayToProto(7))
 	require.Equal(t, dayofweek.DayOfWeek_DAY_OF_WEEK_UNSPECIFIED, googletype.WeekdayToProto(-1))
 }
@@ -142,6 +145,7 @@ func TestDurations(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
 			_, err := googletype.DurationFromProto(d)
 			require.ErrorIs(t, err, googletype.ErrInvalidDuration)
 		})
@@ -160,6 +164,7 @@ func TestTimestampToProto(t *testing.T) {
 	t.Parallel()
 
 	require.Nil(t, googletype.TimestampToProto(time.Time{}))
+
 	now := time.Date(2026, 10, 18, 12, 30, 0, 5, time.UTC)
 	require.True(t, googletype.TimestampToProto(now).AsTime().Equal(now))
 	require.NotNil(t, googletype.TimestampToProto(time.Unix(0, 0)), "the Unix epoch is not the zero time")

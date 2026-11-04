@@ -75,6 +75,7 @@ func (t *Table[P, G]) ToEnum(path string, value G) (P, error) {
 	if enum, ok := t.c.toEnum[value]; ok {
 		return enum, nil
 	}
+
 	if value == t.c.zeroGo && t.c.opts.unspecifiedAsEmpty {
 		return 0, nil
 	}

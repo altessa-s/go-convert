@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/altessa-s/go-atlas-core/time/civil"
-
 	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/genproto/googleapis/type/dayofweek"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"github.com/altessa-s/go-atlas-core/time/civil"
 
 	coreerrs "github.com/altessa-s/go-atlas-core/errors"
 )
@@ -36,6 +36,7 @@ func DateFromProtoAt(field string, d *date.Date) (civil.Date, error) {
 		reason := fmt.Sprintf("%s %04d-%02d-%02d", ReasonImpossibleDate, d.GetYear(), d.GetMonth(), d.GetDay())
 		return civil.Date{}, &coreerrs.FieldError{Field: field, Reason: reason, Err: err}
 	}
+
 	return cd, nil
 }
 
@@ -47,6 +48,7 @@ func DurationFromProtoAt(field string, d *durationpb.Duration) (time.Duration, e
 	if err != nil {
 		return 0, &coreerrs.FieldError{Field: field, Reason: ReasonInvalidDuration, Err: err}
 	}
+
 	return v, nil
 }
 
@@ -60,7 +62,9 @@ func WeekdaysFromProtoAt(field string, days []dayofweek.DayOfWeek) ([]time.Weekd
 		if ie, ok := errors.AsType[*IndexError](err); ok {
 			path = fmt.Sprintf("%s[%d]", field, ie.Index)
 		}
+
 		return nil, &coreerrs.FieldError{Field: path, Reason: ReasonUnknownWeekday, Err: err}
 	}
+
 	return out, nil
 }
