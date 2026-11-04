@@ -11,6 +11,8 @@ type options struct {
 	// ignoreNil ([WithIgnoreNil]) skips conversion when the source pointer is
 	// nil. Without this option, a nil source still marks the conversion as
 	// handled (destination stays zero-value). With this option the behavior
-	// is identical, but the intent is explicit.
+	// is identical, but the intent is explicit. For [NewE], a nil source
+	// sets the destination to its zero value unless this option is set, in
+	// which case the destination is left untouched.
 	ignoreNil bool
 }

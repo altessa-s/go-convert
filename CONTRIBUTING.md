@@ -202,12 +202,12 @@ fails, Go writes the minimized reproducer to the package's `testdata/fuzz/<Targe
 
 ## Releases
 
-The repository holds three modules: the root module and the nested
-`codec/optionalcodec` and `proto` modules, which keep go-atlas-core and
-protobuf out of the root module. Release them together with
-`make release VERSION=vX.Y.Z` from an up-to-date `main`: it points the nested
-`go.mod` files at the new version, tags `vX.Y.Z`, `codec/optionalcodec/vX.Y.Z`
-and `proto/vX.Y.Z` on one commit and pushes them. The release workflow rejects
+The repository holds four modules: the root module and the nested
+`codec/optionalcodec`, `proto` and `googletype` modules, which keep
+go-atlas-core, protobuf and genproto out of the root module. Release them
+together with `make release VERSION=vX.Y.Z` from an up-to-date `main`: it points
+the nested `go.mod` files at the new version, tags `vX.Y.Z` and
+`<module>/vX.Y.Z` for every nested module on one commit and pushes them. The release workflow rejects
 a root tag without matching nested tags.
 
 ## Reporting Issues

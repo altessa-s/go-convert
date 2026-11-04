@@ -36,7 +36,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           commit=$(git rev-parse "refs/tags/$TAG^{commit}")
-          for module in codec/optionalcodec proto; do
+          for module in codec/optionalcodec proto googletype; do
             for version in $(go mod edit -json "$module/go.mod" | jq -r '.Require[] | select(.Path | startswith("github.com/altessa-s/go-convert")) | .Version'); do
               if [ "$version" != "$TAG" ]; then
                 echo "$module/go.mod requires go-convert $version, want $TAG"

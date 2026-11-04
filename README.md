@@ -225,13 +225,23 @@ convert.Convert(in, &out, convert.WithCodecs(upper))
 | [codec](./codec)                              | Codec contract and chain execution                  |
 | [codec/mapslice](./codec/mapslice)            | Map keys or values to a slice                       |
 | [codec/unixtime](./codec/unixtime)            | `time.Time` and Unix timestamps                     |
-| [codec/optionalcodec](./codec/optionalcodec)  | `optional.Optional[T]` and `T`, `*T`                |
+| [codec/textcodec](./codec/textcodec)          | `encoding.TextMarshaler` / `TextUnmarshaler` types and `string`, `[]byte` |
+| [codec/durationcodec](./codec/durationcodec)  | `time.Duration` and strings or numeric units        |
+| [codec/b64codec](./codec/b64codec)            | `[]byte` and base64 strings                         |
+| [codec/enumcodec](./codec/enumcodec)          | Enums and strings or integers from a table          |
+| [codec/sqlnull](./codec/sqlnull)              | `database/sql` null types and `T`, `*T`             |
+| [codec/jsoncodec](./codec/jsoncodec)          | JSON text and structs, maps, slices, `any`          |
+| [codec/optionalcodec](./codec/optionalcodec)  | `optional.Optional[T]` and `T`, `*T` (separate module) |
 | [proto](./proto)                              | Protobuf codecs (separate module)                   |
 | [proto/codec/tspb](./proto/codec/tspb)        | `timestamppb.Timestamp` and `time.Time`             |
 | [proto/codec/durpb](./proto/codec/durpb)      | `durationpb.Duration` and `time.Duration`           |
 | [proto/codec/pbwrap](./proto/codec/pbwrap)    | `wrapperspb` wrappers and Go primitives             |
-| [proto/codec/jsonpb](./proto/codec/jsonpb)    | `json.RawMessage` and `structpb.Struct`             |
+| [proto/codec/jsonpb](./proto/codec/jsonpb)    | `structpb` messages and JSON, `any`, `[]any`, `map[string]any` |
+| [proto/codec/anypb](./proto/codec/anypb)      | `anypb.Any` and messages or registered Go types     |
+| [proto/codec/enumpb](./proto/codec/enumpb)    | Protobuf enums and strings or Go enums              |
+| [proto/codec/fieldmaskpb](./proto/codec/fieldmaskpb) | `fieldmaskpb.FieldMask` and `[]string`; update masks to ignore paths |
 | [proto/codec/oneof](./proto/codec/oneof)      | Structs and protobuf oneof fields                   |
+| [googletype](./googletype)                    | `google.type` Money, Date, LatLng and TimeOfDay (separate module) |
 
 ## Architecture
 

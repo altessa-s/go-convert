@@ -1,0 +1,25 @@
+// Copyright 2026 ALTESSA SOLUTIONS INC.
+// Use of this source code is governed by the MIT license that can be found in
+// the LICENSE file.
+
+// Package anypb provides an error codec for conversion between
+// google.protobuf.Any and concrete protobuf messages or Go domain types.
+//
+// An Any unpacks into a protobuf message field of the type its type URL
+// names, and a message packs into an Any. A [Registry] maps message types to
+// Go domain types: the codec unpacks the Any into the registered message and
+// delegates the message <-> domain conversion to the rest of the codec chain,
+// so a registered timestamppb.Timestamp <-> time.Time pair converts through
+// tspb. Interface destinations, such as any, receive the registered domain
+// value or the message resolved by [WithResolver].
+//
+// Type URL mismatches and unknown types are reported as errors.
+//
+// Example:
+//
+//	registry := anypb.NewRegistry().
+//	    Register(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]())
+//	_, err := converter.ConvertE(src, &dst,
+//	    converter.WithErrorCodecs(anypb.New(anypb.WithRegistry(registry))),
+//	    converter.WithCodecs(tspb.New()))
+package anypb

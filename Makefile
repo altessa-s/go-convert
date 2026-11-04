@@ -7,9 +7,10 @@ MAKEFLAGS      			+= --no-builtin-rules
 CHANGELOG_NEXT_VERSION 	?= $(shell git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo "v0.0.0")
 MODULE         			:= github.com/altessa-s/go-convert
 # Nested modules keep their dependencies out of the root module:
-# codec/optionalcodec needs go-atlas-core and proto needs protobuf. They are
-# released together with the root module, dependencies first.
-NESTED_MODULES 			:= codec/optionalcodec proto
+# codec/optionalcodec needs go-atlas-core, proto needs protobuf and googletype
+# needs genproto. They are released together with the root module,
+# dependencies first.
+NESTED_MODULES 			:= codec/optionalcodec proto googletype
 # Directories holding a go.mod, root first. Every Go target runs in each one.
 MODULES        			:= . $(NESTED_MODULES)
 

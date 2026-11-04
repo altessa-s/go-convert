@@ -49,3 +49,41 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 		codec("Name", src, dstVal, handler)
 	}
 }
+
+func BenchmarkNewE_MapToStruct(b *testing.B) {
+	m := map[string]any{"key": "value", "num": 42, "list": []any{true, nil, 1.5}}
+	codec := NewE()
+	src := reflect.ValueOf(m)
+	next := func(string, reflect.Value, reflect.Value) error { return nil }
+
+	b.ReportAllocs()
+	for b.Loop() {
+		var dst *structpb.Struct
+		_ = codec("Metadata", src, reflect.ValueOf(&dst).Elem(), next)
+	}
+}
+
+func BenchmarkNewE_StructToMap(b *testing.B) {
+	pb, _ := structpb.NewStruct(map[string]any{"key": "value", "num": 42, "list": []any{true, nil, 1.5}})
+	codec := NewE()
+	src := reflect.ValueOf(pb)
+	next := func(string, reflect.Value, reflect.Value) error { return nil }
+
+	b.ReportAllocs()
+	for b.Loop() {
+		var dst map[string]any
+		_ = codec("Metadata", src, reflect.ValueOf(&dst).Elem(), next)
+	}
+}
+
+func BenchmarkNewE_PassThrough(b *testing.B) {
+	codec := NewE()
+	src := reflect.ValueOf("hello")
+	next := func(string, reflect.Value, reflect.Value) error { return nil }
+
+	b.ReportAllocs()
+	for b.Loop() {
+		var dst string
+		_ = codec("Name", src, reflect.ValueOf(&dst).Elem(), next)
+	}
+}

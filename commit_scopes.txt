@@ -15,6 +15,12 @@ codec                       # Codec contract and registry
 codec/mapslice              # Map and slice codecs
 codec/unixtime              # Unix time codecs
 codec/optionalcodec         # optional value codecs
+codec/textcodec             # TextMarshaler and TextUnmarshaler codecs
+codec/enumcodec             # Enum and string or integer codecs
+codec/sqlnull               # database/sql null type codecs
+codec/durationcodec         # Duration string and number codecs
+codec/b64codec              # Base64 byte slice codecs
+codec/jsoncodec             # JSON value codecs
 converttest                 # Test helpers for consumers
 internal/engine             # Conversion engine
 internal/primitive          # Primitive kind conversions
@@ -26,6 +32,10 @@ proto/codec/tspb            # Timestamp codecs
 proto/codec/durpb           # Duration codecs
 proto/codec/pbwrap          # Wrapper type codecs
 proto/codec/oneof           # Oneof codecs
+proto/codec/enumpb          # Protobuf enum codecs
+proto/codec/fieldmaskpb     # Field mask codecs
+proto/codec/anypb           # Any message codecs
+googletype                  # google.type codecs, nested module
 
 # Tooling
 devtools                    # Development tool dependencies

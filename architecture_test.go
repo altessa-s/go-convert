@@ -36,6 +36,7 @@ var layers = []struct {
 	{"internal/reflect", nil},
 	{"internal/typeinfo", nil},
 	{"proto/codec/*", []string{"codec", "internal/reflect", "proto/codec/*"}},
+	{"googletype", []string{"codec", "internal/reflect"}},
 }
 
 func TestArchitecture(t *testing.T) {

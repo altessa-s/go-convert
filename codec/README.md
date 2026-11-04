@@ -29,13 +29,5 @@ The existing `Codec` and `Run` APIs are unchanged.
 
 ## Built-in codecs
 
-| Subpackage      | Conversion                                        |
-|-----------------|---------------------------------------------------|
-| `pbwrap`        | `wrapperspb.*` <-> Go primitives                  |
-| `tspb`          | `timestamppb.Timestamp` <-> `time.Time` / `int64` |
-| `durpb`         | `durationpb.Duration` <-> `time.Duration`         |
-| `unixtime`      | `time.Time` <-> `int64` Unix timestamp            |
-| `jsonpb`        | `json.RawMessage` <-> `structpb.Struct`           |
-| `oneof`         | Struct <-> protobuf oneof interface               |
-| `mapslice`      | Map keys/values -> slice                          |
-| `optionalcodec` | `optional.Optional[T]` <-> `T` / `Optional[U]`    |
+Codec implementations live in sub-packages and nested modules; see the
+[codec table](../README.md#codecs) in the project README.
