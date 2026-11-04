@@ -70,8 +70,12 @@ func TestDateFromProto(t *testing.T) {
 func TestDateToProto(t *testing.T) {
 	t.Parallel()
 
-	require.Nil(t, googletype.DateToProto(civil.Date{}))
-	p := googletype.DateToProto(civil.Date{Year: 2026, Month: time.October, Day: 18})
+	zero, err := googletype.DateToProto(civil.Date{})
+	require.NoError(t, err)
+	require.Nil(t, zero)
+
+	p, err := googletype.DateToProto(civil.Date{Year: 2026, Month: time.October, Day: 18})
+	require.NoError(t, err)
 	require.Equal(t, int32(2026), p.GetYear())
 	require.Equal(t, int32(10), p.GetMonth())
 	require.Equal(t, int32(18), p.GetDay())
@@ -79,6 +83,33 @@ func TestDateToProto(t *testing.T) {
 	back, err := googletype.DateFromProto(p)
 	require.NoError(t, err)
 	require.Equal(t, civil.Date{Year: 2026, Month: time.October, Day: 18}, back)
+}
+
+func TestDateToProto_RejectsInvalidDates(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		date civil.Date
+		want error
+	}{
+		{name: "year wider than int32", date: civil.Date{Year: 1<<32 + 2026, Month: time.October, Day: 18}, want: googletype.ErrOutOfRange},
+		{name: "year after 9999", date: civil.Date{Year: 10000, Month: time.January, Day: 1}, want: googletype.ErrOutOfRange},
+		{name: "year before 1", date: civil.Date{Year: -1, Month: time.January, Day: 1}, want: googletype.ErrOutOfRange},
+		{name: "month 13", date: civil.Date{Year: 2026, Month: 13, Day: 1}, want: googletype.ErrImpossibleDate},
+		{name: "month wider than int32", date: civil.Date{Year: 2026, Month: 1<<32 + 10, Day: 18}, want: googletype.ErrImpossibleDate},
+		{name: "February 30", date: civil.Date{Year: 2026, Month: time.February, Day: 30}, want: googletype.ErrImpossibleDate},
+		{name: "day wider than int32", date: civil.Date{Year: 2026, Month: time.October, Day: 1<<32 + 18}, want: googletype.ErrImpossibleDate},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p, err := googletype.DateToProto(tt.date)
+			require.ErrorIs(t, err, tt.want)
+			require.Nil(t, p)
+		})
+	}
 }
 
 func TestWeekdays(t *testing.T) {

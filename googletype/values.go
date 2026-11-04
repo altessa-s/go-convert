@@ -35,13 +35,24 @@ func DateFromProto(d *date.Date) (civil.Date, error) {
 }
 
 // DateToProto converts a civil date to a google.type.Date; the zero date is
-// nil (absent).
-func DateToProto(d civil.Date) *date.Date {
+// nil (absent) and no error. A date that is not a real calendar date wraps
+// [ErrImpossibleDate], and a year outside 1 to 9999 wraps [ErrOutOfRange],
+// so no field is narrowed into a different date.
+func DateToProto(d civil.Date) (*date.Date, error) {
 	if d.IsZero() {
-		return nil
+		return nil, nil //nolint:nilnil // the zero date is an absent date, not an error
 	}
 
-	return &date.Date{Year: int32(d.Year), Month: int32(d.Month), Day: int32(d.Day)} //nolint:gosec // civil dates fit in int32
+	if d.Year < 1 || d.Year > 9999 {
+		return nil, fmt.Errorf("googletype: %w: year %d outside 1-9999", ErrOutOfRange, d.Year)
+	}
+
+	if !d.Valid() {
+		return nil, fmt.Errorf("googletype: %w %04d-%02d-%02d", ErrImpossibleDate, d.Year, int(d.Month), d.Day)
+	}
+
+	// The checks above bound every field: year 1-9999, month 1-12, day 1-31.
+	return &date.Date{Year: int32(d.Year), Month: int32(d.Month), Day: int32(d.Day)}, nil //nolint:gosec // bounded above
 }
 
 // WeekdayFromProto maps a google.type.DayOfWeek (MONDAY=1 … SUNDAY=7) to a
