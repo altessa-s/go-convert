@@ -3,18 +3,33 @@
 
 package fieldmaskpb
 
+import (
+	"google.golang.org/protobuf/proto"
+)
+
 // Option is a functional option for configuring options.
 type Option func(o *options)
 
 // WithIgnoreEmpty enables the ignoreEmpty option.
 //
 // ignoreEmpty ([WithIgnoreEmpty]) skips conversion when the source has no
-// paths: a FieldMask without paths or an empty slice. The destination is
-// left unchanged.
+// paths: a nil or empty FieldMask, or a nil or empty slice. The
+// destination is left unchanged.
 func WithIgnoreEmpty() Option {
 	return func(o *options) {
 		value := true
 		o.ignoreEmpty = value
+	}
+}
+
+// WithMessage sets the message option.
+//
+// message ([WithMessage]) makes [NewE] validate paths against the
+// descriptor of this message instead of checking their syntax only. Only
+// the descriptor is used; a typed nil pointer is fine. [New] ignores it.
+func WithMessage(v proto.Message) Option {
+	return func(o *options) {
+		o.message = v
 	}
 }
 

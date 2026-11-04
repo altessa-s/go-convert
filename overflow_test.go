@@ -15,6 +15,7 @@ import (
 
 func TestOverflowCheckPanicsOnSignedOverflow(t *testing.T) {
 	type Src struct{ Age int64 }
+
 	type Dst struct{ Age int8 }
 
 	src := &Src{Age: 1000}
@@ -35,6 +36,7 @@ func TestOverflowCheckPanicsOnSignedOverflow(t *testing.T) {
 
 func TestOverflowCheckPanicsOnUnsignedOverflow(t *testing.T) {
 	type Src struct{ Count uint64 }
+
 	type Dst struct{ Count uint8 }
 
 	src := &Src{Count: 300}
@@ -54,6 +56,7 @@ func TestOverflowCheckPanicsOnUnsignedOverflow(t *testing.T) {
 
 func TestOverflowCheckAllowsInRangeValues(t *testing.T) {
 	type Src struct{ Age int64 }
+
 	type Dst struct{ Age int8 }
 
 	src := &Src{Age: 42}
@@ -66,6 +69,7 @@ func TestOverflowCheckAllowsInRangeValues(t *testing.T) {
 
 func TestOverflowWithoutCheckTruncates(t *testing.T) {
 	type Src struct{ Age int64 }
+
 	type Dst struct{ Age int8 }
 
 	src := &Src{Age: 1000}
@@ -88,9 +92,12 @@ type overflowDest struct {
 
 func TestConvertEReturnsOverflowError(t *testing.T) {
 	t.Parallel()
+
 	var dst overflowDest
+
 	_, err := converter.ConvertE(overflowSource{N: 300}, &dst, converter.WithOverflowCheck())
 	require.Error(t, err)
+
 	var overflow converter.OverflowError
 	require.ErrorAs(t, err, &overflow)
 }
@@ -99,10 +106,15 @@ func TestOverflowCheckMapKeysAndValues(t *testing.T) {
 	t.Parallel()
 	t.Run("map key", func(t *testing.T) {
 		t.Parallel()
+
 		type source struct{ Values map[int64]string }
+
 		type destination struct{ Values map[uint8]string }
+
 		var dst destination
+
 		_, err := converter.ConvertE(source{Values: map[int64]string{257: "value"}}, &dst, converter.WithOverflowCheck())
+
 		var overflow converter.OverflowError
 		require.ErrorAs(t, err, &overflow)
 		require.Equal(t, reflect.Int64, overflow.From)
@@ -111,10 +123,15 @@ func TestOverflowCheckMapKeysAndValues(t *testing.T) {
 	})
 	t.Run("map value", func(t *testing.T) {
 		t.Parallel()
+
 		type source struct{ Values map[string]int64 }
+
 		type destination struct{ Values map[string]uint8 }
+
 		var dst destination
+
 		_, err := converter.ConvertE(source{Values: map[string]int64{"key": 257}}, &dst, converter.WithOverflowCheck())
+
 		var overflow converter.OverflowError
 		require.ErrorAs(t, err, &overflow)
 		require.Equal(t, reflect.Int64, overflow.From)
@@ -125,10 +142,15 @@ func TestOverflowCheckMapKeysAndValues(t *testing.T) {
 
 func TestOverflowCheckUintptr(t *testing.T) {
 	t.Parallel()
+
 	type source struct{ Value uintptr }
+
 	type destination struct{ Value uint8 }
+
 	var dst destination
+
 	_, err := converter.ConvertE(source{Value: uintptr(300)}, &dst, converter.WithOverflowCheck())
+
 	var overflow converter.OverflowError
 	require.ErrorAs(t, err, &overflow)
 	require.Equal(t, reflect.Uintptr, overflow.From)

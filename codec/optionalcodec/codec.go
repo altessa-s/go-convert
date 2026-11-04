@@ -85,6 +85,7 @@ func Codec(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler
 			dst.SetZero()
 			return
 		}
+
 		p := reflect.New(dstType.Elem())
 		p.Elem().Set(value)
 		dst.Set(p)
@@ -95,6 +96,7 @@ func Codec(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler
 			dst.Set(optional.NoneReflect(dstType))
 			return
 		}
+
 		dst.Set(optional.SomeReflect(dstType, src.Elem()))
 
 	case srcIsOpt && dstType == optional.InnerType(srcType):
@@ -112,6 +114,7 @@ func Codec(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler
 			dst.SetZero()
 			return
 		}
+
 		next(fieldName, value, dst)
 
 	case dstIsOpt && !srcIsOpt:
@@ -120,10 +123,12 @@ func Codec(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler
 		// type's own IsZero method) is treated as absent (None).
 		inner := reflect.New(optional.InnerType(dstType)).Elem()
 		next(fieldName, src, inner)
+
 		if inner.IsZero() {
 			dst.Set(optional.NoneReflect(dstType))
 			return
 		}
+
 		dst.Set(optional.SomeReflect(dstType, inner))
 
 	default:

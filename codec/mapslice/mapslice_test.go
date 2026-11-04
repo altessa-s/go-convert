@@ -27,7 +27,9 @@ func TestValues(t *testing.T) {
 
 func TestValues_PointerToNilSliceDestination(t *testing.T) {
 	src := reflect.ValueOf(map[string]int{"a": 1, "b": 2})
+
 	var dst *[]int
+
 	dstPointer := reflect.ValueOf(&dst).Elem()
 
 	mapslice.Values("test", src, dstPointer, func(_ string, _, _ reflect.Value) {
@@ -40,10 +42,13 @@ func TestValues_PointerToNilSliceDestination(t *testing.T) {
 
 func TestValues_PassThrough(t *testing.T) {
 	src := reflect.ValueOf("hello")
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	mapslice.Values("test", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -80,10 +85,13 @@ func TestKeys_PointerToNonNilSliceDestination(t *testing.T) {
 
 func TestKeys_PassThrough(t *testing.T) {
 	src := reflect.ValueOf("hello")
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	mapslice.Keys("test", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -99,6 +107,7 @@ func TestValues_NamedElementTypeDelegates(t *testing.T) {
 	src := reflect.ValueOf(map[string]namedInt{"a": 1})
 	dst := reflect.New(reflect.SliceOf(reflect.TypeFor[int]())).Elem()
 	nextCalled := false
+
 	mapslice.Values("test", src, dst, func(_ string, _, _ reflect.Value) { nextCalled = true })
 	require.True(t, nextCalled)
 	require.Zero(t, dst.Len())
@@ -108,6 +117,7 @@ func TestKeys_NamedElementTypeDelegates(t *testing.T) {
 	src := reflect.ValueOf(map[namedString]int{"a": 1})
 	dst := reflect.New(reflect.SliceOf(reflect.TypeFor[string]())).Elem()
 	nextCalled := false
+
 	mapslice.Keys("test", src, dst, func(_ string, _, _ reflect.Value) { nextCalled = true })
 	require.True(t, nextCalled)
 	require.Zero(t, dst.Len())
@@ -118,6 +128,7 @@ func TestValues_PointerMapSource(t *testing.T) {
 	src := reflect.ValueOf(&values)
 	dst := reflect.New(reflect.SliceOf(reflect.TypeFor[int]())).Elem()
 	nextCalled := false
+
 	mapslice.Values("test", src, dst, func(_ string, _, _ reflect.Value) { nextCalled = true })
 	require.False(t, nextCalled)
 	require.Equal(t, []int{1}, dst.Interface())
@@ -128,6 +139,7 @@ func TestKeys_PointerMapSource(t *testing.T) {
 	src := reflect.ValueOf(&values)
 	dst := reflect.New(reflect.SliceOf(reflect.TypeFor[string]())).Elem()
 	nextCalled := false
+
 	mapslice.Keys("test", src, dst, func(_ string, _, _ reflect.Value) { nextCalled = true })
 	require.False(t, nextCalled)
 	require.Equal(t, []string{"a"}, dst.Interface())
@@ -135,9 +147,11 @@ func TestKeys_PointerMapSource(t *testing.T) {
 
 func TestValues_NilPointerMapSourceDelegates(t *testing.T) {
 	var values *map[string]int
+
 	src := reflect.ValueOf(values)
 	dst := reflect.New(reflect.SliceOf(reflect.TypeFor[int]())).Elem()
 	nextCalled := false
+
 	require.NotPanics(t, func() {
 		mapslice.Values("test", src, dst, func(_ string, _, _ reflect.Value) { nextCalled = true })
 	})

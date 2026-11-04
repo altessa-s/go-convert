@@ -60,6 +60,7 @@ func TestCompose_OptionalToProto_Some(t *testing.T) {
 	t.Parallel()
 
 	now := time.Unix(1700000000, 0).UTC()
+
 	var pb composeProto
 	converter.Convert(&composeDomain{
 		DeleteTime: optional.Some(now),
@@ -89,6 +90,7 @@ func TestCompose_ProtoToOptional_Present(t *testing.T) {
 	t.Parallel()
 
 	now := time.Unix(1700000000, 0).UTC()
+
 	var dom composeDomain
 	converter.Convert(&composeProto{
 		DeleteTime: timestamppb.New(now),
@@ -151,6 +153,7 @@ func TestCompose_WithoutDownstreamCodec_IsFootgun(t *testing.T) {
 	t.Parallel()
 
 	now := time.Unix(1700000000, 0).UTC()
+
 	var pb composeProto
 	converter.Convert(&composeDomain{DeleteTime: optional.Some(now)}, &pb,
 		converter.WithCodecs(optionalcodec.Codec), // no tspb / durpb

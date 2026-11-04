@@ -32,6 +32,7 @@ func run(codec convcodec.CodecE, src reflect.Value, dst any) error {
 func requireKind(t *testing.T, err error, kind googletype.ErrorKind) {
 	t.Helper()
 	require.ErrorIs(t, err, kind)
+
 	var gtErr googletype.Error
 	require.ErrorAs(t, err, &gtErr)
 	require.Equal(t, "Field", gtErr.Path)

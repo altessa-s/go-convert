@@ -8,9 +8,9 @@ package tspb
 
 // options holds configuration options for Timestamp conversion behavior.
 type options struct {
-	// ignoreZero ([WithIgnoreZero]) skips conversion when the source value is
-	// zero. For Timestamp: nil or {seconds:0, nanos:0}. For time.Time:
-	// IsZero(). For int64: 0.
+	// ignoreZero ([WithIgnoreZero]) skips conversion, leaving the destination
+	// unchanged, when the source is nil or zero. For Timestamp: nil or
+	// {seconds:0, nanos:0}. For time.Time: IsZero(). For int64: 0.
 	ignoreZero bool
 	// milliseconds ([WithMilliseconds]) uses millisecond precision for
 	// Timestamp <-> int64: Timestamp -> int64 uses AsTime().UnixMilli(),

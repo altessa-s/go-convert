@@ -31,6 +31,7 @@ type options struct {
 	trimEnumPrefix bool
 	// nameCase ([WithCase]) sets the letter case of the names written to
 	// strings; [CaseLower] and [CaseUpper] parse names case-insensitively.
+	// Other values make [New] and [NewMapping] panic.
 	nameCase Case `opt:"Case"`
 	// unspecifiedAsEmpty ([WithUnspecifiedAsEmpty]) maps the zero enum
 	// number, the *_UNSPECIFIED value by convention, to the zero value of the

@@ -10,6 +10,7 @@ package enumcodec
 type options struct {
 	// caseInsensitive ([WithCaseInsensitive]) matches source strings against
 	// the table ignoring case. Formatting always writes the table spelling.
+	// It applies to [New] only; [NewInt] panics when given it.
 	caseInsensitive bool
 	// unspecified ([WithUnspecified]) maps the zero value of the enum type to
 	// "" or 0 and back, even when the table has no entry for it.

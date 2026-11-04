@@ -24,6 +24,7 @@ func BenchmarkNew_DurationToGo(b *testing.B) {
 
 	for b.Loop() {
 		var dst time.Duration
+
 		dstVal := reflect.ValueOf(&dst).Elem()
 		codec("Ttl", src, dstVal, handler)
 	}
@@ -39,6 +40,7 @@ func BenchmarkNew_GoToDuration(b *testing.B) {
 
 	for b.Loop() {
 		var dst durationpb.Duration
+
 		dstVal := reflect.ValueOf(&dst).Elem()
 		codec("Ttl", src, dstVal, handler)
 	}
@@ -53,6 +55,7 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 
 	for b.Loop() {
 		var dst string
+
 		dstVal := reflect.ValueOf(&dst).Elem()
 		codec("Name", src, dstVal, handler)
 	}

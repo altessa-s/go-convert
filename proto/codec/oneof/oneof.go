@@ -41,39 +41,51 @@ type boundedFieldCache struct {
 	order   list.List
 }
 
+// Load returns the cached metadata for t and marks it recently used.
 func (c *boundedFieldCache) Load(t reflect.Type) (*fieldMetadata, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	element := c.entries[t]
 	if element == nil {
 		return nil, false
 	}
+
 	c.order.MoveToFront(element)
+
 	entry, ok := element.Value.(fieldMetadataEntry)
 	if !ok {
 		return nil, false
 	}
+
 	return entry.metadata, true
 }
 
+// Store caches metadata for t, evicting the least recently used entry when full.
 func (c *boundedFieldCache) Store(t reflect.Type, metadata *fieldMetadata) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.entries == nil {
 		c.entries = make(map[reflect.Type]*list.Element, maxCachedFieldMetadata)
 	}
+
 	if element := c.entries[t]; element != nil {
 		c.order.MoveToFront(element)
 		element.Value = fieldMetadataEntry{typ: t, metadata: metadata}
+
 		return
 	}
+
 	if len(c.entries) >= maxCachedFieldMetadata {
 		oldest := c.order.Back()
 		if entry, ok := oldest.Value.(fieldMetadataEntry); ok {
 			delete(c.entries, entry.typ)
 		}
+
 		c.order.Remove(oldest)
 	}
+
 	c.entries[t] = c.order.PushFront(fieldMetadataEntry{typ: t, metadata: metadata})
 }
 
@@ -103,39 +115,51 @@ type boundedFieldMappingCache struct {
 	order   list.List
 }
 
+// Load returns the cached mapping for key and marks it recently used.
 func (c *boundedFieldMappingCache) Load(key structPairKey) (*fieldMapping, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	element := c.entries[key]
 	if element == nil {
 		return nil, false
 	}
+
 	c.order.MoveToFront(element)
+
 	entry, ok := element.Value.(fieldMappingEntry)
 	if !ok {
 		return nil, false
 	}
+
 	return entry.mapping, true
 }
 
+// Store caches mapping for key, evicting the least recently used entry when full.
 func (c *boundedFieldMappingCache) Store(key structPairKey, mapping *fieldMapping) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.entries == nil {
 		c.entries = make(map[structPairKey]*list.Element, maxCachedFieldMappings)
 	}
+
 	if element := c.entries[key]; element != nil {
 		c.order.MoveToFront(element)
 		element.Value = fieldMappingEntry{key: key, mapping: mapping}
+
 		return
 	}
+
 	if len(c.entries) >= maxCachedFieldMappings {
 		oldest := c.order.Back()
 		if entry, ok := oldest.Value.(fieldMappingEntry); ok {
 			delete(c.entries, entry.key)
 		}
+
 		c.order.Remove(oldest)
 	}
+
 	c.entries[key] = c.order.PushFront(fieldMappingEntry{key: key, mapping: mapping})
 }
 
@@ -269,6 +293,7 @@ func tryStructToOneof(_ string, src, dst reflect.Value, opts *options) bool {
 	if !srcValue.IsValid() || !dst.IsValid() {
 		return false
 	}
+
 	srcType := srcValue.Type()
 	// The destination may be reached through any number of pointers
 	// (**OneofInterface); they are allocated only once the conversion
@@ -293,8 +318,10 @@ func tryStructToOneof(_ string, src, dst reflect.Value, opts *options) bool {
 	}
 
 	// Determine which field to convert
-	var fieldToConvert string
-	var fieldValue reflect.Value
+	var (
+		fieldToConvert string
+		fieldValue     reflect.Value
+	)
 
 	if len(activeFields) > 0 {
 		// Use the first active field (or only one if strict validation is on)
@@ -313,6 +340,7 @@ func tryStructToOneof(_ string, src, dst reflect.Value, opts *options) bool {
 		if opts.ignoreNilFields {
 			return true // Handled by ignoring
 		}
+
 		return false // Not handled
 	}
 
@@ -341,6 +369,7 @@ func tryStructToOneof(_ string, src, dst reflect.Value, opts *options) bool {
 			// Converter failed, return false to pass to next handler
 			return false
 		}
+
 		wrapperField.Set(converted)
 	} else {
 		// Use standard conversion
@@ -352,7 +381,9 @@ func tryStructToOneof(_ string, src, dst reflect.Value, opts *options) bool {
 	if !ok {
 		return false
 	}
+
 	target.Set(wrapper.Addr())
+
 	return true
 }
 
@@ -365,10 +396,13 @@ func settableTarget(dst reflect.Value) (reflect.Value, bool) {
 			if !dst.CanSet() {
 				return reflect.Value{}, false
 			}
+
 			dst.Set(reflect.New(dst.Type().Elem()))
 		}
+
 		dst = dst.Elem()
 	}
+
 	return dst, dst.CanSet()
 }
 
@@ -389,17 +423,21 @@ func tryOneofToStruct(_ string, src, dst reflect.Value, opts *options) bool {
 	// reliable protoc signal; the wrapper's marker method is unexported and
 	// invisible to reflection.
 	viaOneofInterface := false
+
 	if srcValue.Kind() == reflect.Interface {
 		if !isOneofInterface(srcValue.Type()) {
 			return false
 		}
+
 		if srcValue.IsNil() {
 			return opts.ignoreNilFields
 		}
+
 		srcValue = reflectutils.IndirectValue(srcValue.Elem())
 		if !srcValue.IsValid() {
 			return false
 		}
+
 		viaOneofInterface = true
 	}
 
@@ -407,6 +445,7 @@ func tryOneofToStruct(_ string, src, dst reflect.Value, opts *options) bool {
 	if srcType.Kind() != reflect.Struct {
 		return false
 	}
+
 	if !viaOneofInterface && !isOneofWrapper(srcType, opts) {
 		return false
 	}
@@ -443,6 +482,7 @@ func tryOneofToStruct(_ string, src, dst reflect.Value, opts *options) bool {
 			// Converter failed, return false to pass to next handler
 			return false
 		}
+
 		dstField.Set(converted)
 	} else {
 		// Use standard conversion
@@ -461,6 +501,7 @@ func isOneofInterface(t reflect.Type) bool {
 
 	// Check interface name pattern: is{MessageName}_{OneofFieldName}
 	name := t.Name()
+
 	return strings.HasPrefix(name, InterfacePrefix) && strings.Contains(name, "_")
 }
 
@@ -491,6 +532,7 @@ func isOneofWrapper(t reflect.Type, opts *options) bool {
 // Optimized with early exit when strictValidation=false and cached type reference.
 func findActiveOneofFields(v reflect.Value, opts *options) []string {
 	var active []string
+
 	numFields := v.NumField()
 	vType := v.Type() // Cache type reference to avoid repeated calls
 
@@ -611,6 +653,7 @@ func convertPrimitiveSlice(src, dst reflect.Value) bool {
 			converted, _ := reflectutils.ConvertValue(src.Index(i), dstType)
 			dst.Index(i).Set(converted)
 		}
+
 		return true
 	}
 
@@ -629,6 +672,7 @@ func convertField(src, dst reflect.Value) {
 	if !srcValue.IsValid() {
 		return
 	}
+
 	srcType := srcValue.Type()
 	dstType := dst.Type()
 
@@ -658,6 +702,7 @@ func convertField(src, dst reflect.Value) {
 
 		// Convert to the element
 		convertField(src, dst.Elem())
+
 		return
 	}
 
@@ -708,6 +753,7 @@ func getFieldMetadata(t reflect.Type) *fieldMetadata {
 
 	// Store in cache
 	structFieldCache.Store(t, metadata)
+
 	return metadata
 }
 
@@ -759,6 +805,7 @@ func getFieldMapping(srcType, dstType reflect.Type) *fieldMapping {
 	// Build and cache mapping
 	mapping := buildFieldMapping(srcType, dstType)
 	structPairCache.Store(key, mapping)
+
 	return mapping
 }
 

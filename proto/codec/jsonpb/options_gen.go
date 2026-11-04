@@ -21,9 +21,23 @@ func WithIgnoreNil() Option {
 	}
 }
 
+// WithMaxDepth sets the maxDepth option.
+//
+// maxDepth ([WithMaxDepth]) limits how deeply lists and maps may nest in
+// a value converted by [NewE]; deeper values, and lists or maps that
+// contain themselves, fail with a [ValueError] instead of exhausting the
+// stack. Values below 1 select [DefaultMaxDepth].
+func WithMaxDepth(v int) Option {
+	return func(o *options) {
+		o.maxDepth = v
+	}
+}
+
 // defaultOptions returns the default values for options.
 func defaultOptions() *options {
-	return &options{}
+	return &options{
+		maxDepth: DefaultMaxDepth,
+	}
 }
 
 // newOptions creates a new options with the given options.

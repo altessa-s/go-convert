@@ -83,7 +83,9 @@ var convRegistry = map[string]any{
 // run invokes codec and reports whether it fell through to next.
 func run(codec convcodec.Codec, src, dst reflect.Value) bool {
 	passed := false
+
 	codec("Body", src, dst, func(string, reflect.Value, reflect.Value) { passed = true })
+
 	return passed
 }
 
@@ -194,6 +196,7 @@ func TestFieldConverter_BothDirections(t *testing.T) {
 		return reflect.ValueOf(&domContractor{Name: "dom:" + p.Name}), nil
 	}
 	back := oneof.New(oneof.WithFieldConverter("contractor", toDom))
+
 	var dst convPayload
 	require.False(t, run(back, bodyField(&msg), reflect.ValueOf(&dst).Elem()))
 	require.Equal(t, &domContractor{Name: "dom:pb:a"}, dst.Contractor)
@@ -210,6 +213,7 @@ func TestFieldConverter_ErrorFallsThrough(t *testing.T) {
 	require.Nil(t, msg.Body)
 
 	msg.Body = &ConvMessage_Contractor{Contractor: &pbContractor{Name: "x"}}
+
 	var dst convPayload
 	require.True(t, run(codec, bodyField(&msg), reflect.ValueOf(&dst).Elem()))
 	require.Nil(t, dst.Contractor)
@@ -221,6 +225,7 @@ func TestOneofToStruct_ConvertsWrapperValues(t *testing.T) {
 	codec := oneof.New()
 
 	msg := convMessage{Body: &ConvMessage_Contractor{Contractor: &pbContractor{Name: "n", Tags: []string{"t"}, Score: 3}}}
+
 	var dst convPayload
 	require.False(t, run(codec, bodyField(&msg), reflect.ValueOf(&dst).Elem()))
 	require.Equal(t, &domContractor{Name: "n", Tags: []string{"t"}, Score: 3}, dst.Contractor)
@@ -239,6 +244,7 @@ func TestOneofToStruct_PointerDestinationIsAllocated(t *testing.T) {
 	t.Parallel()
 
 	msg := convMessage{Body: &ConvMessage_Count{Count: 9}}
+
 	var dst *convPayload
 	require.False(t, run(oneof.New(), bodyField(&msg), reflect.ValueOf(&dst).Elem()))
 	require.NotNil(t, dst)
@@ -252,7 +258,9 @@ func TestOneofToStruct_FallsThrough(t *testing.T) {
 
 	t.Run("empty wrapper", func(t *testing.T) {
 		t.Parallel()
+
 		msg := convMessage{Body: &ConvMessage_Count{}}
+
 		var dst convPayload
 		require.True(t, run(codec, bodyField(&msg), reflect.ValueOf(&dst).Elem()))
 		require.False(t, run(oneof.New(oneof.WithIgnoreNilFields()), bodyField(&msg), reflect.ValueOf(&dst).Elem()))
@@ -260,31 +268,41 @@ func TestOneofToStruct_FallsThrough(t *testing.T) {
 	})
 	t.Run("nil wrapper pointer in the interface", func(t *testing.T) {
 		t.Parallel()
+
 		msg := convMessage{Body: (*ConvMessage_Count)(nil)}
+
 		var dst convPayload
 		require.True(t, run(codec, bodyField(&msg), reflect.ValueOf(&dst).Elem()))
 	})
 	t.Run("destination lacks the field", func(t *testing.T) {
 		t.Parallel()
+
 		msg := convMessage{Body: &ConvMessage_Other{Unrelated: new("x")}}
+
 		var dst convPayload
 		require.True(t, run(codec, bodyField(&msg), reflect.ValueOf(&dst).Elem()))
 	})
 	t.Run("destination is not a struct", func(t *testing.T) {
 		t.Parallel()
+
 		msg := convMessage{Body: &ConvMessage_Count{Count: 1}}
+
 		var dst string
 		require.True(t, run(codec, bodyField(&msg), reflect.ValueOf(&dst).Elem()))
 	})
 	t.Run("interface that is not a oneof", func(t *testing.T) {
 		t.Parallel()
+
 		holder := struct{ V any }{V: &ConvMessage_Count{Count: 1}}
+
 		var dst convPayload
 		require.True(t, run(codec, reflect.ValueOf(holder).Field(0), reflect.ValueOf(&dst).Elem()))
 	})
 	t.Run("oneof holding a non-struct", func(t *testing.T) {
 		t.Parallel()
+
 		holder := struct{ V isNumBody }{V: numBody(3)}
+
 		var dst convPayload
 		require.True(t, run(codec, reflect.ValueOf(holder).Field(0), reflect.ValueOf(&dst).Elem()))
 	})
@@ -302,6 +320,7 @@ func TestNewForField_AppliesToTargetFieldCaseInsensitively(t *testing.T) {
 	t.Parallel()
 
 	codec := oneof.NewForField("body", oneof.WithWrapperRegistry(convRegistry))
+
 	var msg convMessage
 	require.False(t, run(codec, reflect.ValueOf(convPayload{Count: new(int64(2))}), bodyField(&msg)))
 	require.Equal(t, &ConvMessage_Count{Count: 2}, msg.Body)
@@ -386,6 +405,7 @@ func TestStructToOneof_ConversionSemantics(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			var msg convText
 			require.False(t, run(codec, reflect.ValueOf(tc.src), textBody(&msg)))
 			require.Equal(t, tc.want, msg.Body)
@@ -398,6 +418,7 @@ func TestStructToOneof_ShortSliceToArrayLeavesZero(t *testing.T) {
 
 	// []T -> [N]T is ConvertibleTo, but Convert panics when len < N.
 	var msg convText
+
 	require.NotPanics(t, func() {
 		run(oneof.New(oneof.WithWrapperRegistry(textRegistry)), reflect.ValueOf(textPayload{Pair: &[]int64{1}}), textBody(&msg))
 	})
@@ -413,9 +434,11 @@ func TestOneofToStruct_ConversionSemantics(t *testing.T) {
 		Raw    *string
 		Chars  *string
 	}
+
 	codec := oneof.New()
 
 	var dst textDst
+
 	msg := convText{Body: &ConvText_Raw{Raw: []byte("héllo")}}
 	require.False(t, run(codec, textBody(&msg), reflect.ValueOf(&dst).Elem()))
 	require.Equal(t, "héllo", *dst.Raw)
@@ -429,6 +452,7 @@ func TestNew_InvalidValuesFallThroughWithoutPanic(t *testing.T) {
 	t.Parallel()
 
 	codec := oneof.New(oneof.WithWrapperRegistry(convRegistry))
+
 	var msg convMessage
 
 	tests := []struct {
@@ -444,10 +468,13 @@ func TestNew_InvalidValuesFallThroughWithoutPanic(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			var passed bool
+
 			require.NotPanics(t, func() { passed = run(codec, tc.src, tc.dst) })
 			require.True(t, passed, "an invalid value is not a oneof conversion and goes to next")
 		})
 	}
+
 	require.Nil(t, msg.Body)
 }

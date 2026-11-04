@@ -84,6 +84,10 @@ generate: ## Build the pinned optgen and gci into bin/ and run go generate in ev
 	@go -C devtools build -o $(CURDIR)/bin/gci github.com/daixiang0/gci
 	@for m in $(MODULES); do (cd $$m && PATH="$(CURDIR)/bin:$(PATH)" go generate ./...) || exit 1; done
 
+.PHONY: generate-check
+generate-check: generate ## Fail when go generate changes tracked files
+	@git diff --exit-code -- '*_gen.go' || { echo "generated files are stale: run make generate"; exit 1; }
+
 .PHONY: vet
 vet: ## Run go vet and fail when a go fix modernizer would rewrite code in every module (as CI does)
 	@for m in $(MODULES); do (cd $$m && go vet ./...) || exit 1; done
@@ -293,6 +297,10 @@ copyright: ## Add copyright header to all files
 	@echo "Updating copyright header to all go files"
 	@cd devtools && go install github.com/altessa-s/go-copyright-checker
 	go-copyright-checker check --fix .
+
+.PHONY: print-nested-modules
+print-nested-modules: ## Print the nested module directories, one per line
+	@printf '%s\n' $(NESTED_MODULES)
 
 .PHONY: release
 release: ## Tag VERSION for the root module and <dir>/VERSION for every nested module, then push them

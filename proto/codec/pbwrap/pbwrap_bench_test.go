@@ -16,11 +16,14 @@ import (
 func BenchmarkNew_WrapString(b *testing.B) {
 	codec := pbwrap.New()
 	src := reflect.ValueOf("hello")
+
 	var dst *wrapperspb.StringValue
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 	nop := func(_ string, _, _ reflect.Value) {}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		codec("Name", src, dstVal, nop)
 	}
@@ -29,11 +32,14 @@ func BenchmarkNew_WrapString(b *testing.B) {
 func BenchmarkNew_UnwrapString(b *testing.B) {
 	codec := pbwrap.New()
 	src := reflect.ValueOf(&wrapperspb.StringValue{Value: "hello"})
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 	nop := func(_ string, _, _ reflect.Value) {}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		codec("Name", src, dstVal, nop)
 	}

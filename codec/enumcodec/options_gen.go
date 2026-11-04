@@ -10,6 +10,7 @@ type Option func(o *options)
 //
 // caseInsensitive ([WithCaseInsensitive]) matches source strings against
 // the table ignoring case. Formatting always writes the table spelling.
+// It applies to [New] only; [NewInt] panics when given it.
 func WithCaseInsensitive() Option {
 	return func(o *options) {
 		value := true

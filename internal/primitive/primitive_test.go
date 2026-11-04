@@ -16,7 +16,9 @@ func TestConvertWidensAndNarrows(t *testing.T) {
 	t.Parallel()
 
 	src := int64(42)
+
 	var dst int8
+
 	handled, overflow := Convert(reflect.ValueOf(&src).Elem(), reflect.ValueOf(&dst).Elem(), true)
 	require.True(t, handled)
 	require.False(t, overflow)
@@ -38,13 +40,17 @@ func TestConvertAllocatesNilPointerForNonZeroSource(t *testing.T) {
 	t.Parallel()
 
 	src := 3.5
+
 	var dst *float32
+
 	handled, _ := Convert(reflect.ValueOf(&src).Elem(), reflect.ValueOf(&dst).Elem(), false)
 	require.True(t, handled)
 	require.InDelta(t, 3.5, *dst, 0)
 
 	zero := 0.0
+
 	var untouched *float32
+
 	handled, _ = Convert(reflect.ValueOf(&zero).Elem(), reflect.ValueOf(&untouched).Elem(), false)
 	require.False(t, handled)
 	require.Nil(t, untouched)
@@ -54,7 +60,9 @@ func TestConvertRejectsUnregisteredPairs(t *testing.T) {
 	t.Parallel()
 
 	src := "text"
+
 	var dst int
+
 	handled, _ := Convert(reflect.ValueOf(&src).Elem(), reflect.ValueOf(&dst).Elem(), false)
 	require.False(t, handled)
 
@@ -85,6 +93,7 @@ func TestWouldOverflow(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			got := WouldOverflow(reflect.ValueOf(tc.src), reflect.New(reflect.TypeOf(tc.dst)).Elem())
 			require.Equal(t, tc.want, got)
 		})

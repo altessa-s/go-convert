@@ -87,6 +87,7 @@ func TestConvert(t *testing.T) {
 
 	t.Run("Nested Structs", func(t *testing.T) {
 		nSrc := NestedSource{Info: src}
+
 		var nDst NestedDest
 		converter.Convert(nSrc, &nDst, converter.WithFieldMappings(map[string]string{"MappedID": "TargetID"}))
 
@@ -143,6 +144,7 @@ func TestFieldMappingsRenameField(t *testing.T) {
 	type Src struct {
 		FullName string
 	}
+
 	type Dst struct {
 		Name string
 	}
@@ -173,13 +175,16 @@ func TestConvertNestedSliceField(t *testing.T) {
 		ID   int
 		Name string
 	}
+
 	type DstItem struct {
 		ID   int
 		Name string
 	}
+
 	type SrcList struct {
 		Items []SrcItem
 	}
+
 	type DstList struct {
 		Items []DstItem
 	}
@@ -201,6 +206,7 @@ type SmallStruct struct {
 func TestConvertSmallStruct(t *testing.T) {
 	// Structs with four or fewer fields take a dedicated fast path.
 	src := SmallStruct{A: 1, B: 2}
+
 	var dst SmallStruct
 
 	converter.Convert(src, &dst)
@@ -212,7 +218,9 @@ func TestConvertSmallStruct(t *testing.T) {
 func TestNew(t *testing.T) {
 	conv := converter.New[Source, *Dest]()
 	require.NotNil(t, conv)
+
 	src := Source{Name: "test", Age: 25}
+
 	var dst Dest
 	conv.Convert(src, &dst)
 	require.Equal(t, "test", dst.Name)
@@ -244,6 +252,7 @@ func TestConvertSeq(t *testing.T) {
 		require.Equal(t, src[count].Name, item.Name)
 		count++
 	}
+
 	require.Equal(t, 2, count)
 }
 
@@ -256,8 +265,10 @@ func TestConvertSeqYieldsEveryElement(t *testing.T) {
 	count := 0
 	for dst := range converter.ConvertSeq[DstUser](src) {
 		count++
+
 		require.NotEmpty(t, dst.Name)
 	}
+
 	require.Equal(t, 2, count)
 }
 
@@ -287,6 +298,7 @@ func TestConvertE(t *testing.T) {
 		t.Parallel()
 
 		var dst errorDest
+
 		out, err := converter.ConvertE(errorSource{Name: "ok"}, &dst)
 		require.NoError(t, err)
 		require.Same(t, &dst, out)
@@ -297,6 +309,7 @@ func TestConvertE(t *testing.T) {
 		t.Parallel()
 
 		var dst string
+
 		_, err := converter.ConvertE(errorSource{Name: "x"}, &dst)
 		require.Error(t, err)
 	})
@@ -305,7 +318,9 @@ func TestConvertE(t *testing.T) {
 		t.Parallel()
 
 		src := []*errorSource{nil}
+
 		var dst []*errorDest
+
 		_, err := converter.ConvertE(src, &dst)
 		require.NoError(t, err)
 		require.Nil(t, dst[0])

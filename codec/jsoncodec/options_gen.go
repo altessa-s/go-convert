@@ -32,6 +32,18 @@ func WithJSONOptions(v ...json.Options) Option {
 	}
 }
 
+// WithMaxBytes sets the maxBytes option.
+//
+// maxBytes ([WithMaxBytes]) is the longest JSON text, in bytes, that is
+// decoded; longer text is rejected with an [Error] wrapping [SizeError]
+// before decoding starts. Zero, the default, or a negative value means no
+// limit.
+func WithMaxBytes(v int) Option {
+	return func(o *options) {
+		o.maxBytes = v
+	}
+}
+
 // WithStrings enables the stringText option.
 //
 // stringText ([WithStrings]) also treats plain string fields as JSON

@@ -77,6 +77,7 @@ func (c *Converter[T, U]) ConvertSeq(src []T) iter.Seq[U] {
 		for _, item := range src {
 			var dst U
 			must(c.engine.ConvertValue(reflect.ValueOf(item), reflect.ValueOf(&dst).Elem()))
+
 			if !yield(dst) {
 				return
 			}
@@ -90,10 +91,14 @@ func (c *Converter[T, U]) ConvertSeq(src []T) iter.Seq[U] {
 func (c *Converter[T, U]) ConvertMapSeq[K2 comparable, V2 any, K1 comparable, V1 any](src map[K1]V1) iter.Seq2[K2, V2] {
 	return func(yield func(K2, V2) bool) {
 		for k, v := range src {
-			var dk K2
-			var dv V2
+			var (
+				dk K2
+				dv V2
+			)
+
 			must(c.engine.ConvertKey(reflect.ValueOf(k), reflect.ValueOf(&dk).Elem()))
 			must(c.engine.ConvertValue(reflect.ValueOf(v), reflect.ValueOf(&dv).Elem()))
+
 			if !yield(dk, dv) {
 				return
 			}

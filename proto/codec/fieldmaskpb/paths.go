@@ -22,9 +22,10 @@ import (
 const wildcard = "*"
 
 // PathError reports a field mask path that does not select a field of the
-// message.
+// message, or, for [NewE] without [WithMessage], that is not well-formed.
 type PathError struct {
-	// Message is the full name of the message the mask applies to.
+	// Message is the full name of the message the mask applies to; empty
+	// when only the path syntax was checked.
 	Message protoreflect.FullName
 	// Path is the offending mask path.
 	Path string
@@ -32,7 +33,12 @@ type PathError struct {
 	Reason string
 }
 
+// Error reports the message, the path and why it is invalid.
 func (e PathError) Error() string {
+	if e.Message == "" {
+		return fmt.Sprintf("fieldmaskpb: path %q: %s", e.Path, e.Reason)
+	}
+
 	return fmt.Sprintf("fieldmaskpb: path %q of %s: %s", e.Path, e.Message, e.Reason)
 }
 
@@ -76,6 +82,7 @@ func IgnorePaths(mask *fmpb.FieldMask, msg proto.Message) ([]string, error) {
 	if msg == nil {
 		return nil, errors.New("fieldmaskpb: IgnorePaths called with a nil message")
 	}
+
 	desc := msg.ProtoReflect().Descriptor()
 
 	paths := mask.GetPaths()
@@ -92,6 +99,7 @@ func IgnorePaths(mask *fmpb.FieldMask, msg proto.Message) ([]string, error) {
 
 	var ignored []string
 	collectIgnored(desc, reflect.TypeOf(msg), root, "", &ignored)
+
 	return ignored, nil
 }
 
@@ -110,14 +118,18 @@ func (n *maskNode) insert(desc protoreflect.MessageDescriptor, path string) erro
 	if err != nil {
 		return err
 	}
+
 	for _, field := range fields {
 		if n.leaf {
 			return nil
 		}
+
 		n = n.child(field.Name())
 	}
+
 	n.leaf = true
 	n.children = nil
+
 	return nil
 }
 
@@ -134,21 +146,27 @@ func resolve(desc protoreflect.MessageDescriptor, path string) ([]protoreflect.F
 	segments := strings.Split(path, ".")
 	fields := make([]protoreflect.FieldDescriptor, 0, len(segments))
 	current := desc
+
 	for i, segment := range segments {
 		if segment == "" {
 			return nil, invalid("empty field name")
 		}
+
 		if current == nil {
 			return nil, invalid("%q is not a message field and must be the last segment", segments[i-1])
 		}
+
 		field := current.Fields().ByName(protoreflect.Name(segment))
 		if field == nil {
 			return nil, invalid("%s has no field %q", current.FullName(), segment)
 		}
+
 		fields = append(fields, field)
+
 		if i == len(segments)-1 {
 			break
 		}
+
 		switch {
 		case field.IsList() || field.IsMap():
 			return nil, invalid("%q is a repeated field and must be the last segment", segment)
@@ -158,6 +176,7 @@ func resolve(desc protoreflect.MessageDescriptor, path string) ([]protoreflect.F
 			current = field.Message()
 		}
 	}
+
 	return fields, nil
 }
 
@@ -166,11 +185,13 @@ func (n *maskNode) child(name protoreflect.Name) *maskNode {
 	if n.children == nil {
 		n.children = make(map[protoreflect.Name]*maskNode)
 	}
+
 	c, ok := n.children[name]
 	if !ok {
 		c = &maskNode{}
 		n.children[name] = c
 	}
+
 	return c
 }
 
@@ -186,7 +207,9 @@ func collectIgnored(desc protoreflect.MessageDescriptor, goType reflect.Type, no
 		if isOneofMember(field) {
 			continue
 		}
+
 		goField := names.field(field)
+
 		child := node.children[field.Name()]
 		switch {
 		case child == nil:
@@ -203,6 +226,7 @@ func collectIgnored(desc protoreflect.MessageDescriptor, goType reflect.Type, no
 		if oneof.IsSynthetic() || selectsOneof(node, oneof) {
 			continue
 		}
+
 		*ignored = append(*ignored, prefix+strings.ToLower(names.oneof(oneof)))
 	}
 }
@@ -215,6 +239,7 @@ func selectsOneof(node *maskNode, oneof protoreflect.OneofDescriptor) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -244,6 +269,7 @@ func goNamesOf(t reflect.Type) *goNames {
 	if t == nil {
 		return &goNames{}
 	}
+
 	t = reflectutils.IndirectType(t)
 	if cached, ok := goNamesCache.Load(t); ok {
 		names, _ := cached.(*goNames)
@@ -251,22 +277,27 @@ func goNamesOf(t reflect.Type) *goNames {
 	}
 
 	names := &goNames{fields: map[protoreflect.Name]goField{}, oneofs: map[protoreflect.Name]string{}}
+
 	if t.Kind() == reflect.Struct {
 		for f := range t.Fields() {
 			if oneof, ok := f.Tag.Lookup("protobuf_oneof"); ok {
 				names.oneofs[protoreflect.Name(oneof)] = f.Name
 				continue
 			}
+
 			if name, ok := tagName(f.Tag.Get("protobuf")); ok {
 				typ := reflectutils.IndirectType(f.Type)
 				if typ.Kind() != reflect.Struct {
 					typ = nil
 				}
+
 				names.fields[name] = goField{name: f.Name, typ: typ}
 			}
 		}
 	}
+
 	goNamesCache.Store(t, names)
+
 	return names
 }
 
@@ -275,6 +306,7 @@ func (n *goNames) field(field protoreflect.FieldDescriptor) goField {
 	if f, ok := n.fields[field.Name()]; ok {
 		return f
 	}
+
 	return goField{name: goCamelCase(string(field.Name()))}
 }
 
@@ -283,6 +315,7 @@ func (n *goNames) oneof(oneof protoreflect.OneofDescriptor) string {
 	if name, ok := n.oneofs[oneof.Name()]; ok {
 		return name
 	}
+
 	return goCamelCase(string(oneof.Name()))
 }
 
@@ -293,6 +326,7 @@ func tagName(tag string) (protoreflect.Name, bool) {
 			return protoreflect.Name(name), true
 		}
 	}
+
 	return "", false
 }
 
@@ -315,14 +349,19 @@ func goCamelCase(s string) string {
 			if isLower(c) {
 				c -= 'a' - 'A'
 			}
+
 			b = append(b, c)
 			for ; i+1 < len(s) && isLower(s[i+1]); i++ {
 				b = append(b, s[i+1])
 			}
 		}
 	}
+
 	return string(b)
 }
 
+// isLower reports whether c is an ASCII lower-case letter.
 func isLower(c byte) bool { return c >= 'a' && c <= 'z' }
+
+// isDigit reports whether c is an ASCII digit.
 func isDigit(c byte) bool { return c >= '0' && c <= '9' }

@@ -20,6 +20,7 @@ func BenchmarkNew_RawMessageToStruct(b *testing.B) {
 
 	for b.Loop() {
 		var dst *structpb.Struct
+
 		dstVal := reflect.ValueOf(&dst).Elem()
 		codec("Metadata", src, dstVal, handler)
 	}
@@ -33,6 +34,7 @@ func BenchmarkNew_StructToRawMessage(b *testing.B) {
 
 	for b.Loop() {
 		var dst *json.RawMessage
+
 		dstVal := reflect.ValueOf(&dst).Elem()
 		codec("Metadata", src, dstVal, handler)
 	}
@@ -45,6 +47,7 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 
 	for b.Loop() {
 		var dst string
+
 		dstVal := reflect.ValueOf(&dst).Elem()
 		codec("Name", src, dstVal, handler)
 	}
@@ -57,8 +60,10 @@ func BenchmarkNewE_MapToStruct(b *testing.B) {
 	next := func(string, reflect.Value, reflect.Value) error { return nil }
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		var dst *structpb.Struct
+
 		_ = codec("Metadata", src, reflect.ValueOf(&dst).Elem(), next)
 	}
 }
@@ -70,8 +75,10 @@ func BenchmarkNewE_StructToMap(b *testing.B) {
 	next := func(string, reflect.Value, reflect.Value) error { return nil }
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		var dst map[string]any
+
 		_ = codec("Metadata", src, reflect.ValueOf(&dst).Elem(), next)
 	}
 }
@@ -82,8 +89,10 @@ func BenchmarkNewE_PassThrough(b *testing.B) {
 	next := func(string, reflect.Value, reflect.Value) error { return nil }
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		var dst string
+
 		_ = codec("Name", src, reflect.ValueOf(&dst).Elem(), next)
 	}
 }

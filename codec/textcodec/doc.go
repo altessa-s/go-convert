@@ -20,8 +20,14 @@
 //
 // Empty text sets the destination to its zero value (a nil pointer for
 // pointer destinations) without calling UnmarshalText; [WithParseEmpty]
-// passes it to UnmarshalText instead. A nil source pointer leaves the
-// destination unchanged. Pointer variants are supported on both sides.
+// passes it to UnmarshalText instead. A nil source pointer also sets the
+// destination to its zero value. Pointer variants are supported on both
+// sides.
+//
+// MarshalText with a pointer receiver is called on a copy of the source, so a
+// method that caches into its receiver never modifies the source. The claim
+// decision of each source and destination type pair is cached, so the
+// interface checks run once per pair.
 //
 // Example:
 //

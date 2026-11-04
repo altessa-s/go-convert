@@ -6,6 +6,7 @@ package anypb
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 
 	"google.golang.org/protobuf/proto"
@@ -17,16 +18,18 @@ import (
 )
 
 var (
-	anyType          = reflect.TypeFor[pbany.Any]()
-	protoMessageType = reflect.TypeFor[proto.Message]()
+	anyType            = reflect.TypeFor[pbany.Any]()
+	protoMessageType   = reflect.TypeFor[proto.Message]()
+	emptyInterfaceType = reflect.TypeFor[any]()
 )
 
 // codec holds the configuration shared by every call of the codec returned
 // by [New].
 type codec struct {
-	ignoreNil bool
 	registry  *Registry
 	unmarshal proto.UnmarshalOptions
+	maxBytes  int
+	ignoreNil bool
 }
 
 // New creates an error codec for conversion between google.protobuf.Any and
@@ -46,16 +49,27 @@ type codec struct {
 //   - Any <-> an interface type, such as any or proto.Message: unpacking
 //     picks the registered domain type for the type URL, or else a message
 //     resolved by [WithResolver] (protoregistry.GlobalTypes by default), and
-//     requires it to implement the interface. Packing accepts any protobuf
-//     message or registered domain value held by the interface.
+//     requires it to implement the interface. Packing applies when the
+//     interface holds a protobuf message, an Any or a registered domain
+//     value; other dynamic values are passed to next.
+//
+// The registry is frozen by New: registering more pairs afterwards panics.
 //
 // A nil source sets the destination to its zero value; with [WithIgnoreNil]
 // the destination is left untouched.
 //
+// Payloads are unmarshaled with the protobuf default recursion limit
+// ([WithRecursionLimit]) and, with [WithMaxBytes], payloads larger than the
+// limit are rejected.
+//
 // Conversion fails with a [TypeMismatchError] when the type URL does not
-// match the destination, an [UnknownTypeError] for type URLs or Go types the
-// codec cannot map, an [Error] when protobuf marshaling fails, and with any
-// error returned by next. Other field pairs are passed to next unchanged.
+// match the destination, or names a type that does not implement the
+// destination interface; an [UnknownTypeError] for type URLs the codec cannot
+// resolve into an any or proto.Message destination (into other interfaces
+// the field is passed to next); an [Error] when protobuf marshaling fails or
+// a payload is too large; and with any error returned by next. The chain does
+// not report whether a codec converted a registered pair, so register one for
+// every pair. Other field pairs are passed to next unchanged.
 //
 // Example:
 //
@@ -65,11 +79,15 @@ type codec struct {
 //	    converter.WithCodecs(tspb.New()))
 func New(opts ...Option) convcodec.CodecE {
 	o := newOptions(opts...)
+	o.registry.freeze()
+
 	c := &codec{
 		ignoreNil: o.ignoreNil,
 		registry:  o.registry,
-		unmarshal: proto.UnmarshalOptions{Resolver: o.resolver},
+		maxBytes:  o.maxBytes,
+		unmarshal: proto.UnmarshalOptions{Resolver: o.resolver, RecursionLimit: o.recursionLimit},
 	}
+
 	return c.convert
 }
 
@@ -78,6 +96,13 @@ func (c *codec) convert(path string, src, dst reflect.Value, next convcodec.Code
 	srcType := reflectutils.IndirectType(src.Type())
 	dstType := reflectutils.IndirectType(dst.Type())
 
+	if srcType.Kind() == reflect.Interface && dstType != anyType && dstType.Kind() != reflect.Interface {
+		// An interface holding an Any unpacks like an Any field.
+		if held := sourceValue(src); held.IsValid() && held.Type() == anyType && c.supports(dstType) {
+			return c.unpack(path, held, messagePtr(held), dst, dstType, next)
+		}
+	}
+
 	switch {
 	case srcType == anyType && dstType != anyType && c.supports(dstType):
 		value := reflectutils.IndirectValue(src)
@@ -85,7 +110,8 @@ func (c *codec) convert(path string, src, dst reflect.Value, next convcodec.Code
 			c.clear(dst)
 			return nil
 		}
-		return c.unpack(path, messagePtr(value), dst, dstType, next)
+
+		return c.unpack(path, src, messagePtr(value), dst, dstType, next)
 
 	case dstType == anyType && srcType != anyType && c.supports(srcType):
 		value := sourceValue(src)
@@ -93,16 +119,33 @@ func (c *codec) convert(path string, src, dst reflect.Value, next convcodec.Code
 			c.clear(dst)
 			return nil
 		}
+
+		if !c.packable(value.Type()) {
+			// An interface holding a value the codec cannot pack.
+			return next(path, src, dst)
+		}
+
 		if value.Type() == anyType {
 			// An interface holding an Any is assigned as is.
 			setDst(dst, addressable(value).Addr())
 			return nil
 		}
+
+		if _, registered := c.registry.byDomainType(value.Type()); registered && value.IsZero() {
+			// A zero domain value is absent: it packs to a nil Any rather
+			// than an empty message.
+			setDst(dst, reflect.Zero(reflect.PointerTo(anyType)))
+
+			return nil
+		}
+
 		packed, err := c.pack(path, value, next)
 		if err != nil {
 			return err
 		}
+
 		setDst(dst, reflect.ValueOf(packed))
+
 		return nil
 
 	default:
@@ -115,7 +158,22 @@ func (c *codec) supports(t reflect.Type) bool {
 	if isMessage(t) || t.Kind() == reflect.Interface {
 		return true
 	}
+
 	_, ok := c.registry.byDomainType(t)
+
+	return ok
+}
+
+// packable reports whether a dynamic value of type t, held by an interface
+// source, packs into an Any: an Any, a protobuf message or a registered
+// domain value.
+func (c *codec) packable(t reflect.Type) bool {
+	if t == anyType || isMessage(t) {
+		return true
+	}
+
+	_, ok := c.registry.byDomainType(t)
+
 	return ok
 }
 
@@ -126,18 +184,27 @@ func (c *codec) clear(dst reflect.Value) {
 	}
 }
 
-// unpack converts the Any src into dst, whose innermost type is dstType.
-func (c *codec) unpack(path string, src *pbany.Any, dst reflect.Value, dstType reflect.Type, next convcodec.CodecHandlerE) error {
+// unpack converts the Any src, read from the source field, into dst, whose
+// innermost type is dstType.
+func (c *codec) unpack(path string, field reflect.Value, src *pbany.Any, dst reflect.Value, dstType reflect.Type, next convcodec.CodecHandlerE) error {
+	if c.maxBytes > 0 && len(src.GetValue()) > c.maxBytes {
+		return Error{Path: path, Err: fmt.Errorf("payload of %d bytes exceeds the %d-byte limit", len(src.GetValue()), c.maxBytes)}
+	}
+
 	if isMessage(dstType) {
 		target := reflect.New(dstType)
+
 		message, _ := reflect.TypeAssert[proto.Message](target)
 		if !src.MessageIs(message) {
 			return TypeMismatchError{Path: path, TypeURL: src.GetTypeUrl(), Want: string(message.ProtoReflect().Descriptor().FullName())}
 		}
+
 		if err := c.unmarshal.Unmarshal(src.GetValue(), message); err != nil {
 			return Error{Path: path, Err: err}
 		}
+
 		setDst(dst, target)
+
 		return nil
 	}
 
@@ -145,23 +212,35 @@ func (c *codec) unpack(path string, src *pbany.Any, dst reflect.Value, dstType r
 		if src.MessageName() != entry.message.Descriptor().FullName() {
 			return TypeMismatchError{Path: path, TypeURL: src.GetTypeUrl(), Want: string(entry.message.Descriptor().FullName())}
 		}
+
 		target, err := c.toDomain(path, src, entry, next)
 		if err != nil {
 			return err
 		}
+
 		setDst(dst, target)
+
 		return nil
 	}
 
 	// An interface destination: the type URL decides the concrete type.
 	target, err := c.resolve(path, src, next)
+	if errors.As(err, new(UnknownTypeError)) && dstType != emptyInterfaceType && dstType != protoMessageType {
+		// The type URL is unknown and the interface is not one the codec
+		// owns; another codec may handle the field.
+		return next(path, field, dst)
+	}
+
 	if err != nil {
 		return err
 	}
+
 	if !target.Type().Implements(dstType) && !target.Elem().Type().Implements(dstType) {
 		return TypeMismatchError{Path: path, TypeURL: src.GetTypeUrl(), Want: dstType.String()}
 	}
+
 	setDst(dst, target)
+
 	return nil
 }
 
@@ -172,16 +251,20 @@ func (c *codec) resolve(path string, src *pbany.Any, next convcodec.CodecHandler
 	if name == "" {
 		return reflect.Value{}, UnknownTypeError{Path: path, TypeURL: src.GetTypeUrl()}
 	}
+
 	if entry, ok := c.registry.byMessageName(name); ok {
 		return c.toDomain(path, src, entry, next)
 	}
+
 	message, err := pbany.UnmarshalNew(src, c.unmarshal)
 	if errors.Is(err, protoregistry.NotFound) {
 		return reflect.Value{}, UnknownTypeError{Path: path, TypeURL: src.GetTypeUrl()}
 	}
+
 	if err != nil {
 		return reflect.Value{}, Error{Path: path, Err: err}
 	}
+
 	return reflect.ValueOf(message), nil
 }
 
@@ -193,21 +276,25 @@ func (c *codec) toDomain(path string, src *pbany.Any, entry registration, next c
 	if err := c.unmarshal.Unmarshal(src.GetValue(), message); err != nil {
 		return reflect.Value{}, Error{Path: path, Err: err}
 	}
+
 	target := reflect.New(entry.domain)
 	if err := next(path, reflect.ValueOf(message), target.Elem()); err != nil {
 		return reflect.Value{}, err
 	}
+
 	return target, nil
 }
 
 // pack converts a non-nil source value into a new Any.
 func (c *codec) pack(path string, src reflect.Value, next convcodec.CodecHandlerE) (*pbany.Any, error) {
 	var message proto.Message
+
 	switch entry, registered := c.registry.byDomainType(src.Type()); {
 	case isMessage(src.Type()):
 		message = messageOf(src)
 	case registered:
 		message = entry.message.New().Interface()
+
 		target := reflect.ValueOf(message).Elem()
 		if err := next(path, src, target); err != nil {
 			return nil, err
@@ -220,6 +307,7 @@ func (c *codec) pack(path string, src reflect.Value, next convcodec.CodecHandler
 	if err := pbany.MarshalFrom(packed, message, proto.MarshalOptions{}); err != nil {
 		return nil, Error{Path: path, Err: err}
 	}
+
 	return packed, nil
 }
 
@@ -236,8 +324,10 @@ func sourceValue(src reflect.Value) reflect.Value {
 		if value.IsNil() {
 			return reflect.Value{}
 		}
+
 		value = reflectutils.IndirectValue(value.Elem())
 	}
+
 	return value
 }
 
@@ -246,8 +336,10 @@ func addressable(v reflect.Value) reflect.Value {
 	if v.CanAddr() {
 		return v
 	}
+
 	tmp := reflect.New(v.Type()).Elem()
 	tmp.Set(v)
+
 	return tmp
 }
 
@@ -272,15 +364,19 @@ func setDst(dst, out reflect.Value) {
 			dst.Set(out)
 			return
 		}
+
 		if dst.IsNil() {
 			dst.Set(reflect.New(dst.Type().Elem()))
 		}
+
 		dst = dst.Elem()
 	}
+
 	elem := out.Elem()
 	if dst.Kind() == reflect.Interface && (isMessage(elem.Type()) || !elem.Type().Implements(dst.Type())) {
 		dst.Set(out)
 		return
 	}
+
 	dst.Set(elem)
 }

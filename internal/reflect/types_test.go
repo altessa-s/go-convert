@@ -40,16 +40,19 @@ func TestIndirectType(t *testing.T) {
 
 func TestIndirectValueAndMakeDstPointerDepth(t *testing.T) {
 	t.Parallel()
+
 	value := 7
 	valuePtr := &value
 	got := reflectutils.IndirectValue(reflect.ValueOf(&valuePtr))
 	require.Equal(t, int64(7), got.Int())
 
 	var nilInner *int
+
 	got = reflectutils.IndirectValue(reflect.ValueOf(&nilInner))
 	require.False(t, got.IsValid())
 
 	var destination **int
+
 	dst := reflect.ValueOf(&destination).Elem()
 	reflectutils.MakeDst(&dst, reflect.TypeFor[int]())
 	require.NotNil(t, destination)
@@ -59,6 +62,7 @@ func TestIndirectValueAndMakeDstPointerDepth(t *testing.T) {
 
 func TestMakeDst_Pointer(t *testing.T) {
 	var dst *testStruct
+
 	v := reflect.ValueOf(&dst).Elem()
 	typ := reflect.TypeFor[testStruct]()
 
@@ -69,6 +73,7 @@ func TestMakeDst_Pointer(t *testing.T) {
 
 func TestMakeDst_NonPointer(t *testing.T) {
 	var dst testStruct
+
 	v := reflect.ValueOf(&dst).Elem()
 	typ := reflect.TypeFor[testStruct]()
 
@@ -143,8 +148,10 @@ func TestConvertValue(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			got, ok := reflectutils.ConvertValue(reflect.ValueOf(tc.src), tc.dst)
 			require.Equal(t, tc.wantOK, ok)
+
 			if tc.wantOK {
 				require.Equal(t, tc.want, got.Interface())
 			}

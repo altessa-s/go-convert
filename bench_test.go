@@ -24,12 +24,14 @@ type BenchLarge struct {
 
 func BenchmarkConvert_Small(b *testing.B) {
 	src := BenchSmall{A: 1, B: 2, C: 3}
+
 	var dst BenchSmall
 
 	// Create converter once to amortize setup
 	conv := converter.New[BenchSmall, *BenchSmall]()
 
 	b.ResetTimer()
+
 	for b.Loop() {
 		conv.Convert(src, &dst)
 	}
@@ -41,11 +43,13 @@ func BenchmarkConvert_Large(b *testing.B) {
 		I: 1, J: 2, K: 3, L: 4, M: 5, N: 6, O: 7, P: 8,
 		Nested: BenchSmall{A: 1, B: 2, C: 3},
 	}
+
 	var dst BenchLarge
 
 	conv := converter.New[BenchLarge, *BenchLarge]()
 
 	b.ResetTimer()
+
 	for b.Loop() {
 		conv.Convert(src, &dst)
 	}
@@ -56,11 +60,13 @@ func BenchmarkConvert_Slice(b *testing.B) {
 	for i := range src {
 		src[i] = BenchSmall{A: i, B: i, C: i}
 	}
+
 	var dst []BenchSmall
 
 	conv := converter.New[[]BenchSmall, *[]BenchSmall]()
 
 	b.ResetTimer()
+
 	for b.Loop() {
 		conv.Convert(src, &dst)
 	}
@@ -69,9 +75,11 @@ func BenchmarkConvert_Slice(b *testing.B) {
 func BenchmarkConvert_OneOff(b *testing.B) {
 	// Tests overhead of creating new converter every time (New + Convert)
 	src := BenchSmall{A: 1, B: 2, C: 3}
+
 	var dst BenchSmall
 
 	b.ResetTimer()
+
 	for b.Loop() {
 		converter.Convert(src, &dst)
 	}
@@ -93,6 +101,7 @@ func BenchmarkConvert_Large_WithPassthroughCodec(b *testing.B) {
 		I: 1, J: 2, K: 3, L: 4, M: 5, N: 6, O: 7, P: 8,
 		Nested: BenchSmall{A: 1, B: 2, C: 3},
 	}
+
 	var dst BenchLarge
 
 	passthrough := func(field string, s, d reflect.Value, next convcodec.CodecHandler) {
@@ -102,6 +111,7 @@ func BenchmarkConvert_Large_WithPassthroughCodec(b *testing.B) {
 	conv := converter.New[BenchLarge, *BenchLarge](converter.WithCodecs(passthrough))
 
 	b.ResetTimer()
+
 	for b.Loop() {
 		conv.Convert(src, &dst)
 	}
@@ -118,6 +128,7 @@ func BenchmarkConvert_SparseMerge(b *testing.B) {
 		Field *string
 		Label *string
 	}
+
 	type benchMerge struct {
 		Name   *string
 		Title  *string
@@ -130,6 +141,7 @@ func BenchmarkConvert_SparseMerge(b *testing.B) {
 	conv := converter.New[*benchMerge, *benchMerge](converter.WithSparseMerge())
 
 	b.ResetTimer()
+
 	for b.Loop() {
 		conv.Convert(&src, &dst)
 	}
@@ -159,7 +171,9 @@ func BenchmarkConvert_Slice_DifferentTypes(b *testing.B) {
 	b.Run("values", func(b *testing.B) {
 		conv := converter.New[benchSliceHolder, *benchSliceDTO]()
 		src := benchSliceHolder{Items: items}
+
 		b.ReportAllocs()
+
 		for b.Loop() {
 			var dst benchSliceDTO
 			conv.Convert(src, &dst)
@@ -168,7 +182,9 @@ func BenchmarkConvert_Slice_DifferentTypes(b *testing.B) {
 	b.Run("pointers", func(b *testing.B) {
 		conv := converter.New[benchPtrSliceHolder, *benchSliceDTO]()
 		src := benchPtrSliceHolder{PtrItems: items}
+
 		b.ReportAllocs()
+
 		for b.Loop() {
 			var dst benchSliceDTO
 			conv.Convert(src, &dst)
@@ -193,7 +209,9 @@ func BenchmarkConvert_DynamicIgnorePaths(b *testing.B) {
 		Name: "holder",
 	}
 	conv := converter.New[benchDynamicHolder, *benchDynamicHolder](converter.WithIgnorePaths("data.profile.secret"))
+
 	b.ReportAllocs()
+
 	for b.Loop() {
 		var dst benchDynamicHolder
 		conv.Convert(src, &dst)
@@ -218,9 +236,12 @@ type benchEmbeddedDst struct {
 // BenchmarkConvert_Embedded covers the embedded-struct branches of the struct walker.
 func BenchmarkConvert_Embedded(b *testing.B) {
 	src := benchEmbeddedSrc{ID: "id", Owner: "o", Name: "n", Count: 1}
+
 	b.Run("unwrap", func(b *testing.B) {
 		conv := converter.New[benchEmbeddedSrc, *benchEmbeddedDst]()
+
 		b.ReportAllocs()
+
 		for b.Loop() {
 			var dst benchEmbeddedDst
 			conv.Convert(src, &dst)
@@ -228,7 +249,9 @@ func BenchmarkConvert_Embedded(b *testing.B) {
 	})
 	b.Run("handle_embedded", func(b *testing.B) {
 		conv := converter.New[benchEmbeddedSrc, *benchEmbeddedDst](converter.WithHandleEmbeddedStructs(false))
+
 		b.ReportAllocs()
+
 		for b.Loop() {
 			var dst benchEmbeddedDst
 			conv.Convert(src, &dst)

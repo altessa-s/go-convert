@@ -15,4 +15,9 @@ type options struct {
 	// sets the destination to its zero value unless this option is set, in
 	// which case the destination is left untouched.
 	ignoreNil bool
+	// maxDepth ([WithMaxDepth]) limits how deeply lists and maps may nest in
+	// a value converted by [NewE]; deeper values, and lists or maps that
+	// contain themselves, fail with a [ValueError] instead of exhausting the
+	// stack. Values below 1 select [DefaultMaxDepth].
+	maxDepth int `optgen:"default=DefaultMaxDepth"`
 }

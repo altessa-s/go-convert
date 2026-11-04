@@ -28,7 +28,9 @@ func Lookup(from, to reflect.Kind) (Func, bool) {
 	if from >= numKinds || to >= numKinds {
 		return nil, false
 	}
+
 	fn := table[from][to]
+
 	return fn, fn != nil
 }
 
@@ -41,31 +43,40 @@ func Convert(src, dst reflect.Value, checkOverflow bool) (handled, overflow bool
 	if !srcVal.IsValid() || !reflectutils.IsPrimitive(srcVal.Kind()) {
 		return false, false
 	}
+
 	dstType := reflectutils.IndirectType(dst.Type())
+
 	fn, ok := Lookup(srcVal.Kind(), dstType.Kind())
 	if !ok {
 		return false, false
 	}
+
 	dstVal := dst
 	if dst.Kind() == reflect.Pointer && dst.IsNil() {
 		if srcVal.IsZero() || !dst.CanSet() {
 			return false, false
 		}
+
 		reflectutils.MakeDst(&dstVal, dstType)
 	}
+
 	dstVal = reflectutils.IndirectValue(dstVal)
 	if !dstVal.IsValid() || !dstVal.CanSet() || !srcVal.CanAddr() || !dstVal.CanAddr() {
 		return false, false
 	}
+
 	if checkOverflow && WouldOverflow(srcVal, dstVal) {
 		return false, true
 	}
+
 	fn(unsafe.Pointer(srcVal.UnsafeAddr()), unsafe.Pointer(dstVal.UnsafeAddr())) // #nosec G103 -- see Func
+
 	return true, false
 }
 
 const numKinds = reflect.UnsafePointer + 1
 
+// buildTable indexes the conversion functions by source and destination kind.
 func buildTable() *[numKinds][numKinds]Func {
 	pairs := map[[2]reflect.Kind]Func{
 		// Int conversions
@@ -173,6 +184,7 @@ func buildTable() *[numKinds][numKinds]Func {
 	for kinds, fn := range pairs {
 		t[kinds[0]][kinds[1]] = fn
 	}
+
 	return &t
 }
 
@@ -200,6 +212,7 @@ func WouldOverflow(srcVal, dstVal reflect.Value) bool {
 		if v < 0 {
 			return true
 		}
+
 		return reflect.New(dstVal.Type()).Elem().OverflowUint(uint64(v))
 
 	// uint → int: check if value exceeds signed max
@@ -208,15 +221,18 @@ func WouldOverflow(srcVal, dstVal reflect.Value) bool {
 		if v > uint64(^uint(0)>>1) { // exceeds max int64
 			return true
 		}
+
 		return reflect.New(dstVal.Type()).Elem().OverflowInt(int64(v))
 
 	// float → int
 	case isSignedInt(dstKind) && isFloat(srcKind):
 		f := srcVal.Float()
+
 		i := int64(f)
 		if float64(i) != f {
 			return true
 		}
+
 		return reflect.New(dstVal.Type()).Elem().OverflowInt(i)
 
 	// float → uint
@@ -225,10 +241,12 @@ func WouldOverflow(srcVal, dstVal reflect.Value) bool {
 		if f < 0 {
 			return true
 		}
+
 		u := uint64(f)
 		if float64(u) != f {
 			return true
 		}
+
 		return reflect.New(dstVal.Type()).Elem().OverflowUint(u)
 
 	// int → float: check precision loss for float32
@@ -236,6 +254,7 @@ func WouldOverflow(srcVal, dstVal reflect.Value) bool {
 		if dstKind == reflect.Float32 {
 			return reflect.New(dstVal.Type()).Elem().OverflowFloat(float64(srcVal.Int()))
 		}
+
 		return false
 
 	// uint → float: check precision loss for float32
@@ -243,20 +262,24 @@ func WouldOverflow(srcVal, dstVal reflect.Value) bool {
 		if dstKind == reflect.Float32 {
 			return reflect.New(dstVal.Type()).Elem().OverflowFloat(float64(srcVal.Uint()))
 		}
+
 		return false
 	}
 
 	return false
 }
 
+// isSignedInt reports whether k is a signed integer kind.
 func isSignedInt(k reflect.Kind) bool {
 	return k >= reflect.Int && k <= reflect.Int64
 }
 
+// isUnsignedInt reports whether k is an unsigned integer kind.
 func isUnsignedInt(k reflect.Kind) bool {
 	return k >= reflect.Uint && k <= reflect.Uint64 || k == reflect.Uintptr
 }
 
+// isFloat reports whether k is a floating-point kind.
 func isFloat(k reflect.Kind) bool {
 	return k == reflect.Float32 || k == reflect.Float64
 }

@@ -30,7 +30,9 @@ func BenchmarkRunError(b *testing.B) {
 	src := reflect.ValueOf(1)
 	dst := reflect.New(reflect.TypeFor[int]()).Elem()
 	finish := func(string, reflect.Value, reflect.Value) error { return nil }
+
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = set.RunError("a.b", "b", src, dst, finish)
 	}

@@ -27,6 +27,7 @@ func TestCopySlices(t *testing.T) {
 		t.Parallel()
 
 		src := copySource{Tags: []string{"a", "b"}}
+
 		var dst copyDest
 		converter.Convert(src, &dst, converter.WithCopySlices())
 
@@ -47,6 +48,7 @@ func TestCopySlices(t *testing.T) {
 		t.Parallel()
 
 		src := copySource{Tags: []string{}}
+
 		var dst copyDest
 		converter.Convert(src, &dst, converter.WithCopySlices())
 		require.NotNil(t, dst.Tags)
@@ -68,7 +70,9 @@ type profileDest struct {
 
 func TestCopySlicesNestedStruct(t *testing.T) {
 	t.Parallel()
+
 	src := profileSource{Profile: profile{Tags: []string{"a"}}}
+
 	var dst profileDest
 	converter.Convert(src, &dst, converter.WithCopySlices())
 	dst.Profile.Tags[0] = "changed"
@@ -85,11 +89,14 @@ type slicePointerDest struct {
 
 func TestCopySlicesPointerToSlice(t *testing.T) {
 	t.Parallel()
+
 	tags := []string{"a"}
 	src := slicePointerSource{Tags: &tags}
+
 	var dst slicePointerDest
 	converter.Convert(src, &dst, converter.WithCopySlices())
 	(*dst.Tags)[0] = "changed"
+
 	require.Equal(t, "a", tags[0])
 }
 
@@ -110,7 +117,9 @@ type unexportedOuter struct {
 
 func TestCopySlicesPreservesUnexportedFields(t *testing.T) {
 	t.Parallel()
+
 	src := unexportedOuter{Profile: newUnexportedProfile()}
+
 	var dst unexportedOuter
 	converter.Convert(src, &dst, converter.WithCopySlices())
 	require.Equal(t, "h", dst.Profile.Hash())
@@ -129,11 +138,15 @@ type recursiveHolder struct {
 
 func TestCopySlicesRecursiveType(t *testing.T) {
 	t.Parallel()
+
 	src := recursiveHolder{Items: []recursiveNode{{Tags: []string{"a"}}}}
+
 	var dst recursiveHolder
+
 	require.NotPanics(t, func() {
 		converter.Convert(src, &dst, converter.WithCopySlices())
 	})
+
 	dst.Items[0].Tags[0] = "changed"
 	require.Equal(t, "a", src.Items[0].Tags[0])
 }

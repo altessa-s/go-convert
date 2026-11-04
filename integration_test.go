@@ -31,8 +31,11 @@ type integrationCustomerDTO struct {
 
 func TestIntegration_NestedDomainConversion(t *testing.T) {
 	t.Parallel()
+
 	source := integrationCustomer{ID: "customer-1", Address: &integrationAddress{City: "Novosibirsk", PostalCode: 630000}, Tags: []string{"active", "verified"}}
+
 	var destination integrationCustomerDTO
+
 	_, err := converter.ConvertE(source, &destination, converter.WithCopySlices())
 	require.NoError(t, err)
 	require.Equal(t, source.ID, destination.ID)

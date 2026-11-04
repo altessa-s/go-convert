@@ -46,6 +46,7 @@ func (info *Info) AssignableTo(src, dst reflect.Type) bool {
 	if src == dst {
 		return true
 	}
+
 	return info.assignable.Get(dst, func() bool { return src.AssignableTo(dst) })
 }
 
@@ -55,6 +56,7 @@ func (info *Info) ConvertibleTo(src, dst reflect.Type) bool {
 	if src == dst {
 		return true
 	}
+
 	return info.convertible.Get(dst, func() bool { return src.ConvertibleTo(dst) })
 }
 
@@ -67,6 +69,7 @@ type Cache struct {
 func NewCache() *Cache {
 	c := &Cache{}
 	c.infos.limit = MaxTypes
+
 	return c
 }
 
@@ -78,15 +81,18 @@ func (c *Cache) Get(t reflect.Type) *Info {
 // Len reports the number of cached descriptions.
 func (c *Cache) Len() int { return c.infos.Len() }
 
+// build describes the struct behind t; other types get an empty description.
 func build(t reflect.Type) *Info {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
+
 	if t.Kind() != reflect.Struct {
 		return &Info{}
 	}
 
 	n := t.NumField()
+
 	info := &Info{
 		Fields:   make([]Field, n),
 		ByName:   make(map[string]int, n),
@@ -99,22 +105,27 @@ func build(t reflect.Type) *Info {
 			Exported: field.IsExported(),
 			Embedded: field.Anonymous,
 		}
+
 		info.Fields[i] = f
 		if !f.Exported {
 			continue
 		}
+
 		info.ByName[f.Lower] = i
 		if f.Embedded && indirect(field.Type).Kind() == reflect.Struct {
 			info.Embedded[f.Lower] = i
 		}
 	}
+
 	return info
 }
 
+// indirect strips all pointer levels from t.
 func indirect(t reflect.Type) reflect.Type {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
+
 	return t
 }
 
@@ -147,27 +158,34 @@ func (b *Keyed[K, V]) Get(key K, compute func() V) V {
 			return value
 		}
 	}
+
 	value := compute()
+
 	actual, loaded := b.entries.LoadOrStore(key, value)
 	if loaded {
 		if stored, ok := actual.(V); ok {
 			return stored
 		}
+
 		return value
 	}
+
 	if b.size.Add(1) > int64(b.max()) {
 		b.evictOne(key)
 	}
+
 	return value
 }
 
 // Len reports the number of memoized entries.
 func (b *Keyed[K, V]) Len() int { return int(b.size.Load()) }
 
+// max returns the configured limit or MaxRelations.
 func (b *Keyed[K, V]) max() int {
 	if b.limit > 0 {
 		return b.limit
 	}
+
 	return MaxRelations
 }
 
@@ -177,10 +195,12 @@ func (b *Keyed[K, V]) evictOne(keep K) {
 		if k, ok := key.(K); ok && k == keep {
 			return true
 		}
+
 		if _, deleted := b.entries.LoadAndDelete(key); deleted {
 			b.size.Add(-1)
 			return false
 		}
+
 		return true
 	})
 }

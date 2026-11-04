@@ -31,7 +31,7 @@ type planSrc struct {
 	In     planInner
 	S      []int
 	Gone   int
-	hidden int
+	hidden int //nolint:unused // checks that unexported fields are skipped
 }
 
 type planDst struct {
@@ -49,6 +49,7 @@ func planKinds(p *structPlan) map[string]stepKind {
 	for _, step := range p.steps {
 		kinds[step.name] = step.kind
 	}
+
 	return kinds
 }
 
@@ -57,6 +58,7 @@ func set(names ...string) map[string]struct{} {
 	for _, n := range names {
 		m[n] = struct{}{}
 	}
+
 	return m
 }
 
@@ -80,9 +82,11 @@ func TestBuildPlanChoosesSteps(t *testing.T) {
 		out := make(map[string]stepKind, len(base))
 		maps.Copy(out, base)
 		maps.Copy(out, changes)
+
 		for _, k := range drop {
 			delete(out, k)
 		}
+
 		return out
 	}
 
@@ -118,10 +122,12 @@ func TestBuildPlanChoosesSteps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			e := New(tt.cfg)
 			plan := e.planFor(src, dst)
 			require.Equal(t, tt.want, planKinds(plan))
 			require.Same(t, plan, e.planFor(src, dst), "plans are cached")
+
 			for _, step := range plan.steps {
 				require.NotEqual(t, "gone", step.name, "missing destination fields are dropped")
 				require.NotEqual(t, "hidden", step.name, "unexported fields are dropped")
@@ -136,10 +142,12 @@ func TestBuildPlanResolvesIndices(t *testing.T) {
 
 	e := New(Config{FieldMappings: map[string]string{"a": "c"}})
 	plan := e.planFor(reflect.TypeFor[planSrc](), reflect.TypeFor[planDst]())
+
 	byName := make(map[string]fieldStep)
 	for _, step := range plan.steps {
 		byName[step.name] = step
 	}
+
 	require.Equal(t, 1, byName["a"].src)
 	require.Equal(t, 2, byName["a"].dst, "a maps to destination field c")
 	require.Equal(t, -1, byName["planembedded"].dst, "the destination has no embedded field")
@@ -174,6 +182,7 @@ func TestPlanCacheIsBoundedUnderConcurrency(t *testing.T) {
 
 	e := New(Config{IgnoreFields: set("other")})
 	dst := reflect.TypeFor[planDst]()
+
 	var wg sync.WaitGroup
 	for i := range typeinfo.MaxTypes + 64 {
 		wg.Go(func() {
@@ -183,6 +192,7 @@ func TestPlanCacheIsBoundedUnderConcurrency(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 	require.LessOrEqual(t, e.plans.Len(), typeinfo.MaxTypes)
 }
@@ -191,20 +201,24 @@ func TestPlannedConversionIsConcurrencySafe(t *testing.T) {
 	t.Parallel()
 
 	e := New(Config{OverflowCheck: true})
+
 	var wg sync.WaitGroup
 	for i := range 64 {
 		wg.Go(func() {
 			n := i
+
 			var out planDst
 			if err := e.Convert(&planSrc{A: i, B: int32(i), C: "c", D: &n, In: planInner{X: i}, S: []int{i}}, &out); err != nil {
 				panic(err)
 			}
+
 			want := planDst{A: i, B: int64(i), C: "c", D: &n, In: planInner{X: i}, S: []int{i}}
 			if !reflect.DeepEqual(want, out) {
 				panic("unexpected conversion result")
 			}
 		})
 	}
+
 	wg.Wait()
 }
 
@@ -212,32 +226,39 @@ func TestPlannedStepsKeepSemantics(t *testing.T) {
 	t.Parallel()
 
 	type narrowSrc struct{ V int64 }
+
 	type narrowDst struct{ V int8 }
 
 	t.Run("overflow", func(t *testing.T) {
 		t.Parallel()
+
 		err := New(Config{OverflowCheck: true}).Convert(&narrowSrc{V: 300}, &narrowDst{})
 		require.Equal(t, OverflowError{Field: "v", From: reflect.Int64, To: reflect.Int8, Value: int64(300)}, err)
 	})
 	t.Run("unaddressable source", func(t *testing.T) {
 		t.Parallel()
+
 		var out narrowDst
 		require.NoError(t, New(Config{}).Convert(narrowSrc{V: 7}, &out))
 		require.Equal(t, int8(7), out.V)
 	})
 	t.Run("ignore zero and nil", func(t *testing.T) {
 		t.Parallel()
+
 		out := planDst{A: 1, B: 2, C: "keep", S: []int{9}}
 		require.NoError(t, New(Config{IgnoreZeroValues: true, IgnoreNilValues: true}).Convert(&planSrc{}, &out))
 		require.Equal(t, planDst{A: 1, B: 2, C: "keep", S: []int{9}}, out)
 	})
 	t.Run("depth limit applies to planned leaves", func(t *testing.T) {
 		t.Parallel()
+
 		type outer struct{ In planInner }
+
 		err := New(Config{MaxDepth: 1}).Convert(&outer{In: planInner{X: 1}}, &planDst{})
 		require.NoError(t, err, "a struct assigned as a leaf needs one level")
 
 		type outerDst struct{ In struct{ X int64 } }
+
 		err = New(Config{MaxDepth: 1}).Convert(&outer{In: planInner{X: 1}}, &outerDst{})
 		require.Equal(t, DepthError{Limit: 1, Path: ""}, err)
 	})

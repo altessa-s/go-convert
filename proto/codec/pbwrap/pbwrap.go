@@ -22,16 +22,6 @@ const (
 	// ValueFieldName is the standard field name inside every protobuf wrapper
 	// struct that holds the primitive payload.
 	ValueFieldName = "Value"
-
-	// Protobuf wrapper type name constants used for documentation and testing.
-	StringValue = "wrapperspb.StringValue"
-	Int32Value  = "wrapperspb.Int32Value"
-	Int64Value  = "wrapperspb.Int64Value"
-	UInt32Value = "wrapperspb.UInt32Value"
-	UInt64Value = "wrapperspb.UInt64Value"
-	BoolValue   = "wrapperspb.BoolValue"
-	FloatValue  = "wrapperspb.FloatValue"
-	DoubleValue = "wrapperspb.DoubleValue"
 )
 
 // Registry performs protobuf wrapper conversions.
@@ -76,6 +66,7 @@ func (r *Registry) TryConvert(src, dst reflect.Value, opts *options) bool {
 		if !unwrappedValue.IsValid() {
 			return false
 		}
+
 		convertedValue, ok := reflectutils.ConvertValue(unwrappedValue, dstType)
 		if !ok {
 			return false
@@ -92,7 +83,9 @@ func (r *Registry) TryConvert(src, dst reflect.Value, opts *options) bool {
 		if !ok {
 			return false
 		}
+
 		destination.Set(convertedValue)
+
 		return true
 	}
 
@@ -108,6 +101,7 @@ func (r *Registry) TryConvert(src, dst reflect.Value, opts *options) bool {
 		if !ok {
 			return false
 		}
+
 		wrappedValue, ok := reflectutils.ConvertValue(srcValue, valueField.Type)
 		if !ok {
 			return false
@@ -118,7 +112,9 @@ func (r *Registry) TryConvert(src, dst reflect.Value, opts *options) bool {
 		if !ok {
 			return false
 		}
+
 		destination.FieldByName(ValueFieldName).Set(wrappedValue)
+
 		return true
 	}
 
@@ -139,10 +135,13 @@ func indirectDestination(dst reflect.Value) (reflect.Value, bool) {
 			if !dst.CanSet() {
 				return reflect.Value{}, false
 			}
+
 			dst.Set(reflect.New(dst.Type().Elem()))
 		}
+
 		dst = dst.Elem()
 	}
+
 	return dst, dst.CanSet()
 }
 
@@ -184,9 +183,11 @@ func unwrapWrapper(v reflect.Value) reflect.Value {
 	if !v.IsValid() {
 		return reflect.Value{}
 	}
+
 	v = indirectSource(v)
 	if !v.IsValid() {
 		return reflect.Value{}
 	}
+
 	return v.FieldByName(ValueFieldName)
 }

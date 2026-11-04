@@ -30,14 +30,17 @@ const (
 //   - N ↔ *T: Valid=false ↔ nil pointer; a valid value ↔ a pointer to it.
 //   - N ↔ T:  Valid=false ↔ zero T (see [WithZeroAsNull]); a valid value ↔ T.
 //   - N ↔ N2: two different null types; Valid=false stays invalid, a valid
-//     value is converted T → T2 by the rest of the chain.
+//     value is converted T → T2 by the rest of the chain (a zero T2 is
+//     stored as Valid=false with [WithZeroAsNull]).
 //
 // Composition: when one side is N and the other is some type W the codec does
 // not bridge directly, it unwraps / wraps N and delegates the T ↔ W conversion
 // to the rest of the chain, as codec/optionalcodec does. On the W → N side a
-// converted value that is the zero T (reflect.Value.IsZero) is stored as
-// Valid=false, so a nil *W maps to NULL. Errors from the chain are returned
-// unchanged. Register this codec before the codec that handles T ↔ W.
+// nil source (nil pointer or interface) is stored as Valid=false without
+// calling the chain; any other converted value is valid, except that with
+// [WithZeroAsNull] a zero T converted from a non-pointer source is stored as
+// Valid=false, as in the N ↔ T and N ↔ N2 shapes. Errors from the chain are
+// returned unchanged. Register this codec before the codec that handles T ↔ W.
 //
 // Pairs with no null type, and identical null types, are delegated to next.
 // Null types are recognized as values only, not through pointers.
@@ -47,6 +50,7 @@ const (
 //	converter.ConvertE(row, &entity, converter.WithErrorCodecs(sqlnull.New()))
 func New(opts ...Option) convcodec.CodecE {
 	o := newOptions(opts...)
+
 	return func(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 		return convert(path, src, dst, next, o)
 	}
@@ -59,18 +63,22 @@ func IsNullType(t reflect.Type) bool {
 	if t.Kind() != reflect.Struct || t.PkgPath() != sqlPackage || !strings.HasPrefix(t.Name(), "Null") || t.NumField() != nullFields {
 		return false
 	}
+
 	valid := t.Field(validField)
+
 	return valid.Name == "Valid" && valid.Type.Kind() == reflect.Bool
 }
 
+// convert handles null type pairs and delegates the rest to next.
 func convert(path string, src, dst reflect.Value, next convcodec.CodecHandlerE, o *options) error {
 	srcType, dstType := src.Type(), dst.Type()
+
 	srcNull, dstNull := IsNullType(srcType), IsNullType(dstType)
 	switch {
 	case srcNull == dstNull && (!srcNull || srcType == dstType):
 		return next(path, src, dst)
 	case srcNull && dstNull:
-		return nullToNull(path, src, dst, next)
+		return nullToNull(path, src, dst, next, o)
 	case srcNull:
 		return fromNull(path, src, dst, next)
 	default:
@@ -79,16 +87,19 @@ func convert(path string, src, dst reflect.Value, next convcodec.CodecHandlerE, 
 }
 
 // nullToNull converts between two different null types.
-func nullToNull(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
+func nullToNull(path string, src, dst reflect.Value, next convcodec.CodecHandlerE, o *options) error {
 	if !src.Field(validField).Bool() {
 		dst.SetZero()
 		return nil
 	}
+
 	value := reflect.New(dst.Type().Field(valueField).Type).Elem()
 	if err := next(path, src.Field(valueField), value); err != nil {
 		return err
 	}
-	setValid(dst, value)
+
+	setNullable(dst, value, o)
+
 	return nil
 }
 
@@ -98,7 +109,9 @@ func fromNull(path string, src, dst reflect.Value, next convcodec.CodecHandlerE)
 		dst.SetZero()
 		return nil
 	}
+
 	value := src.Field(valueField)
+
 	inner, dstType := value.Type(), dst.Type()
 	switch {
 	case dstType == inner:
@@ -110,38 +123,53 @@ func fromNull(path string, src, dst reflect.Value, next convcodec.CodecHandlerE)
 	default:
 		return next(path, value, dst)
 	}
+
 	return nil
 }
 
 // toNull converts a plain source into a null type destination.
 func toNull(path string, src, dst reflect.Value, next convcodec.CodecHandlerE, o *options) error {
 	srcType := src.Type()
+
 	inner := dst.Type().Field(valueField).Type
 	switch {
 	case srcType == inner:
-		if o.zeroAsNull && src.IsZero() {
-			dst.SetZero()
-			return nil
-		}
-		setValid(dst, src)
+		setNullable(dst, src, o)
 	case srcType.Kind() == reflect.Pointer && srcType.Elem() == inner:
 		if src.IsNil() {
 			dst.SetZero()
 			return nil
 		}
+
 		setValid(dst, src.Elem())
+	case (srcType.Kind() == reflect.Pointer || srcType.Kind() == reflect.Interface) && src.IsNil():
+		dst.SetZero()
 	default:
 		value := reflect.New(inner).Elem()
 		if err := next(path, src, value); err != nil {
 			return err
 		}
-		if value.IsZero() {
-			dst.SetZero()
+
+		if srcType.Kind() == reflect.Pointer {
+			setValid(dst, value)
 			return nil
 		}
-		setValid(dst, value)
+
+		setNullable(dst, value, o)
 	}
+
 	return nil
+}
+
+// setNullable stores value into a null type destination: as NULL when it is
+// zero and [WithZeroAsNull] is set, as a valid value otherwise.
+func setNullable(dst, value reflect.Value, o *options) {
+	if o.zeroAsNull && value.IsZero() {
+		dst.SetZero()
+		return
+	}
+
+	setValid(dst, value)
 }
 
 // setValid stores value into a null type destination and marks it valid.

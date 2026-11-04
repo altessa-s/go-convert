@@ -21,6 +21,7 @@ func ExampleIgnorePaths() {
 		TypeUrl string
 		Value   []byte
 	}
+
 	type Option struct {
 		Name  string
 		Value *Payload
@@ -37,12 +38,14 @@ func ExampleIgnorePaths() {
 		fmt.Println(err)
 		return
 	}
+
 	fmt.Println(paths)
 
 	if _, err := converter.ConvertE(update, &stored, converter.WithIgnorePaths(paths...)); err != nil {
 		fmt.Println(err)
 		return
 	}
+
 	fmt.Println(stored.Name, stored.Value.TypeUrl, string(stored.Value.Value))
 
 	_, err = fieldmaskpb.IgnorePaths(&fmpb.FieldMask{Paths: []string{"value.typeUrl"}}, update)
@@ -57,6 +60,7 @@ func ExampleNew() {
 	type Request struct {
 		UpdateMask []string
 	}
+
 	type RequestPB struct {
 		UpdateMask *fmpb.FieldMask
 	}

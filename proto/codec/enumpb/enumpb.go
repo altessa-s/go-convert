@@ -30,11 +30,13 @@ type UnknownValueError struct {
 	Value any
 }
 
+// Error reports the field path, the enum and the unknown value.
 func (e UnknownValueError) Error() string {
 	value := fmt.Sprint(e.Value)
 	if s, ok := e.Value.(string); ok {
 		value = fmt.Sprintf("%q", s)
 	}
+
 	return fmt.Sprintf("enumpb: field %q: %s has no value for %s", e.Path, e.Enum, value)
 }
 
@@ -59,18 +61,20 @@ type stringCodec struct {
 // [WithTrimEnumPrefix] and [WithCase]; a string is parsed with the same
 // transformation. A number or name without a value in the enum descriptor
 // fails with [UnknownValueError], which converter.ConvertE returns unchanged.
-// A nil source pointer leaves the destination unchanged. Register the codec
-// with converter.WithErrorCodecs.
+// A nil source pointer sets the destination to its zero value. New panics
+// when [WithCase] is given a value other than [CaseKeep], [CaseLower] and
+// [CaseUpper]. Register the codec with converter.WithErrorCodecs.
 //
 // Example:
 //
 //	codec := enumpb.New(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower))
 //	err := converter.ConvertE(msg, &dto, converter.WithErrorCodecs(codec))
 func New(opts ...Option) convcodec.CodecE {
-	c := &stringCodec{opts: newOptions(opts...)}
+	c := &stringCodec{opts: checkedOptions("New", opts)}
 	return c.convert
 }
 
+// convert handles enum and string pairs and delegates the rest to next.
 func (c *stringCodec) convert(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 	srcType := reflectutils.IndirectType(src.Type())
 	dstType := reflectutils.IndirectType(dst.Type())
@@ -94,6 +98,7 @@ func (c *stringCodec) convert(path string, src, dst reflect.Value, next convcode
 func (c *stringCodec) toString(path string, table *enumNames, src, dst reflect.Value, dstType reflect.Type) error {
 	value := reflectutils.IndirectValue(src)
 	if !value.IsValid() {
+		zeroDst(dst)
 		return nil
 	}
 
@@ -110,6 +115,7 @@ func (c *stringCodec) toString(path string, table *enumNames, src, dst reflect.V
 
 	reflectutils.MakeDst(&dst, dstType)
 	dst.SetString(name)
+
 	return nil
 }
 
@@ -117,6 +123,7 @@ func (c *stringCodec) toString(path string, table *enumNames, src, dst reflect.V
 func (c *stringCodec) fromString(path string, table *enumNames, src, dst reflect.Value, dstType reflect.Type) error {
 	value := reflectutils.IndirectValue(src)
 	if !value.IsValid() {
+		zeroDst(dst)
 		return nil
 	}
 
@@ -133,7 +140,27 @@ func (c *stringCodec) fromString(path string, table *enumNames, src, dst reflect
 
 	reflectutils.MakeDst(&dst, dstType)
 	dst.SetInt(int64(number))
+
 	return nil
+}
+
+// checkedOptions applies opts, panicking on an invalid [Case] in the name of
+// the constructor fn.
+func checkedOptions(fn string, opts []Option) *options {
+	o := newOptions(opts...)
+	if o.nameCase < CaseKeep || o.nameCase > CaseUpper {
+		panic(fmt.Sprintf("enumpb: %s: invalid Case %d; use CaseKeep, CaseLower or CaseUpper", fn, int(o.nameCase)))
+	}
+
+	return o
+}
+
+// zeroDst applies the nil-source rule: dst is set to its zero value, such as
+// a nil pointer, "" or the zero enum.
+func zeroDst(dst reflect.Value) {
+	if dst.CanSet() {
+		dst.SetZero()
+	}
 }
 
 // table returns the name table for t, or nil when t is not a protobuf enum.
@@ -141,6 +168,7 @@ func (c *stringCodec) table(t reflect.Type) *enumNames {
 	if t.Kind() != reflect.Int32 {
 		return nil
 	}
+
 	if cached, ok := c.cache.Load(t); ok {
 		table, _ := cached.(*enumNames)
 		return table
@@ -150,7 +178,9 @@ func (c *stringCodec) table(t reflect.Type) *enumNames {
 	if desc := enumDescriptor(t); desc != nil {
 		table = newEnumNames(desc, c.opts)
 	}
+
 	c.cache.Store(t, table)
+
 	return table
 }
 
@@ -160,10 +190,12 @@ func enumDescriptor(t reflect.Type) protoreflect.EnumDescriptor {
 	if !t.Implements(enumInterface) {
 		return nil
 	}
+
 	enum, ok := reflect.TypeAssert[protoreflect.Enum](reflect.Zero(t))
 	if !ok {
 		return nil
 	}
+
 	return enum.Descriptor()
 }
 
@@ -176,6 +208,7 @@ func newEnumNames(desc protoreflect.EnumDescriptor, opts *options) *enumNames {
 	}
 
 	values := desc.Values()
+
 	table := &enumNames{
 		name:    desc.FullName(),
 		names:   make(map[protoreflect.EnumNumber]string, values.Len()),
@@ -183,14 +216,17 @@ func newEnumNames(desc protoreflect.EnumDescriptor, opts *options) *enumNames {
 	}
 	for i := range values.Len() {
 		value := values.Get(i)
+
 		name := valueName(string(value.Name()), prefix, opts.nameCase)
 		if _, ok := table.names[value.Number()]; !ok {
 			table.names[value.Number()] = name
 		}
+
 		if _, ok := table.numbers[name]; !ok {
 			table.numbers[name] = value.Number()
 		}
 	}
+
 	return table
 }
 
@@ -199,6 +235,7 @@ func valueName(name, prefix string, nameCase Case) string {
 	if prefix != "" && len(name) > len(prefix) && strings.HasPrefix(name, prefix) {
 		name = name[len(prefix):]
 	}
+
 	return foldCase(name, nameCase)
 }
 
@@ -220,24 +257,35 @@ func foldCase(name string, nameCase Case) string {
 func enumPrefix(name string) string {
 	var b strings.Builder
 	b.Grow(len(name) + len(name)/2 + 1)
+
 	for i := range len(name) {
 		c := name[i]
 		if i > 0 && isUpper(c) {
 			prev := name[i-1]
+
 			nextLower := i+1 < len(name) && isLower(name[i+1])
 			if isLower(prev) || isDigit(prev) || (isUpper(prev) && nextLower) {
 				b.WriteByte('_')
 			}
 		}
+
 		if isLower(c) {
 			c -= 'a' - 'A'
 		}
+
 		b.WriteByte(c)
 	}
+
 	b.WriteByte('_')
+
 	return b.String()
 }
 
+// isUpper reports whether c is an ASCII upper-case letter.
 func isUpper(c byte) bool { return c >= 'A' && c <= 'Z' }
+
+// isLower reports whether c is an ASCII lower-case letter.
 func isLower(c byte) bool { return c >= 'a' && c <= 'z' }
+
+// isDigit reports whether c is an ASCII digit.
 func isDigit(c byte) bool { return c >= '0' && c <= '9' }

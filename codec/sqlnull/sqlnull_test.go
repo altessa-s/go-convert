@@ -27,6 +27,7 @@ var errInner = errors.New("inner failure")
 // failing the test when the codec delegates.
 func run(t *testing.T, codec convcodec.CodecE, src, dstPtr any) error {
 	t.Helper()
+
 	return codec("Field", reflect.ValueOf(src), reflect.ValueOf(dstPtr).Elem(), func(string, reflect.Value, reflect.Value) error {
 		require.Fail(t, "next should not be called")
 		return nil
@@ -35,10 +36,12 @@ func run(t *testing.T, codec convcodec.CodecE, src, dstPtr any) error {
 
 func TestIsNullType(t *testing.T) {
 	t.Parallel()
+
 	type Null[T any] struct {
 		V     T
 		Valid bool
 	}
+
 	tests := []struct {
 		typ  reflect.Type
 		want bool
@@ -69,7 +72,9 @@ func TestIsNullType(t *testing.T) {
 
 func TestFromNull(t *testing.T) {
 	t.Parallel()
+
 	now := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
 	tests := []struct {
 		name   string
 		src    any
@@ -103,6 +108,7 @@ func TestFromNull(t *testing.T) {
 
 func TestToNull(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name   string
 		opts   []sqlnull.Option
@@ -124,6 +130,7 @@ func TestToNull(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			dst := reflect.New(reflect.TypeOf(tt.expect))
 			dst.Elem().Field(1).SetBool(true) // stale Valid flag must be cleared
 			require.NoError(t, run(t, sqlnull.New(tt.opts...), tt.src, dst.Interface()))
@@ -132,8 +139,76 @@ func TestToNull(t *testing.T) {
 	}
 }
 
+// convertInt is a stand-in chain that converts between integer kinds; a nil
+// pointer source leaves the zero destination.
+func convertInt(_ string, src, dst reflect.Value) error {
+	if v := reflect.Indirect(src); v.IsValid() {
+		dst.SetInt(v.Int())
+	}
+
+	return nil
+}
+
+func TestZeroAsNullAppliesOnlyWithOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		opts   []sqlnull.Option
+		src    any
+		expect sql.NullInt64
+	}{
+		{name: "zero int", src: 0, expect: sql.NullInt64{Valid: true}},
+		{name: "zero int as null", opts: []sqlnull.Option{sqlnull.WithZeroAsNull()}, src: 0, expect: sql.NullInt64{}},
+		{name: "int", opts: []sqlnull.Option{sqlnull.WithZeroAsNull()}, src: 3, expect: sql.NullInt64{Int64: 3, Valid: true}},
+		{name: "pointer to zero int", opts: []sqlnull.Option{sqlnull.WithZeroAsNull()}, src: new(0), expect: sql.NullInt64{Valid: true}},
+		{name: "nil int pointer", src: (*int)(nil), expect: sql.NullInt64{}},
+		{name: "zero NullInt32", src: sql.NullInt32{Valid: true}, expect: sql.NullInt64{Valid: true}},
+		{name: "zero NullInt32 as null", opts: []sqlnull.Option{sqlnull.WithZeroAsNull()}, src: sql.NullInt32{Valid: true}, expect: sql.NullInt64{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dst := sql.NullInt64{Int64: 9, Valid: true}
+			require.NoError(t, sqlnull.New(tt.opts...)("Field", reflect.ValueOf(tt.src), reflect.ValueOf(&dst).Elem(), convertInt))
+			require.Equal(t, tt.expect, dst)
+		})
+	}
+}
+
+func TestNilInterfaceSourceIsNull(t *testing.T) {
+	t.Parallel()
+
+	var src struct{ V any }
+
+	dst := sql.NullString{String: "stale", Valid: true}
+	require.NoError(t, sqlnull.New()("Field", reflect.ValueOf(&src).Elem().Field(0), reflect.ValueOf(&dst).Elem(), func(string, reflect.Value, reflect.Value) error {
+		require.Fail(t, "next should not be called")
+		return nil
+	}))
+	require.Equal(t, sql.NullString{}, dst)
+}
+
+type counter struct{ Hits int }
+
+type counterRow struct{ Hits sql.NullInt64 }
+
+func TestConverterZeroIntIsValid(t *testing.T) {
+	t.Parallel()
+
+	row, err := converter.ConvertE(counter{}, &counterRow{}, converter.WithErrorCodecs(sqlnull.New()))
+	require.NoError(t, err)
+	require.Equal(t, &counterRow{Hits: sql.NullInt64{Valid: true}}, row, "int(0) behaves as int64(0)")
+
+	row, err = converter.ConvertE(counter{}, &counterRow{}, converter.WithErrorCodecs(sqlnull.New(sqlnull.WithZeroAsNull())))
+	require.NoError(t, err)
+	require.Equal(t, &counterRow{}, row)
+}
+
 func TestComposition(t *testing.T) {
 	t.Parallel()
+
 	codec := sqlnull.New()
 	inner := func(_ string, src, dst reflect.Value) error {
 		// Stand-in for a downstream codec: int64 seconds <-> time.Time.
@@ -141,12 +216,14 @@ func TestComposition(t *testing.T) {
 			dst.SetInt(at.Unix())
 			return nil
 		}
+
 		switch {
 		case src.Kind() == reflect.Pointer && src.IsNil():
 			dst.SetZero()
 		default:
 			dst.Set(reflect.ValueOf(time.Unix(reflect.Indirect(src).Int(), 0).UTC()))
 		}
+
 		return nil
 	}
 
@@ -180,6 +257,7 @@ func TestComposition(t *testing.T) {
 
 func TestErrorsFromChain(t *testing.T) {
 	t.Parallel()
+
 	fail := func(string, reflect.Value, reflect.Value) error { return errInner }
 	codec := sqlnull.New()
 
@@ -197,6 +275,7 @@ func TestErrorsFromChain(t *testing.T) {
 
 func TestDelegates(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name     string
 		src, dst any
@@ -208,6 +287,7 @@ func TestDelegates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			called := false
 			err := sqlnull.New()("Field", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), func(string, reflect.Value, reflect.Value) error {
 				called = true
@@ -239,6 +319,7 @@ type entity struct {
 
 func TestConverterRoundTrip(t *testing.T) {
 	t.Parallel()
+
 	opts := []converter.Option{
 		converter.WithErrorCodecs(sqlnull.New()),
 		converter.WithCodecs(unixtime.New()),
@@ -266,10 +347,12 @@ func TestConverterRoundTrip(t *testing.T) {
 
 func TestConverterReturnsErrorUnchanged(t *testing.T) {
 	t.Parallel()
+
 	failing := func(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 		if src.Type() == reflect.TypeFor[time.Time]() {
 			return errInner
 		}
+
 		return next(path, src, dst)
 	}
 	_, err := converter.ConvertE(row{CreatedAt: sql.NullTime{Valid: true}}, &entity{}, converter.WithErrorCodecs(sqlnull.New(), failing))
@@ -282,6 +365,7 @@ func ExampleNew() {
 		Email sql.Null[string]
 		Age   sql.NullInt64
 	}
+
 	type User struct {
 		Name  string
 		Email *string

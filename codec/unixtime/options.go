@@ -8,9 +8,9 @@ package unixtime
 
 // options holds configuration options for Unix time conversion behavior.
 type options struct {
-	// ignoreZero ([WithIgnoreZero]) skips conversion when the source value is
-	// zero. For time.Time sources, zero means time.Time{}. For int64 sources,
-	// zero means 0.
+	// ignoreZero ([WithIgnoreZero]) skips conversion, leaving the destination
+	// unchanged, when the source is nil or zero. For time.Time sources, zero
+	// means time.Time{}. For int64 sources, zero means 0.
 	ignoreZero bool
 	// milliseconds ([WithMilliseconds]) uses millisecond precision instead of
 	// seconds: time.Time -> int64 uses UnixMilli(), int64 -> time.Time uses

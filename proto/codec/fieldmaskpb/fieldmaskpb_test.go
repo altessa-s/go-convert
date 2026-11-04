@@ -23,6 +23,7 @@ type path string
 
 func failNext(t *testing.T) func(string, reflect.Value, reflect.Value) {
 	t.Helper()
+
 	return func(string, reflect.Value, reflect.Value) {
 		require.Fail(t, "next should not be called")
 	}
@@ -43,7 +44,11 @@ func TestNew_MaskToPaths(t *testing.T) {
 		{name: "named string elements", src: mask("name"), dst: new([]path), want: []path{"name"}},
 		{name: "slice pointer", src: mask("name"), dst: new(*[]string), want: &[]string{"name"}},
 		{name: "mask without paths", src: mask(), dst: &[]string{"stale"}, want: []string(nil)},
-		{name: "nil mask leaves the destination", src: (*fmpb.FieldMask)(nil), dst: &[]string{"kept"}, want: []string{"kept"}},
+		{name: "mask without paths into a slice pointer", src: mask(), dst: new(*[]string), want: (*[]string)(nil)},
+		{name: "mask without paths clears a slice pointer", src: mask(), dst: func() **[]string { p := &[]string{"stale"}; return &p }(), want: (*[]string)(nil)},
+		{name: "nil mask clears the destination", src: (*fmpb.FieldMask)(nil), dst: &[]string{"stale"}, want: []string(nil)},
+		{name: "nil mask clears a slice pointer", src: (*fmpb.FieldMask)(nil), dst: func() **[]string { p := &[]string{"stale"}; return &p }(), want: (*[]string)(nil)},
+		{name: "ignore empty keeps on nil mask", opts: []fieldmaskpb.Option{fieldmaskpb.WithIgnoreEmpty()}, src: (*fmpb.FieldMask)(nil), dst: &[]string{"kept"}, want: []string{"kept"}},
 		{name: "ignore empty", opts: []fieldmaskpb.Option{fieldmaskpb.WithIgnoreEmpty()}, src: mask(), dst: &[]string{"kept"}, want: []string{"kept"}},
 		{name: "normalize", opts: []fieldmaskpb.Option{fieldmaskpb.WithNormalize()},
 			src: mask("name", "address.city", "address", "name"), dst: new([]string), want: []string{"address", "name"}},
@@ -74,8 +79,9 @@ func TestNew_PathsToMask(t *testing.T) {
 		{name: "slice pointer", src: &[]string{"name"}, want: mask("name")},
 		{name: "empty slice", src: []string{}, want: mask()},
 		{name: "existing mask is overwritten", src: []string{"name"}, dst: mask("stale"), want: mask("name")},
-		{name: "nil slice leaves the destination", src: []string(nil), dst: mask("kept"), want: mask("kept")},
-		{name: "nil slice pointer leaves the destination", src: (*[]string)(nil), want: nil},
+		{name: "nil slice clears the destination", src: []string(nil), dst: mask("stale"), want: nil},
+		{name: "nil slice pointer clears the destination", src: (*[]string)(nil), dst: mask("stale"), want: nil},
+		{name: "ignore empty keeps on nil slice", opts: []fieldmaskpb.Option{fieldmaskpb.WithIgnoreEmpty()}, src: []string(nil), dst: mask("kept"), want: mask("kept")},
 		{name: "ignore empty", opts: []fieldmaskpb.Option{fieldmaskpb.WithIgnoreEmpty()}, src: []string{}, want: nil},
 		{name: "normalize", opts: []fieldmaskpb.Option{fieldmaskpb.WithNormalize()},
 			src: []string{"name", "address.city", "address"}, want: mask("address", "name")},
@@ -86,10 +92,12 @@ func TestNew_PathsToMask(t *testing.T) {
 
 			dst := tt.dst
 			fieldmaskpb.New(tt.opts...)("UpdateMask", reflect.ValueOf(tt.src), reflect.ValueOf(&dst).Elem(), failNext(t))
+
 			if tt.want == nil {
 				require.Nil(t, dst)
 				return
 			}
+
 			require.True(t, proto.Equal(tt.want, dst), "got %v", dst)
 		})
 	}
@@ -101,14 +109,17 @@ func TestNew_CopiesPaths(t *testing.T) {
 	codec := fieldmaskpb.New()
 
 	src := mask("name")
+
 	var paths []string
 	codec("f", reflect.ValueOf(src), reflect.ValueOf(&paths).Elem(), failNext(t))
 	paths[0] = "changed"
+
 	require.Equal(t, []string{"name"}, src.GetPaths())
 
 	var dst *fmpb.FieldMask
 	codec("f", reflect.ValueOf(paths), reflect.ValueOf(&dst).Elem(), failNext(t))
 	paths[0] = "again"
+
 	require.Equal(t, []string{"changed"}, dst.GetPaths())
 }
 
@@ -129,6 +140,7 @@ func TestNew_Delegates(t *testing.T) {
 			t.Parallel()
 
 			called := false
+
 			fieldmaskpb.New()("f", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), func(string, reflect.Value, reflect.Value) {
 				called = true
 			})

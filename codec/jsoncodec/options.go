@@ -23,4 +23,9 @@ type options struct {
 	// json.Unmarshal from encoding/json/v2, such as json.Deterministic or
 	// json.RejectUnknownMembers.
 	jsonOptions []json.Options `opt:"JSONOptions" optgen:"append"`
+	// maxBytes ([WithMaxBytes]) is the longest JSON text, in bytes, that is
+	// decoded; longer text is rejected with an [Error] wrapping [SizeError]
+	// before decoding starts. Zero, the default, or a negative value means no
+	// limit.
+	maxBytes int `opt:"MaxBytes"`
 }

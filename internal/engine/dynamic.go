@@ -36,8 +36,10 @@ func (w *walker) convertDynamicValue(path, name string, src, dst reflect.Value, 
 		if err != nil {
 			panic(codecError{err})
 		}
+
 		return
 	}
+
 	w.cfg.Codecs.Run(name, src, dst, func(n string, s, d reflect.Value) {
 		w.convertDynamic(path, n, s, d, active)
 	})
@@ -56,29 +58,37 @@ func (w *walker) convertDynamicLeaf(path, name string, src, dst reflect.Value) {
 func (w *walker) convertDynamic(path, name string, src, dst reflect.Value, active map[dynamicIdentity]bool) {
 	w.descend(path)
 	defer func() { w.depth-- }()
+
 	if w.isIgnoredPath(path) {
 		return
 	}
+
 	if _, ignored := w.cfg.IgnoreFields[name]; ignored {
 		return
 	}
+
 	if src.Kind() == reflect.Interface {
 		if src.IsNil() {
 			if dst.Kind() == reflect.Interface {
 				dst.SetZero()
 			}
+
 			return
 		}
+
 		src = src.Elem()
 	}
+
 	if dst.Kind() == reflect.Interface {
 		w.convertDynamicIntoInterface(path, name, src, dst, active)
 		return
 	}
+
 	if src.Type() != dst.Type() || !w.hasIgnorePathBelow(path) {
 		w.convertDynamicLeaf(path, name, src, dst)
 		return
 	}
+
 	switch src.Kind() {
 	case reflect.Pointer, reflect.Map, reflect.Slice:
 		key, entered := w.enterDynamicReference(src, dst, active)
@@ -89,6 +99,7 @@ func (w *walker) convertDynamic(path, name string, src, dst reflect.Value, activ
 	default:
 		// Only reference kinds need identity tracking to break cycles.
 	}
+
 	switch src.Kind() {
 	case reflect.Pointer:
 		w.convertDynamicPointer(path, name, src, dst, active)
@@ -111,7 +122,9 @@ func (w *walker) convertDynamicIntoInterface(path, name string, src, dst reflect
 	if !dst.IsNil() && dst.Elem().Type() == src.Type() {
 		out.Set(dst.Elem())
 	}
+
 	w.convertDynamic(path, name, src, out, active)
+
 	if out.Type().AssignableTo(dst.Type()) {
 		dst.Set(out)
 	}
@@ -126,13 +139,17 @@ func (w *walker) enterDynamicReference(src, dst reflect.Value, active map[dynami
 		if !w.cfg.IgnoreNilValues {
 			dst.Set(src)
 		}
+
 		return dynamicIdentity{}, false
 	}
+
 	key := dynamicIdentity{src.Type(), src.Pointer()}
 	if active[key] {
 		return key, false
 	}
+
 	active[key] = true
+
 	return key, true
 }
 
@@ -151,12 +168,15 @@ func (w *walker) convertDynamicPointer(path, name string, src, dst reflect.Value
 	default:
 		w.convertDynamicLeaf(path, name, src, dst)
 		detachPointer(dst)
+
 		return
 	}
+
 	out := reflect.New(src.Type().Elem())
 	if !dst.IsNil() {
 		out.Elem().Set(dst.Elem())
 	}
+
 	w.convertDynamic(path, name, src.Elem(), out.Elem(), active)
 	dst.Set(out)
 }
@@ -165,22 +185,27 @@ func (w *walker) convertDynamicPointer(path, name string, src, dst reflect.Value
 // field, honoring field mappings, so ignored descendants keep their values.
 func (w *walker) convertDynamicStruct(path string, src, dst reflect.Value, active map[dynamicIdentity]bool) {
 	srcInfo := w.types.Get(src.Type())
+
 	dstInfo := w.types.Get(dst.Type())
 	if !w.cfg.SparseMerge && !w.cfg.IgnoreZeroValues && !w.cfg.IgnoreNilValues {
 		w.copyDynamicPrivateState(src, dst, dstInfo)
 	}
+
 	for i := range src.NumField() {
 		f := srcInfo.Fields[i]
 		if !f.Exported {
 			continue
 		}
+
 		target, ok := w.mappedFieldIndex(f.Lower, i, dstInfo)
 		if !ok {
 			continue
 		}
+
 		if src.Field(i).Kind() == reflect.Pointer && src.Field(i).IsNil() {
 			continue
 		}
+
 		w.convertDynamicValue(w.childPath(path, f.Lower), f.Lower, src.Field(i), dst.Field(target), active)
 	}
 }
@@ -191,6 +216,7 @@ func (w *walker) copyDynamicPrivateState(src, dst reflect.Value, dstInfo *typein
 	old := reflect.New(dst.Type()).Elem()
 	old.Set(dst)
 	dst.Set(src)
+
 	if w.cfg.CopySlices {
 		cloneSlicesInPlace(dst)
 	}
@@ -210,7 +236,9 @@ func (w *walker) mappedFieldIndex(fieldName string, i int, dstInfo *typeinfo.Inf
 	if !ok {
 		return i, true
 	}
+
 	target, exists := dstInfo.ByName[mapped]
+
 	return target, exists
 }
 
@@ -221,12 +249,15 @@ func (w *walker) convertDynamicSequence(path, name string, src, dst reflect.Valu
 	if src.Kind() == reflect.Slice {
 		out = reflect.MakeSlice(src.Type(), src.Len(), src.Len())
 	}
+
 	for i := range src.Len() {
 		if src.Kind() == reflect.Array && i < dst.Len() {
 			out.Index(i).Set(dst.Index(i))
 		}
+
 		w.convertDynamicValue(path, name, src.Index(i), out.Index(i), active)
 	}
+
 	dst.Set(out)
 }
 
@@ -234,10 +265,12 @@ func (w *walker) convertDynamicSequence(path, name string, src, dst reflect.Valu
 // ignored keys keep their destination entries and the rest are walked.
 func (w *walker) convertDynamicMap(path, name string, src, dst reflect.Value, active map[dynamicIdentity]bool) {
 	out := reflect.MakeMapWithSize(src.Type(), src.Len())
+
 	stringKeys := src.Type().Key().Kind() == reflect.String
 	if stringKeys {
 		w.keepIgnoredDynamicKeys(path, src, dst, out)
 	}
+
 	it := src.MapRange()
 	for it.Next() {
 		child, childName := path, name
@@ -245,20 +278,25 @@ func (w *walker) convertDynamicMap(path, name string, src, dst reflect.Value, ac
 			childName = strings.ToLower(it.Key().String())
 			child = w.childPath(path, childName)
 		}
+
 		old := dst.MapIndex(it.Key())
 		if w.isIgnoredPath(child) {
 			if old.IsValid() {
 				out.SetMapIndex(it.Key(), old)
 			}
+
 			continue
 		}
+
 		value := reflect.New(src.Type().Elem()).Elem()
 		if old.IsValid() {
 			value.Set(old)
 		}
+
 		w.convertDynamicValue(child, childName, it.Value(), value, active)
 		out.SetMapIndex(it.Key(), value)
 	}
+
 	dst.Set(out)
 }
 
@@ -270,6 +308,7 @@ func (w *walker) keepIgnoredDynamicKeys(path string, src, dst, out reflect.Value
 		if src.MapIndex(it.Key()).IsValid() {
 			continue
 		}
+
 		keyName := strings.ToLower(it.Key().String())
 		if w.isIgnoredPath(w.childPath(path, keyName)) {
 			out.SetMapIndex(it.Key(), it.Value())

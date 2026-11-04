@@ -24,7 +24,9 @@ type wrapperValueSliceDestination struct{ Items []string }
 
 func TestConvert_CodecPreservesExplicitZeroPointer(t *testing.T) {
 	t.Parallel()
+
 	src := wrapperSliceSource{Items: []*wrapperspb.StringValue{wrapperspb.String("")}}
+
 	var dst wrapperSliceDestination
 	converter.Convert(src, &dst, converter.WithCodecs(pbwrap.New()))
 	require.Len(t, dst.Items, 1)
@@ -34,7 +36,9 @@ func TestConvert_CodecPreservesExplicitZeroPointer(t *testing.T) {
 
 func TestConvert_NilWrapperPointerInValueSlice(t *testing.T) {
 	t.Parallel()
+
 	src := wrapperSliceSource{Items: []*wrapperspb.StringValue{nil, wrapperspb.String("value")}}
+
 	var dst wrapperValueSliceDestination
 
 	converter.Convert(src, &dst, converter.WithCodecs(pbwrap.New(), pbwrap.New(pbwrap.WithIgnoreZeroValues())))

@@ -18,6 +18,7 @@ func BenchmarkNew_TimeToInt64(b *testing.B) {
 
 	for b.Loop() {
 		var dst int64
+
 		dstVal := reflect.ValueOf(&dst).Elem()
 		codec("CreatedAt", src, dstVal, handler)
 	}
@@ -25,12 +26,15 @@ func BenchmarkNew_TimeToInt64(b *testing.B) {
 
 func BenchmarkNew_Int64ToTime(b *testing.B) {
 	codec := New()
+
 	var unix int64 = 1750000000
+
 	src := reflect.ValueOf(unix)
 	handler := func(_ string, _, _ reflect.Value) {}
 
 	for b.Loop() {
 		var dst time.Time
+
 		dstVal := reflect.ValueOf(&dst).Elem()
 		codec("CreatedAt", src, dstVal, handler)
 	}
@@ -43,6 +47,7 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 
 	for b.Loop() {
 		var dst string
+
 		dstVal := reflect.ValueOf(&dst).Elem()
 		codec("Name", src, dstVal, handler)
 	}

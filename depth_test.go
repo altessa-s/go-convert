@@ -30,6 +30,7 @@ func chain(n int) *listNode {
 	for i := range n {
 		head = &listNode{Value: i, Next: head}
 	}
+
 	return head
 }
 
@@ -40,6 +41,7 @@ func TestCyclicGraphFailsWithDepthError(t *testing.T) {
 	node.Next = node
 
 	var dst listNodeDTO
+
 	_, err := converter.ConvertE(node, &dst)
 
 	var depthErr converter.DepthError
@@ -62,6 +64,7 @@ func TestMaxDepthAllowsNestingUpToTheLimit(t *testing.T) {
 	t.Parallel()
 
 	var dst listNodeDTO
+
 	_, err := converter.ConvertE(chain(10), &dst, converter.WithMaxDepth(64))
 	require.NoError(t, err)
 
@@ -69,6 +72,7 @@ func TestMaxDepthAllowsNestingUpToTheLimit(t *testing.T) {
 	for n := &dst; n != nil; n = n.Next {
 		got++
 	}
+
 	require.Equal(t, 10, got)
 
 	_, err = converter.ConvertE(chain(100), &listNodeDTO{}, converter.WithMaxDepth(64))
@@ -132,6 +136,7 @@ func TestOverflowErrorNamesTheField(t *testing.T) {
 	t.Parallel()
 
 	type wide struct{ Count int64 }
+
 	type narrow struct{ Count int8 }
 
 	_, err := converter.ConvertE(wide{Count: 1 << 10}, &narrow{}, converter.WithOverflowCheck())

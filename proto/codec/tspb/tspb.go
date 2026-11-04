@@ -26,6 +26,7 @@ var (
 		if !ok {
 			panic("tspb: timestamppb.Timestamp has no Seconds field")
 		}
+
 		return f.Offset
 	}()
 	tsNanosOffset = func() uintptr {
@@ -33,6 +34,7 @@ var (
 		if !ok {
 			panic("tspb: timestamppb.Timestamp has no Nanos field")
 		}
+
 		return f.Offset
 	}()
 )
@@ -89,6 +91,10 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 // convertTimestampToTime handles timestamppb.Timestamp -> time.Time conversion.
 func convertTimestampToTime(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
+		if !opts.ignoreZero {
+			reflectutils.SetZero(dst)
+		}
+
 		return true
 	}
 
@@ -112,6 +118,10 @@ func convertTimestampToTime(srcValue reflect.Value, dst reflect.Value, dstType r
 // convertTimeToTimestamp handles time.Time -> timestamppb.Timestamp conversion.
 func convertTimeToTimestamp(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
+		if !opts.ignoreZero {
+			reflectutils.SetZero(dst)
+		}
+
 		return true
 	}
 
@@ -133,6 +143,10 @@ func convertTimeToTimestamp(srcValue reflect.Value, dst reflect.Value, dstType r
 // convertTimestampToInt64 handles timestamppb.Timestamp -> int64 conversion.
 func convertTimestampToInt64(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
+		if !opts.ignoreZero {
+			reflectutils.SetZero(dst)
+		}
+
 		return true
 	}
 
@@ -161,6 +175,10 @@ func convertTimestampToInt64(srcValue reflect.Value, dst reflect.Value, dstType 
 // convertInt64ToTimestamp handles int64 -> timestamppb.Timestamp conversion.
 func convertInt64ToTimestamp(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
+		if !opts.ignoreZero {
+			reflectutils.SetZero(dst)
+		}
+
 		return true
 	}
 
@@ -170,8 +188,10 @@ func convertInt64ToTimestamp(srcValue reflect.Value, dst reflect.Value, dstType 
 		return true
 	}
 
-	var sec int64
-	var nanos int32
+	var (
+		sec   int64
+		nanos int32
+	)
 
 	if opts.milliseconds {
 		t := time.UnixMilli(v)
@@ -196,6 +216,7 @@ func readTimestamp(v reflect.Value) (seconds int64, nanos int32, ok bool) {
 	if !v.IsValid() || v.Type() != timestampType {
 		return 0, 0, false
 	}
+
 	if v.CanAddr() {
 		base := unsafe.Pointer(v.UnsafeAddr())
 		seconds = *(*int64)(unsafe.Add(base, tsSecondsOffset))
@@ -206,6 +227,7 @@ func readTimestamp(v reflect.Value) (seconds int64, nanos int32, ok bool) {
 
 	// Non-addressable fallback: use reflect field access
 	secField := v.FieldByName("Seconds")
+
 	nanField := v.FieldByName("Nanos")
 	if !secField.IsValid() || !nanField.IsValid() {
 		return 0, 0, false
@@ -241,11 +263,13 @@ func readTime(v reflect.Value) (time.Time, bool) {
 	if !v.IsValid() || v.Type() != timeType {
 		return time.Time{}, false
 	}
+
 	if v.CanAddr() {
 		return *(*time.Time)(unsafe.Pointer(v.UnsafeAddr())), true
 	}
 
 	t, ok := reflect.TypeAssert[time.Time](v)
+
 	return t, ok
 }
 

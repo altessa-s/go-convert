@@ -26,6 +26,7 @@ func ExampleNew() {
 		At     time.Time
 		Detail any
 	}
+
 	type AuditMessage struct {
 		At     *pbany.Any
 		Detail *pbany.Any
@@ -47,7 +48,9 @@ func ExampleNew() {
 	fmt.Println(err, back.At.UTC().Format(time.RFC3339), back.Detail.(*wrapperspb.StringValue).GetValue())
 
 	var into struct{ Detail *durationpb.Duration }
+
 	_, err = converter.ConvertE(msg, &into, opts...)
+
 	var mismatch anypb.TypeMismatchError
 	fmt.Println(errors.As(err, &mismatch), mismatch.Want)
 	// Output:

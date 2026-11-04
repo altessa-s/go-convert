@@ -18,9 +18,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/altessa-s/go-convert/codec/textcodec"
+
 	converter "github.com/altessa-s/go-convert"
 	convcodec "github.com/altessa-s/go-convert/codec"
-	"github.com/altessa-s/go-convert/codec/textcodec"
 )
 
 var errNext = errors.New("next called")
@@ -51,6 +52,7 @@ func (c *color) UnmarshalText(text []byte) error {
 	default:
 		return errors.New("unknown color")
 	}
+
 	return nil
 }
 
@@ -63,6 +65,7 @@ func run(t *testing.T, codec convcodec.CodecE, src any, dstPtr any) error {
 
 func TestNew_Encode(t *testing.T) {
 	t.Parallel()
+
 	id := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 	ts := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 
@@ -83,6 +86,7 @@ func TestNew_Encode(t *testing.T) {
 		{"double pointer source", new(new(color(1))), new(**string), new(new("red"))},
 	}
 	codec := textcodec.New()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -94,6 +98,7 @@ func TestNew_Encode(t *testing.T) {
 
 func TestNew_Decode(t *testing.T) {
 	t.Parallel()
+
 	id := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
 
 	tests := []struct {
@@ -112,6 +117,7 @@ func TestNew_Decode(t *testing.T) {
 		{"named string to user type pointer", label("green"), new(*color), new(color(2))},
 	}
 	codec := textcodec.New()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -123,13 +129,16 @@ func TestNew_Decode(t *testing.T) {
 
 func bigInt(t *testing.T, s string) *big.Int {
 	t.Helper()
+
 	n, ok := new(big.Int).SetString(s, 10)
 	require.True(t, ok)
+
 	return n
 }
 
 func TestNew_MarshalerToUnmarshaler(t *testing.T) {
 	t.Parallel()
+
 	codec := textcodec.New()
 
 	var ip net.IP
@@ -143,6 +152,7 @@ func TestNew_MarshalerToUnmarshaler(t *testing.T) {
 
 func TestNew_NilSource(t *testing.T) {
 	t.Parallel()
+
 	codec := textcodec.New()
 
 	var dst *string
@@ -152,7 +162,53 @@ func TestNew_NilSource(t *testing.T) {
 	addr := netip.MustParseAddr("10.0.0.1")
 	preset := &addr
 	require.NoError(t, run(t, codec, (*string)(nil), &preset))
-	require.Equal(t, netip.MustParseAddr("10.0.0.1"), *preset, "nil source leaves the destination unchanged")
+	require.Nil(t, preset, "nil source sets a nil pointer")
+
+	value := netip.MustParseAddr("10.0.0.1")
+	require.NoError(t, run(t, codec, (*string)(nil), &value))
+	require.Equal(t, netip.Addr{}, value, "nil source sets the zero value")
+
+	text := "stale"
+	require.NoError(t, run(t, codec, (*netip.Addr)(nil), &text))
+	require.Empty(t, text, "nil source sets the empty string")
+}
+
+// memo is a TextMarshaler with a pointer receiver that caches its text in
+// the receiver.
+type memo struct {
+	N     int
+	Cache string
+}
+
+func (m *memo) MarshalText() ([]byte, error) {
+	if m.Cache == "" {
+		m.Cache = strings.Repeat("x", m.N)
+	}
+
+	return []byte(m.Cache), nil
+}
+
+func TestNew_PointerMarshalerLeavesSourceUnchanged(t *testing.T) {
+	t.Parallel()
+
+	codec := textcodec.New()
+
+	src := memo{N: 3}
+
+	var dst string
+	require.NoError(t, codec("field", reflect.ValueOf(&src).Elem(), reflect.ValueOf(&dst).Elem(), failNext))
+	require.Equal(t, "xxx", dst)
+	require.Equal(t, memo{N: 3}, src, "MarshalText must not run on the addressable source")
+
+	type holder struct{ Memo memo }
+
+	type holderDTO struct{ Memo string }
+
+	h := &holder{Memo: memo{N: 2}}
+	got, err := converter.ConvertE(h, &holderDTO{}, converter.WithErrorCodecs(codec))
+	require.NoError(t, err)
+	require.Equal(t, &holderDTO{Memo: "xx"}, got)
+	require.Equal(t, memo{N: 2}, h.Memo, "MarshalText must not run on the source field")
 }
 
 func TestNew_EmptyText(t *testing.T) {
@@ -176,12 +232,15 @@ func TestNew_EmptyText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			err := run(t, textcodec.New(tt.opts...), tt.src, tt.dst)
 			if tt.wantErr {
 				var textErr *textcodec.Error
 				require.ErrorAs(t, err, &textErr)
+
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.want, reflect.ValueOf(tt.dst).Elem().Interface())
 		})
@@ -205,11 +264,14 @@ func TestNew_Errors(t *testing.T) {
 		{"bridge unmarshal failure", color(1), new(netip.Addr), reflect.TypeFor[netip.Addr]()},
 	}
 	codec := textcodec.New()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			before := reflect.ValueOf(tt.dst).Elem().Interface()
 			err := run(t, codec, tt.src, tt.dst)
+
 			var textErr *textcodec.Error
 			require.ErrorAs(t, err, &textErr)
 			require.Equal(t, "field", textErr.Path)
@@ -223,12 +285,14 @@ func TestNew_Errors(t *testing.T) {
 
 func TestError_RootPath(t *testing.T) {
 	t.Parallel()
+
 	err := &textcodec.Error{Type: reflect.TypeFor[uuid.UUID](), Err: errors.New("bad")}
 	require.Equal(t, "textcodec: uuid.UUID: bad", err.Error())
 }
 
 func TestNew_PassThrough(t *testing.T) {
 	t.Parallel()
+
 	id := uuid.New()
 
 	tests := []struct {
@@ -245,6 +309,7 @@ func TestNew_PassThrough(t *testing.T) {
 		{"interface destination", id, new(any)},
 	}
 	codec := textcodec.New()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -271,6 +336,7 @@ type textDTO struct {
 
 func TestConvertE_RoundTrip(t *testing.T) {
 	t.Parallel()
+
 	addr := netip.MustParseAddr("2001:db8::1")
 	src := textSource{ID: uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"), Addr: &addr, Level: slog.LevelDebug, Amount: big.NewInt(99), Name: "n"}
 	opt := converter.WithErrorCodecs(textcodec.New())
@@ -290,8 +356,11 @@ func TestConvertE_RoundTrip(t *testing.T) {
 
 func TestConvertE_ReturnsCodecErrorUnchanged(t *testing.T) {
 	t.Parallel()
+
 	codec := textcodec.New()
+
 	var returned error
+
 	recording := func(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 		returned = codec(path, src, dst, next)
 		return returned

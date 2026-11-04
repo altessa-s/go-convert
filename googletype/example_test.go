@@ -22,6 +22,7 @@ func Example() {
 		Total int64 // minor units
 		DueOn time.Time
 	}
+
 	type InvoiceMessage struct {
 		Total *money.Money
 		DueOn *date.Date
@@ -38,6 +39,7 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
+
 	fmt.Println(msg.Total.GetCurrencyCode(), msg.Total.GetUnits(), msg.Total.GetNanos())
 	fmt.Println(msg.DueOn.GetYear(), msg.DueOn.GetMonth(), msg.DueOn.GetDay())
 

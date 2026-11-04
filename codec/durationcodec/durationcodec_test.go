@@ -15,9 +15,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/altessa-s/go-convert/codec/durationcodec"
+
 	converter "github.com/altessa-s/go-convert"
 	convcodec "github.com/altessa-s/go-convert/codec"
-	"github.com/altessa-s/go-convert/codec/durationcodec"
 )
 
 var errNext = errors.New("next called")
@@ -97,6 +98,7 @@ func TestNew_ToDuration(t *testing.T) {
 
 func TestNew_EmptyAndNil(t *testing.T) {
 	t.Parallel()
+
 	codec := durationcodec.New()
 
 	d := time.Hour
@@ -109,11 +111,50 @@ func TestNew_EmptyAndNil(t *testing.T) {
 
 	preset := new(time.Hour)
 	require.NoError(t, run(t, codec, (*string)(nil), &preset))
-	require.Equal(t, time.Hour, *preset, "nil source leaves the destination unchanged")
+	require.Nil(t, preset, "nil source sets a nil pointer")
 
-	var s *string
+	zeroed := time.Hour
+	require.NoError(t, run(t, codec, (*int64)(nil), &zeroed))
+	require.Zero(t, zeroed, "nil source sets the zero duration")
+
+	s := new("1s")
 	require.NoError(t, run(t, codec, (*time.Duration)(nil), &s))
-	require.Nil(t, s)
+	require.Nil(t, s, "nil duration sets a nil pointer")
+
+	n := 42
+	require.NoError(t, run(t, codec, (*time.Duration)(nil), &n))
+	require.Zero(t, n, "nil duration sets the zero number")
+}
+
+// timeout is a defined duration type the engine converts without scaling.
+type timeout time.Duration
+
+// count is a defined integer type the engine converts without scaling.
+type count int64
+
+type timeoutConfig struct {
+	Timeout time.Duration
+	Count   time.Duration
+}
+
+type timeoutDTO struct {
+	Timeout timeout
+	Count   count
+}
+
+func TestConvertE_DefinedDurationTypes(t *testing.T) {
+	t.Parallel()
+
+	opt := converter.WithErrorCodecs(durationcodec.New())
+	src := timeoutConfig{Timeout: time.Hour, Count: 3 * time.Second}
+
+	dto, err := converter.ConvertE(src, &timeoutDTO{}, opt)
+	require.NoError(t, err)
+	require.Equal(t, &timeoutDTO{Timeout: timeout(time.Hour), Count: count(3 * time.Second)}, dto)
+
+	back, err := converter.ConvertE(dto, &timeoutConfig{}, opt)
+	require.NoError(t, err)
+	require.Equal(t, &src, back)
 }
 
 func TestNew_Errors(t *testing.T) {
@@ -141,8 +182,10 @@ func TestNew_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			before := reflect.ValueOf(tt.dst).Elem().Interface()
 			err := run(t, durationcodec.New(durationcodec.WithUnit(tt.unit)), tt.src, tt.dst)
+
 			var durErr *durationcodec.Error
 			require.ErrorAs(t, err, &durErr)
 			require.Equal(t, "field", durErr.Path)
@@ -156,6 +199,7 @@ func TestNew_Errors(t *testing.T) {
 
 func TestError_RootPath(t *testing.T) {
 	t.Parallel()
+
 	err := &durationcodec.Error{Value: "x", Err: errors.New("bad")}
 	require.Equal(t, "durationcodec: bad", err.Error())
 }
@@ -174,8 +218,13 @@ func TestNew_PassThrough(t *testing.T) {
 		{"duration to bool", time.Second, new(bool)},
 		{"bool to duration", true, new(time.Duration)},
 		{"duration to interface", time.Second, new(any)},
+		{"duration to defined duration", time.Hour, new(timeout)},
+		{"defined duration to duration", timeout(time.Hour), new(time.Duration)},
+		{"duration to defined int pointer", time.Hour, new(*count)},
+		{"defined int to duration", count(5), new(time.Duration)},
 	}
 	codec := durationcodec.New()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -198,6 +247,7 @@ type jobDTO struct {
 
 func TestConvertE_RoundTrip(t *testing.T) {
 	t.Parallel()
+
 	opt := converter.WithErrorCodecs(durationcodec.New())
 	src := jobConfig{Timeout: ninetyMinutes, Retry: new(250 * time.Millisecond), TTL: 2500 * time.Millisecond}
 
@@ -212,8 +262,11 @@ func TestConvertE_RoundTrip(t *testing.T) {
 
 func TestConvertE_ReturnsCodecErrorUnchanged(t *testing.T) {
 	t.Parallel()
+
 	codec := durationcodec.New()
+
 	var returned error
+
 	recording := func(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 		returned = codec(path, src, dst, next)
 		return returned

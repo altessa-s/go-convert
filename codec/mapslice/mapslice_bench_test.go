@@ -17,6 +17,7 @@ func BenchmarkValues(b *testing.B) {
 	nop := func(_ string, _, _ reflect.Value) {}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		dst.SetLen(0)
 		mapslice.Values("field", src, dst, nop)
@@ -29,6 +30,7 @@ func BenchmarkKeys(b *testing.B) {
 	nop := func(_ string, _, _ reflect.Value) {}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		dst.SetLen(0)
 		mapslice.Keys("field", src, dst, nop)

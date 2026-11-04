@@ -40,8 +40,9 @@ type mappingCodec[P Enum, G comparable] struct {
 // the same Go value. A value missing from the table fails with
 // [UnknownValueError]. With [WithUnspecifiedAsEmpty], the zero enum number
 // and the zero (or nil) Go value map to each other unless the table lists
-// them; the name options do not apply. A nil source pointer leaves the
-// destination unchanged. Register the codec with converter.WithErrorCodecs.
+// them; the name options do not apply, but an invalid [Case] still panics. A
+// nil source pointer sets the destination to its zero value. Register the
+// codec with converter.WithErrorCodecs.
 //
 // Example:
 //
@@ -51,8 +52,9 @@ type mappingCodec[P Enum, G comparable] struct {
 //	}, enumpb.WithUnspecifiedAsEmpty())
 func NewMapping[P Enum, G comparable](table map[P]G, opts ...Option) convcodec.CodecE {
 	var zeroEnum P
+
 	c := &mappingCodec[P, G]{
-		opts:     newOptions(opts...),
+		opts:     checkedOptions("NewMapping", opts),
 		enumType: reflect.TypeFor[P](),
 		goType:   reflect.TypeFor[G](),
 		enumName: zeroEnum.Descriptor().FullName(),
@@ -63,12 +65,15 @@ func NewMapping[P Enum, G comparable](table map[P]G, opts ...Option) convcodec.C
 		if previous, ok := c.toEnum[value]; ok {
 			panic(fmt.Sprintf("enumpb: NewMapping: %v and %v both map to %v", previous, enum, value))
 		}
+
 		c.toEnum[value] = enum
 		c.toGo[enum] = reflect.ValueOf(&value).Elem()
 	}
+
 	return c.convert
 }
 
+// convert handles pairs of P and G and delegates the rest to next.
 func (c *mappingCodec[P, G]) convert(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 	srcType := reflectutils.IndirectType(src.Type())
 	dstType := reflectutils.IndirectType(dst.Type())
@@ -87,21 +92,25 @@ func (c *mappingCodec[P, G]) convert(path string, src, dst reflect.Value, next c
 func (c *mappingCodec[P, G]) toGoValue(path string, src, dst reflect.Value) error {
 	value := reflectutils.IndirectValue(src)
 	if !value.IsValid() {
+		zeroDst(dst)
 		return nil
 	}
 
 	enum := P(value.Int())
+
 	mapped, ok := c.toGo[enum]
 	if !ok {
 		if enum == 0 && c.opts.unspecifiedAsEmpty {
 			dst.Set(reflect.Zero(dst.Type()))
 			return nil
 		}
+
 		return UnknownValueError{Enum: c.enumName, Path: path, Value: protoreflect.EnumNumber(enum)}
 	}
 
 	reflectutils.MakeDst(&dst, c.goType)
 	dst.Set(mapped)
+
 	return nil
 }
 
@@ -109,21 +118,25 @@ func (c *mappingCodec[P, G]) toGoValue(path string, src, dst reflect.Value) erro
 func (c *mappingCodec[P, G]) toEnumValue(path string, src, dst reflect.Value) error {
 	value := reflectutils.IndirectValue(src)
 	if !value.IsValid() {
+		zeroDst(dst)
 		return nil
 	}
 
 	// The source type is G, so the assertion cannot fail.
 	goValue, _ := reflect.TypeAssert[G](value)
+
 	enum, ok := c.toEnum[goValue]
 	if !ok {
 		if goValue == c.zeroGo && c.opts.unspecifiedAsEmpty {
 			dst.Set(reflect.Zero(dst.Type()))
 			return nil
 		}
+
 		return UnknownValueError{Enum: c.enumName, Path: path, Value: goValue}
 	}
 
 	reflectutils.MakeDst(&dst, c.enumType)
 	dst.SetInt(int64(enum))
+
 	return nil
 }

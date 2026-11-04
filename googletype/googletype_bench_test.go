@@ -25,6 +25,7 @@ func BenchmarkNewMoney_ToInt64(b *testing.B) {
 
 	for b.Loop() {
 		var dst int64
+
 		_ = codec("Total", src, reflect.ValueOf(&dst).Elem(), benchHandler)
 	}
 }
@@ -35,6 +36,7 @@ func BenchmarkNewMoney_FromInt64(b *testing.B) {
 
 	for b.Loop() {
 		var dst money.Money
+
 		_ = codec("Total", src, reflect.ValueOf(&dst).Elem(), benchHandler)
 	}
 }
@@ -45,6 +47,7 @@ func BenchmarkNewMoney_ToString(b *testing.B) {
 
 	for b.Loop() {
 		var dst string
+
 		_ = codec("Total", src, reflect.ValueOf(&dst).Elem(), benchHandler)
 	}
 }
@@ -55,6 +58,7 @@ func BenchmarkNewMoney_FromString(b *testing.B) {
 
 	for b.Loop() {
 		var dst money.Money
+
 		_ = codec("Total", src, reflect.ValueOf(&dst).Elem(), benchHandler)
 	}
 }
@@ -65,6 +69,7 @@ func BenchmarkNewDate_ToTime(b *testing.B) {
 
 	for b.Loop() {
 		var dst time.Time
+
 		_ = codec("Day", src, reflect.ValueOf(&dst).Elem(), benchHandler)
 	}
 }
@@ -75,6 +80,7 @@ func BenchmarkNewDate_FromString(b *testing.B) {
 
 	for b.Loop() {
 		var dst date.Date
+
 		_ = codec("Day", src, reflect.ValueOf(&dst).Elem(), benchHandler)
 	}
 }
@@ -85,6 +91,7 @@ func BenchmarkNewLatLng_ToPair(b *testing.B) {
 
 	for b.Loop() {
 		var dst [2]float64
+
 		_ = codec("Location", src, reflect.ValueOf(&dst).Elem(), benchHandler)
 	}
 }
@@ -95,6 +102,7 @@ func BenchmarkNewTimeOfDay_ToDuration(b *testing.B) {
 
 	for b.Loop() {
 		var dst time.Duration
+
 		_ = codec("Opens", src, reflect.ValueOf(&dst).Elem(), benchHandler)
 	}
 }
@@ -105,6 +113,7 @@ func BenchmarkNewTimeOfDay_FromString(b *testing.B) {
 
 	for b.Loop() {
 		var dst timeofday.TimeOfDay
+
 		_ = codec("Opens", src, reflect.ValueOf(&dst).Elem(), benchHandler)
 	}
 }
@@ -115,6 +124,7 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 
 	for b.Loop() {
 		var dst string
+
 		_ = codec("Name", src, reflect.ValueOf(&dst).Elem(), benchHandler)
 	}
 }

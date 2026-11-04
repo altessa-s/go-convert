@@ -20,7 +20,9 @@ func TestNew_StringToWrapper(t *testing.T) {
 	codec := pbwrap.New()
 
 	src := reflect.ValueOf("hello")
+
 	var dst *wrapperspb.StringValue
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Name", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -35,7 +37,9 @@ func TestNew_WrapperToString(t *testing.T) {
 	codec := pbwrap.New()
 
 	src := reflect.ValueOf(&wrapperspb.StringValue{Value: "hello"})
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Name", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -49,10 +53,13 @@ func TestNew_PassThrough(t *testing.T) {
 	codec := pbwrap.New()
 
 	src := reflect.ValueOf("hello")
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	codec("Name", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -64,7 +71,9 @@ func TestNew_IgnoreZeroValues(t *testing.T) {
 	codec := pbwrap.New(pbwrap.WithIgnoreZeroValues())
 
 	src := reflect.ValueOf("")
+
 	var dst *wrapperspb.StringValue
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Name", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -78,7 +87,9 @@ func TestNew_IgnoreZeroWrappers(t *testing.T) {
 	codec := pbwrap.New(pbwrap.WithIgnoreZeroWrappers())
 
 	src := reflect.ValueOf(&wrapperspb.StringValue{Value: ""})
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Name", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -92,9 +103,11 @@ func TestNew_NilWrapperPointerToValue(t *testing.T) {
 	for _, name := range []string{"default", "ignore zero values"} {
 		t.Run(name, func(t *testing.T) {
 			var src *wrapperspb.StringValue
+
 			srcValue := reflect.ValueOf(src)
 			dst := "preserved"
 			dstValue := reflect.ValueOf(&dst).Elem()
+
 			c := pbwrap.New()
 			if name == "ignore zero values" {
 				c = pbwrap.New(pbwrap.WithIgnoreZeroValues())
@@ -130,6 +143,7 @@ func TestNew_IncompatibleWrapperPairsDelegate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			nextCalled := false
+
 			require.NotPanics(t, func() {
 				pbwrap.New()("field", tt.src, tt.dst, func(_ string, _, _ reflect.Value) { nextCalled = true })
 			})
@@ -142,18 +156,24 @@ func TestNew_DereferencesWrapperPointerLayers(t *testing.T) {
 	t.Run("source", func(t *testing.T) {
 		wrapper := wrapperspb.String("hello")
 		src := reflect.ValueOf(&wrapper)
+
 		var dst string
+
 		dstValue := reflect.ValueOf(&dst).Elem()
 		nextCalled := false
+
 		pbwrap.New()("field", src, dstValue, func(_ string, _, _ reflect.Value) { nextCalled = true })
 		require.False(t, nextCalled)
 		require.Equal(t, "hello", dst)
 	})
 	t.Run("destination", func(t *testing.T) {
 		src := reflect.ValueOf("hello")
+
 		var dst *wrapperspb.StringValue
+
 		dstValue := reflect.ValueOf(&dst).Elem()
 		nextCalled := false
+
 		pbwrap.New()("field", src, dstValue, func(_ string, _, _ reflect.Value) { nextCalled = true })
 		require.False(t, nextCalled)
 		require.NotNil(t, dst)

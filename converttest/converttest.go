@@ -13,9 +13,11 @@ import (
 // RequireConvert converts src into dst and fails the test if conversion returns an error.
 func RequireConvert[T, U any](t testing.TB, src T, dst U, opts ...converter.Option) U {
 	t.Helper()
+
 	out, err := converter.ConvertE(src, dst, opts...)
 	if err != nil {
 		t.Fatalf("convert value: %v", err)
 	}
+
 	return out
 }

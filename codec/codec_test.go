@@ -28,6 +28,7 @@ func TestSet_Add(t *testing.T) {
 func TestSet_Run_NoCodecs(t *testing.T) {
 	s := NewCodecsSet()
 	called := false
+
 	s.Run("f", reflect.ValueOf(1), reflect.ValueOf(2), func(_ string, _, _ reflect.Value) {
 		called = true
 	})
@@ -38,11 +39,13 @@ func TestSet_Run_SingleCodec(t *testing.T) {
 	codecCalled := false
 	c := Codec(func(_ string, src, dst reflect.Value, next CodecHandler) {
 		codecCalled = true
+
 		next("", src, dst)
 	})
 	s := NewCodecsSet(c)
 
 	finishCalled := false
+
 	s.Run("f", reflect.ValueOf(1), reflect.ValueOf(2), func(_ string, _, _ reflect.Value) {
 		finishCalled = true
 	})
@@ -52,12 +55,15 @@ func TestSet_Run_SingleCodec(t *testing.T) {
 
 func TestSet_Run_ChainOrder(t *testing.T) {
 	var order []int
+
 	c1 := Codec(func(_ string, src, dst reflect.Value, next CodecHandler) {
 		order = append(order, 1)
+
 		next("", src, dst)
 	})
 	c2 := Codec(func(_ string, src, dst reflect.Value, next CodecHandler) {
 		order = append(order, 2)
+
 		next("", src, dst)
 	})
 	s := NewCodecsSet(c1, c2)
@@ -85,35 +91,47 @@ func TestSet_Run_CodecStopsChain(t *testing.T) {
 
 func TestSetRunError(t *testing.T) {
 	t.Parallel()
+
 	for _, stop := range []bool{false, true} {
 		t.Run(fmt.Sprint(stop), func(t *testing.T) {
 			t.Parallel()
+
 			var order []int
+
 			expected := errors.New("stop")
 			set := NewCodecsSet(func(path string, src, dst reflect.Value, next CodecHandler) {
 				require.Equal(t, "grade", path)
+
 				order = append(order, 3)
+
 				next(path, src, dst)
 			})
 			require.False(t, set.HasErrorCodecs())
 			set.AddError(func(path string, src, dst reflect.Value, next CodecHandlerE) error {
 				require.Equal(t, "attrs.grade", path)
+
 				order = append(order, 1)
+
 				return next(path, src, dst)
 			}, func(path string, src, dst reflect.Value, next CodecHandlerE) error {
 				order = append(order, 2)
+
 				if stop {
 					return expected
 				}
+
 				return next(path, src, dst)
 			})
 			require.True(t, set.HasErrorCodecs())
 			err := set.RunError("attrs.grade", "grade", reflect.ValueOf(1), reflect.ValueOf(2), func(path string, _, _ reflect.Value) error {
 				require.Equal(t, "attrs.grade", path)
+
 				order = append(order, 4)
+
 				return expected
 			})
 			require.Same(t, expected, err)
+
 			if stop {
 				require.Equal(t, []int{1, 2}, order)
 			} else {
@@ -127,10 +145,12 @@ func TestRunErrorAllowsCallingNextTwice(t *testing.T) {
 	t.Parallel()
 
 	var calls []string
+
 	retry := func(path string, src, dst reflect.Value, next CodecHandlerE) error {
 		if err := next(path+".first", src, dst); err != nil {
 			return err
 		}
+
 		return next(path+".second", src, dst)
 	}
 	record := func(path string, src, dst reflect.Value, next CodecHandlerE) error {
@@ -138,6 +158,7 @@ func TestRunErrorAllowsCallingNextTwice(t *testing.T) {
 		return next(path, src, dst)
 	}
 	set := NewCodecsSet().AddError(retry, record)
+
 	err := set.RunError("f", "f", reflect.ValueOf(1), reflect.New(reflect.TypeFor[int]()).Elem(),
 		func(path string, _, _ reflect.Value) error {
 			calls = append(calls, "finish:"+path)
@@ -146,6 +167,7 @@ func TestRunErrorAllowsCallingNextTwice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	want := []string{"codec:f.first", "finish:f.first", "codec:f.second", "finish:f.second"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v, want %v", calls, want)

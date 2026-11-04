@@ -22,6 +22,28 @@ func WithIgnoreNil() Option {
 	}
 }
 
+// WithMaxBytes sets the maxBytes option.
+//
+// maxBytes ([WithMaxBytes]) rejects, with an [Error], Any payloads
+// larger than this many bytes before they are unmarshaled. Zero, the
+// default, sets no limit.
+func WithMaxBytes(v int) Option {
+	return func(o *options) {
+		o.maxBytes = v
+	}
+}
+
+// WithRecursionLimit sets the recursionLimit option.
+//
+// recursionLimit ([WithRecursionLimit]) limits how deeply messages may
+// nest in an unmarshaled payload; protobuf's default limit, 10000, unless
+// set. Zero also selects the default.
+func WithRecursionLimit(v int) Option {
+	return func(o *options) {
+		o.recursionLimit = v
+	}
+}
+
 // WithRegistry sets the registry option.
 //
 // registry ([WithRegistry]) maps protobuf message types to Go domain
@@ -50,7 +72,8 @@ func WithResolver(v Resolver) Option {
 // defaultOptions returns the default values for options.
 func defaultOptions() *options {
 	return &options{
-		resolver: protoregistry.GlobalTypes,
+		recursionLimit: defaultRecursionLimit,
+		resolver:       protoregistry.GlobalTypes,
 	}
 }
 

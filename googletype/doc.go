@@ -21,9 +21,9 @@
 //
 //	if errors.Is(err, googletype.ErrOverflow) { ... }
 //
-// A nil source message, or a nil pointer source, leaves the destination
-// unchanged. Both pointer and non-pointer variants are supported on either
-// side; a nil pointer destination is allocated.
+// A nil source zeroes the destination; with [WithIgnoreZero] it leaves the
+// destination unchanged. Both pointer and non-pointer variants are supported
+// on either side; a nil pointer destination is allocated.
 //
 // # Registration order
 //

@@ -27,7 +27,9 @@ func TestNew_TimestampToTime(t *testing.T) {
 	codec := tspb.New()
 
 	src := reflect.ValueOf(ts).Elem()
+
 	var dst time.Time
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -44,7 +46,9 @@ func TestNew_TimeToTimestamp(t *testing.T) {
 	codec := tspb.New()
 
 	src := reflect.ValueOf(now)
+
 	var dst timestamppb.Timestamp
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -56,10 +60,15 @@ func TestNew_TimeToTimestamp(t *testing.T) {
 
 func TestNew_DoublePointerAndNilDepth(t *testing.T) {
 	t.Parallel()
+
 	tm := time.Unix(1750000000, 123)
+
 	var source *time.Time = &tm
+
 	src := reflect.ValueOf(&source).Elem()
+
 	var destination **timestamppb.Timestamp
+
 	dst := reflect.ValueOf(&destination).Elem()
 	tspb.New()("CreatedAt", src, dst, func(string, reflect.Value, reflect.Value) { require.Fail(t, "next called") })
 	require.NotNil(t, destination)
@@ -67,6 +76,7 @@ func TestNew_DoublePointerAndNilDepth(t *testing.T) {
 	assert.True(t, tm.Equal((**destination).AsTime()))
 
 	var nilInner *time.Time
+
 	src = reflect.ValueOf(&nilInner).Elem()
 	destination = nil
 	dst = reflect.ValueOf(&destination).Elem()
@@ -76,11 +86,15 @@ func TestNew_DoublePointerAndNilDepth(t *testing.T) {
 
 func TestConverter_NestedDoublePointerCodecFields(t *testing.T) {
 	t.Parallel()
+
 	type source struct{ CreatedAt **time.Time }
+
 	type destination struct{ CreatedAt **timestamppb.Timestamp }
+
 	tm := time.Unix(1750000000, 123)
 	tmPtr := &tm
 	src := source{CreatedAt: &tmPtr}
+
 	var dst destination
 	converter.Convert(src, &dst, converter.WithCodecs(tspb.New()))
 	require.NotNil(t, dst.CreatedAt)
@@ -88,6 +102,7 @@ func TestConverter_NestedDoublePointerCodecFields(t *testing.T) {
 	assert.True(t, tm.Equal((**dst.CreatedAt).AsTime()))
 
 	var nilInner *time.Time
+
 	src.CreatedAt = &nilInner
 	dst.CreatedAt = nil
 	converter.Convert(src, &dst, converter.WithCodecs(tspb.New()))
@@ -102,7 +117,9 @@ func TestNew_TimestampToInt64(t *testing.T) {
 	codec := tspb.New()
 
 	src := reflect.ValueOf(ts).Elem()
+
 	var dst int64
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -116,10 +133,13 @@ func TestNew_Int64ToTimestamp(t *testing.T) {
 	t.Parallel()
 
 	var unix int64 = 1750000000
+
 	codec := tspb.New()
 
 	src := reflect.ValueOf(unix)
+
 	var dst timestamppb.Timestamp
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -137,7 +157,9 @@ func TestNew_Pointer_TimestampToTime(t *testing.T) {
 	codec := tspb.New()
 
 	src := reflect.ValueOf(ts)
+
 	var dst *time.Time
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -155,7 +177,9 @@ func TestNew_Pointer_TimeToTimestamp(t *testing.T) {
 	codec := tspb.New()
 
 	src := reflect.ValueOf(&now)
+
 	var dst *timestamppb.Timestamp
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -174,7 +198,9 @@ func TestNew_Pointer_TimestampToInt64(t *testing.T) {
 	codec := tspb.New()
 
 	src := reflect.ValueOf(ts)
+
 	var dst *int64
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -189,10 +215,13 @@ func TestNew_Pointer_Int64ToTimestamp(t *testing.T) {
 	t.Parallel()
 
 	var unix int64 = 1750000000
+
 	codec := tspb.New()
 
 	src := reflect.ValueOf(&unix)
+
 	var dst *timestamppb.Timestamp
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -263,7 +292,9 @@ func TestNew_Milliseconds(t *testing.T) {
 
 	// Timestamp -> int64 (milliseconds)
 	src := reflect.ValueOf(ts).Elem()
+
 	var dst int64
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -274,7 +305,9 @@ func TestNew_Milliseconds(t *testing.T) {
 
 	// int64 (milliseconds) -> Timestamp (round-trip)
 	src2 := reflect.ValueOf(dst)
+
 	var dst2 timestamppb.Timestamp
+
 	dstVal2 := reflect.ValueOf(&dst2).Elem()
 
 	codec("CreatedAt", src2, dstVal2, func(_ string, _, _ reflect.Value) {
@@ -290,10 +323,13 @@ func TestNew_PassThrough(t *testing.T) {
 	codec := tspb.New()
 
 	src := reflect.ValueOf("hello")
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	codec("Name", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -307,8 +343,11 @@ func TestNew_NilPointer_Timestamp(t *testing.T) {
 	codec := tspb.New()
 
 	var src *timestamppb.Timestamp
+
 	srcVal := reflect.ValueOf(src)
+
 	var dst *time.Time
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", srcVal, dstVal, func(_ string, _, _ reflect.Value) {
@@ -324,8 +363,11 @@ func TestNew_NilPointer_Time(t *testing.T) {
 	codec := tspb.New()
 
 	var src *time.Time
+
 	srcVal := reflect.ValueOf(src)
+
 	var dst *timestamppb.Timestamp
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", srcVal, dstVal, func(_ string, _, _ reflect.Value) {
@@ -341,8 +383,11 @@ func TestNew_NilPointer_Int64(t *testing.T) {
 	codec := tspb.New()
 
 	var src *int64
+
 	srcVal := reflect.ValueOf(src)
+
 	var dst *timestamppb.Timestamp
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", srcVal, dstVal, func(_ string, _, _ reflect.Value) {
@@ -386,6 +431,7 @@ func TestCodec_ThroughConverter(t *testing.T) {
 			Stamps:    []time.Time{now, other},
 			Meta:      map[string]time.Time{"k": other},
 		}
+
 		var dst tspbProto
 		converter.Convert(src, &dst, converter.WithCodecs(tspb.New()))
 
@@ -403,6 +449,7 @@ func TestCodec_ThroughConverter(t *testing.T) {
 		t.Parallel()
 
 		src := tspbProto{ID: "e2", CreatedAt: timestamppb.New(now)}
+
 		var dst tspbEntity
 		converter.Convert(src, &dst, converter.WithCodecs(tspb.New()))
 

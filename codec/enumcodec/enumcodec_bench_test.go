@@ -19,6 +19,7 @@ func BenchmarkNew_Format(b *testing.B) {
 	dst := reflect.New(reflect.TypeFor[string]()).Elem()
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = codec("Color", src, dst, nopNext)
 	}
@@ -30,6 +31,7 @@ func BenchmarkNew_Parse(b *testing.B) {
 	dst := reflect.New(reflect.TypeFor[color]()).Elem()
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = codec("Color", src, dst, nopNext)
 	}
@@ -41,6 +43,7 @@ func BenchmarkNewInt_Parse(b *testing.B) {
 	dst := reflect.New(reflect.TypeFor[color]()).Elem()
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = codec("Color", src, dst, nopNext)
 	}
@@ -52,6 +55,7 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 	dst := reflect.New(reflect.TypeFor[string]()).Elem()
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = codec("Name", src, dst, nopNext)
 	}

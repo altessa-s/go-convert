@@ -42,31 +42,44 @@ func convertLatLng(p pair, o *options) (bool, error) {
 	switch {
 	case p.srcType == latLngType && p.dstType == latLngPair:
 		if !p.src.IsValid() {
+			clearNil(p, o)
+
 			return true, nil
 		}
+
 		ll := messagePtr[latlng.LatLng](p.src)
+
 		coords := [2]float64{ll.GetLatitude(), ll.GetLongitude()}
 		if o.ignoreZero && coords == [2]float64{} {
 			return true, nil
 		}
+
 		if err := validateLatLng(p.path, coords); err != nil {
 			return true, err
 		}
+
 		setValue(p.dst, p.dstType, coords)
+
 		return true, nil
 	case p.srcType == latLngPair && p.dstType == latLngType:
 		if !p.src.IsValid() {
+			clearNil(p, o)
+
 			return true, nil
 		}
+
 		coords := readValue[[2]float64](p.src)
 		if o.ignoreZero && coords == [2]float64{} {
 			return true, nil
 		}
+
 		if err := validateLatLng(p.path, coords); err != nil {
 			return true, err
 		}
+
 		ll := messageDst[latlng.LatLng](p.dst, p.dstType)
 		ll.Latitude, ll.Longitude = coords[0], coords[1]
+
 		return true, nil
 	default:
 		return false, nil
@@ -79,8 +92,10 @@ func validateLatLng(path string, coords [2]float64) error {
 	if !(coords[0] >= -maxLatitude && coords[0] <= maxLatitude) {
 		return newError(path, ErrOutOfRange, "latitude %v outside [-90, 90]", coords[0])
 	}
+
 	if !(coords[1] >= -maxLongitude && coords[1] <= maxLongitude) {
 		return newError(path, ErrOutOfRange, "longitude %v outside [-180, 180]", coords[1])
 	}
+
 	return nil
 }

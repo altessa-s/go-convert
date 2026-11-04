@@ -25,10 +25,11 @@ func TestCacheDescribesStructFields(t *testing.T) {
 	t.Parallel()
 
 	type Base struct{ ID int }
+
 	type item struct {
 		Base
 		Name   string
-		hidden int
+		hidden int //nolint:unused // checks that unexported fields are skipped
 	}
 
 	info := NewCache().Get(reflect.TypeFor[*item]())
@@ -44,10 +45,12 @@ func TestCacheIsBoundedUnderConcurrency(t *testing.T) {
 	t.Parallel()
 
 	cache := NewCache()
+
 	var wg sync.WaitGroup
 	for i := range MaxTypes + 64 {
 		wg.Go(func() { cache.Get(syntheticType(i)) })
 	}
+
 	wg.Wait()
 	require.LessOrEqual(t, cache.Len(), MaxTypes)
 }
@@ -59,6 +62,7 @@ func TestBoundedZeroValueUsesRelationLimit(t *testing.T) {
 	for i := range MaxRelations + 64 {
 		memo.Get(syntheticType(i), func() bool { return true })
 	}
+
 	require.LessOrEqual(t, memo.Len(), MaxRelations)
 }
 
@@ -66,6 +70,7 @@ func TestInfoMemoizesTypeRelations(t *testing.T) {
 	t.Parallel()
 
 	type celsius float64
+
 	src := reflect.TypeFor[float64]()
 	info := NewCache().Get(src)
 
@@ -79,8 +84,10 @@ func TestKeyedSupportsComparableKeysUnderConcurrency(t *testing.T) {
 	t.Parallel()
 
 	type pair struct{ src, dst reflect.Type }
+
 	memo := NewKeyed[pair, int](32)
 	dst := reflect.TypeFor[string]()
+
 	var wg sync.WaitGroup
 	for i := range 128 {
 		wg.Go(func() {
@@ -90,6 +97,7 @@ func TestKeyedSupportsComparableKeysUnderConcurrency(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 	require.LessOrEqual(t, memo.Len(), 32)
 	require.Equal(t, 7, memo.Get(pair{dst, dst}, func() int { return 7 }))

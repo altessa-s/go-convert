@@ -13,7 +13,10 @@
 // tspb. Interface destinations, such as any, receive the registered domain
 // value or the message resolved by [WithResolver].
 //
-// Type URL mismatches and unknown types are reported as errors.
+// Type URL mismatches and unknown types are reported as errors. Register a
+// codec for every registered pair: the chain does not report whether one
+// converted it. Interface fields holding values the codec cannot pack are
+// passed to the rest of the chain.
 //
 // Example:
 //

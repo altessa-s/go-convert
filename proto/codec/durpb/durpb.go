@@ -25,6 +25,7 @@ var (
 		if !ok {
 			panic("durpb: durationpb.Duration has no Seconds field")
 		}
+
 		return f.Offset
 	}()
 	durNanosOffset = func() uintptr {
@@ -32,6 +33,7 @@ var (
 		if !ok {
 			panic("durpb: durationpb.Duration has no Nanos field")
 		}
+
 		return f.Offset
 	}()
 )
@@ -84,6 +86,10 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 // convertDurationToGo handles durationpb.Duration -> time.Duration conversion.
 func convertDurationToGo(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
+		if !opts.ignoreZero {
+			reflectutils.SetZero(dst)
+		}
+
 		return true
 	}
 
@@ -107,6 +113,10 @@ func convertDurationToGo(srcValue reflect.Value, dst reflect.Value, dstType refl
 // convertGoToDuration handles time.Duration -> durationpb.Duration conversion.
 func convertGoToDuration(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
+		if !opts.ignoreZero {
+			reflectutils.SetZero(dst)
+		}
+
 		return true
 	}
 
@@ -136,6 +146,7 @@ func readDuration(v reflect.Value) (seconds int64, nanos int32, ok bool) {
 	if !v.IsValid() || v.Type() != durationType {
 		return 0, 0, false
 	}
+
 	if v.CanAddr() {
 		base := unsafe.Pointer(v.UnsafeAddr())
 		seconds = *(*int64)(unsafe.Add(base, durSecondsOffset))
@@ -147,6 +158,7 @@ func readDuration(v reflect.Value) (seconds int64, nanos int32, ok bool) {
 	// Non-addressable fallback: use reflect field access. Reading by field avoids
 	// copying the Duration value, which embeds a sync.Mutex via protoimpl.MessageState.
 	secField := v.FieldByName("Seconds")
+
 	nanField := v.FieldByName("Nanos")
 	if !secField.IsValid() || !nanField.IsValid() {
 		return 0, 0, false

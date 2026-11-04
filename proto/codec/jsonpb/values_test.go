@@ -39,13 +39,16 @@ type protoDoc struct {
 
 func mustValue(t *testing.T, x any) *structpb.Value {
 	t.Helper()
+
 	v, err := structpb.NewValue(x)
 	require.NoError(t, err)
+
 	return v
 }
 
 func failNext(t *testing.T) convcodec.CodecHandlerE {
 	t.Helper()
+
 	return func(string, reflect.Value, reflect.Value) error {
 		require.Fail(t, "next should not be called")
 		return nil
@@ -55,8 +58,11 @@ func failNext(t *testing.T) convcodec.CodecHandlerE {
 // runE runs the codec on src into a fresh destination of type D.
 func runE[D any](t *testing.T, codec convcodec.CodecE, src any) (D, error) {
 	t.Helper()
+
 	var dst D
+
 	err := codec("field", reflect.ValueOf(src), reflect.ValueOf(&dst).Elem(), failNext(t))
+
 	return dst, err
 }
 
@@ -157,6 +163,7 @@ func TestNewE_AnyFieldsByDynamicValue(t *testing.T) {
 	t.Parallel()
 
 	codec := jsonpb.NewE()
+
 	for _, tc := range []struct {
 		name string
 		src  any
@@ -193,6 +200,7 @@ func TestNewE_ConvertRoundTrip(t *testing.T) {
 	}
 
 	var message protoDoc
+
 	_, err := converter.ConvertE(src, &message, opts)
 	require.NoError(t, err)
 	require.Equal(t, "ann", message.Meta.GetFields()["owner"].GetStringValue())
@@ -201,6 +209,7 @@ func TestNewE_ConvertRoundTrip(t *testing.T) {
 	require.Equal(t, "v", message.Raw.GetFields()["k"].GetStringValue())
 
 	var back domainDoc
+
 	_, err = converter.ConvertE(message, &back, opts)
 	require.NoError(t, err)
 	require.Equal(t, src.Payload, back.Payload)
@@ -304,10 +313,13 @@ func TestNewE_Errors(t *testing.T) {
 				require.ErrorAs(t, err, &got)
 				f, isFloat := got.Value.(float64)
 				require.True(t, isFloat && math.IsNaN(f))
+
 				got.Value = nil
 				require.Equal(t, want, got)
+
 				return
 			}
+
 			require.Equal(t, tc.want, err)
 		})
 	}
@@ -318,6 +330,7 @@ func TestNewE_InvalidRawMessage(t *testing.T) {
 
 	for _, raw := range []string{`{invalid`, `[1,2]`, `"text"`} {
 		_, err := converter.ConvertE(domainDoc{Raw: json.RawMessage(raw)}, &protoDoc{}, converter.WithErrorCodecs(jsonpb.NewE()))
+
 		var got jsonpb.Error
 		require.ErrorAs(t, err, &got, raw)
 		require.Equal(t, "raw", got.Path)
@@ -330,6 +343,7 @@ func TestNewE_PassThrough(t *testing.T) {
 	t.Parallel()
 
 	codec := jsonpb.NewE()
+
 	for _, tc := range []struct {
 		name     string
 		src, dst any
@@ -359,9 +373,29 @@ func TestNewE_LegacyNewUnchanged(t *testing.T) {
 
 	// The legacy codec still passes invalid JSON to next instead of failing.
 	raw := json.RawMessage(`{invalid`)
+
 	var dst *structpb.Struct
+
 	called := false
+
 	jsonpb.New()("Raw", reflect.ValueOf(&raw), reflect.ValueOf(&dst).Elem(), func(string, reflect.Value, reflect.Value) { called = true })
 	require.True(t, called)
 	require.Nil(t, dst)
+}
+
+func TestNewE_NestedTypedNilsBecomeNull(t *testing.T) {
+	t.Parallel()
+
+	src := []any{map[string]any(nil), []any(nil), map[string]any{"k": []any(nil)}}
+
+	var dst *structpb.ListValue
+
+	codec := jsonpb.NewE()
+	err := codec("v", reflect.ValueOf(src), reflect.ValueOf(&dst).Elem(),
+		func(string, reflect.Value, reflect.Value) error { return nil })
+	require.NoError(t, err)
+	require.Len(t, dst.GetValues(), 3)
+	require.IsType(t, &structpb.Value_NullValue{}, dst.GetValues()[0].GetKind())
+	require.IsType(t, &structpb.Value_NullValue{}, dst.GetValues()[1].GetKind())
+	require.IsType(t, &structpb.Value_NullValue{}, dst.GetValues()[2].GetStructValue().GetFields()["k"].GetKind())
 }

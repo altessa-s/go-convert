@@ -8,9 +8,9 @@ type Option func(o *options)
 
 // WithIgnoreZero enables the ignoreZero option.
 //
-// ignoreZero ([WithIgnoreZero]) skips conversion when the source value is
-// zero. For time.Time sources, zero means time.Time{}. For int64 sources,
-// zero means 0.
+// ignoreZero ([WithIgnoreZero]) skips conversion, leaving the destination
+// unchanged, when the source is nil or zero. For time.Time sources, zero
+// means time.Time{}. For int64 sources, zero means 0.
 func WithIgnoreZero() Option {
 	return func(o *options) {
 		value := true

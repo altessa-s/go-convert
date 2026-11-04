@@ -20,7 +20,9 @@ func TestNew_RawMessageToStruct(t *testing.T) {
 	codec := New()
 
 	src := reflect.ValueOf(&raw)
+
 	var dst *structpb.Struct
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -34,10 +36,15 @@ func TestNew_RawMessageToStruct(t *testing.T) {
 
 func TestNew_DoublePointerAndNilDepth(t *testing.T) {
 	t.Parallel()
+
 	raw := json.RawMessage(`{"key":"value"}`)
+
 	var source *json.RawMessage = &raw
+
 	src := reflect.ValueOf(&source).Elem()
+
 	var destination **structpb.Struct
+
 	dst := reflect.ValueOf(&destination).Elem()
 	New()("Payload", src, dst, func(string, reflect.Value, reflect.Value) { require.Fail(t, "next called") })
 	require.NotNil(t, destination)
@@ -45,6 +52,7 @@ func TestNew_DoublePointerAndNilDepth(t *testing.T) {
 	assert.Equal(t, "value", (**destination).AsMap()["key"])
 
 	var nilInner *json.RawMessage
+
 	src = reflect.ValueOf(&nilInner).Elem()
 	destination = nil
 	dst = reflect.ValueOf(&destination).Elem()
@@ -59,7 +67,9 @@ func TestNew_StructToRawMessage(t *testing.T) {
 	codec := New()
 
 	src := reflect.ValueOf(pb)
+
 	var dst *json.RawMessage
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -80,7 +90,9 @@ func TestNew_RoundTrip(t *testing.T) {
 
 	// json.RawMessage -> structpb.Struct
 	src1 := reflect.ValueOf(&original)
+
 	var intermediate *structpb.Struct
+
 	dstVal1 := reflect.ValueOf(&intermediate).Elem()
 
 	codec("Data", src1, dstVal1, func(_ string, _, _ reflect.Value) {
@@ -91,7 +103,9 @@ func TestNew_RoundTrip(t *testing.T) {
 
 	// structpb.Struct -> json.RawMessage
 	src2 := reflect.ValueOf(intermediate)
+
 	var result *json.RawMessage
+
 	dstVal2 := reflect.ValueOf(&result).Elem()
 
 	codec("Data", src2, dstVal2, func(_ string, _, _ reflect.Value) {
@@ -110,8 +124,11 @@ func TestNew_NilRawMessage(t *testing.T) {
 	codec := New()
 
 	var raw *json.RawMessage
+
 	src := reflect.ValueOf(raw)
+
 	var dst *structpb.Struct
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -125,8 +142,11 @@ func TestNew_NilStruct(t *testing.T) {
 	codec := New()
 
 	var pb *structpb.Struct
+
 	src := reflect.ValueOf(pb)
+
 	var dst *json.RawMessage
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -141,7 +161,9 @@ func TestNew_EmptyRawMessage(t *testing.T) {
 
 	raw := json.RawMessage{}
 	src := reflect.ValueOf(&raw)
+
 	var dst *structpb.Struct
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -156,11 +178,14 @@ func TestNew_InvalidJSON(t *testing.T) {
 
 	raw := json.RawMessage(`{invalid`)
 	src := reflect.ValueOf(&raw)
+
 	var dst *structpb.Struct
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	// Invalid JSON cannot be converted - codec returns false, next is called
 	nextCalled := false
+
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -172,10 +197,13 @@ func TestNew_PassThrough(t *testing.T) {
 	codec := New()
 
 	src := reflect.ValueOf("hello")
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	codec("Name", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -188,7 +216,9 @@ func TestNew_NonPointer_RawMessageToStruct(t *testing.T) {
 	codec := New()
 
 	src := reflect.ValueOf(raw)
+
 	var dst structpb.Struct
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -209,7 +239,9 @@ func TestNew_NonPointer_StructToRawMessage(t *testing.T) {
 	val := reflect.New(structpbType)
 	val.Elem().Set(reflect.ValueOf(pb).Elem())
 	src := val.Elem()
+
 	var dst json.RawMessage
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -225,8 +257,11 @@ func TestNew_IgnoreNil_RawMessage(t *testing.T) {
 	codec := New(WithIgnoreNil())
 
 	var raw *json.RawMessage
+
 	src := reflect.ValueOf(raw)
+
 	var dst *structpb.Struct
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -240,8 +275,11 @@ func TestNew_IgnoreNil_Struct(t *testing.T) {
 	codec := New(WithIgnoreNil())
 
 	var pb *structpb.Struct
+
 	src := reflect.ValueOf(pb)
+
 	var dst *json.RawMessage
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -256,7 +294,9 @@ func TestNew_NestedObject(t *testing.T) {
 	codec := New()
 
 	src := reflect.ValueOf(&raw)
+
 	var dst *structpb.Struct
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Metadata", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -272,4 +312,25 @@ func TestNew_NestedObject(t *testing.T) {
 	list := dst.Fields["list"].GetListValue()
 	require.NotNil(t, list)
 	assert.Len(t, list.Values, 3)
+}
+
+func TestNew_AbsentRawMessageZeroesStruct(t *testing.T) {
+	t.Parallel()
+
+	codec := New()
+
+	for _, raw := range []json.RawMessage{nil, json.RawMessage(``), json.RawMessage(` null `)} {
+		dst := &structpb.Struct{Fields: map[string]*structpb.Value{"old": structpb.NewBoolValue(true)}}
+		dstValue := reflect.ValueOf(&dst).Elem()
+
+		codec("raw", reflect.ValueOf(raw), dstValue, func(string, reflect.Value, reflect.Value) {
+			require.Fail(t, "next called")
+		})
+		require.Nil(t, dst, "%q", raw)
+	}
+
+	kept := &structpb.Struct{}
+	keptValue := reflect.ValueOf(&kept).Elem()
+	New(WithIgnoreNil())("raw", reflect.ValueOf(json.RawMessage(`null`)), keptValue, func(string, reflect.Value, reflect.Value) {})
+	require.NotNil(t, kept)
 }

@@ -75,7 +75,9 @@ func TestConvertE_RoundTrip(t *testing.T) {
 
 	back, err := converter.ConvertE(msg, &store{}, opts...)
 	require.NoError(t, err)
+
 	deposit = "250.50"
+
 	require.Equal(t, src, *back)
 }
 
@@ -128,11 +130,13 @@ func TestConvertE_ReturnsCodecErrorUnchanged(t *testing.T) {
 			t.Parallel()
 
 			var codecErr error
+
 			capture := func(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 				err := tt.codec(path, src, dst, next)
 				if err != nil {
 					codecErr = err
 				}
+
 				return err
 			}
 
@@ -140,6 +144,7 @@ func TestConvertE_ReturnsCodecErrorUnchanged(t *testing.T) {
 			require.Error(t, err)
 			require.Equal(t, codecErr, err, "ConvertE must return the codec error unchanged")
 			require.ErrorIs(t, err, tt.kind)
+
 			var gtErr googletype.Error
 			require.ErrorAs(t, err, &gtErr)
 			require.Equal(t, tt.path, gtErr.Path)

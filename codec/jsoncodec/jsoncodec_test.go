@@ -5,7 +5,6 @@
 package jsoncodec_test
 
 import (
-	stdjson "encoding/json"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/altessa-s/go-convert/codec/jsoncodec"
 
+	stdjson "encoding/json"
 	converter "github.com/altessa-s/go-convert"
 	convcodec "github.com/altessa-s/go-convert/codec"
 )
@@ -30,6 +30,7 @@ type point struct {
 // failing the test when the codec delegates.
 func run(t *testing.T, codec convcodec.CodecE, src, dstPtr any) error {
 	t.Helper()
+
 	return codec("Field", reflect.ValueOf(src), reflect.ValueOf(dstPtr).Elem(), func(string, reflect.Value, reflect.Value) error {
 		require.Fail(t, "next should not be called")
 		return nil
@@ -38,6 +39,7 @@ func run(t *testing.T, codec convcodec.CodecE, src, dstPtr any) error {
 
 func TestUnmarshal(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name   string
 		opts   []jsoncodec.Option
@@ -69,6 +71,7 @@ func TestUnmarshal(t *testing.T) {
 
 func TestMarshal(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name   string
 		opts   []jsoncodec.Option
@@ -93,6 +96,7 @@ func TestMarshal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			opts := append([]jsoncodec.Option{jsoncodec.WithJSONOptions(json.Deterministic(true))}, tt.opts...)
 			require.NoError(t, run(t, jsoncodec.New(opts...), tt.src, tt.dst))
 			require.Equal(t, tt.expect, reflect.ValueOf(tt.dst).Elem().Interface())
@@ -102,8 +106,11 @@ func TestMarshal(t *testing.T) {
 
 func TestMarshalAny(t *testing.T) {
 	t.Parallel()
+
 	type holder struct{ V any }
+
 	var text jsontext.Value
+
 	src := reflect.ValueOf(holder{V: map[string]int{"a": 1}}).Field(0)
 	require.NoError(t, jsoncodec.New()("V", src, reflect.ValueOf(&text).Elem(), nil))
 	require.JSONEq(t, `{"a":1}`, string(text))
@@ -123,19 +130,23 @@ func TestErrors(t *testing.T) {
 
 	dst := point{X: 9}
 	err := run(t, jsoncodec.New(), jsontext.Value(`{"x":`), &dst)
+
 	var codecErr jsoncodec.Error
 	require.ErrorAs(t, err, &codecErr)
 	require.Equal(t, "Field", codecErr.Path)
 	require.Equal(t, jsoncodec.OpUnmarshal, codecErr.Op)
+
 	var syntactic *jsontext.SyntacticError
 	require.ErrorAs(t, err, &syntactic)
 	require.Equal(t, point{X: 9}, dst, "the destination is unchanged on error")
 
 	err = run(t, jsoncodec.New(jsoncodec.WithJSONOptions(json.RejectUnknownMembers(true))), jsontext.Value(`{"z":1}`), &dst)
+
 	var semantic *json.SemanticError
 	require.ErrorAs(t, err, &semantic)
 
 	var text jsontext.Value
+
 	err = run(t, jsoncodec.New(), []failingMarshaler{{}}, &text)
 	require.ErrorAs(t, err, &codecErr)
 	require.Equal(t, jsoncodec.OpMarshal, codecErr.Op)
@@ -143,8 +154,35 @@ func TestErrors(t *testing.T) {
 	require.Nil(t, text)
 }
 
+func TestMaxBytes(t *testing.T) {
+	t.Parallel()
+
+	codec := jsoncodec.New(jsoncodec.WithMaxBytes(13), jsoncodec.WithStrings())
+
+	var dst point
+	require.NoError(t, run(t, codec, jsontext.Value(`{"x":1,"y":2}`), &dst), "text at the limit is decoded")
+	require.Equal(t, point{X: 1, Y: 2}, dst)
+
+	err := run(t, codec, new(`{"x":1,"y":20}`), &dst)
+
+	var codecErr jsoncodec.Error
+	require.ErrorAs(t, err, &codecErr)
+	require.Equal(t, jsoncodec.OpUnmarshal, codecErr.Op)
+	require.Equal(t, jsoncodec.SizeError{Size: 14, Limit: 13}, codecErr.Err)
+	require.Contains(t, err.Error(), `jsoncodec: field "Field": unmarshal: JSON text of 14 bytes exceeds the limit of 13`)
+	require.Equal(t, point{X: 1, Y: 2}, dst, "the destination is unchanged on error")
+
+	var text jsontext.Value
+	require.NoError(t, run(t, codec, map[string]string{"key": "a long value"}, &text), "marshaling is not limited")
+
+	unlimited := jsoncodec.New(jsoncodec.WithMaxBytes(0))
+	require.NoError(t, run(t, unlimited, jsontext.Value(`{"x":1,"y":20}`), &dst))
+	require.Equal(t, point{X: 1, Y: 20}, dst)
+}
+
 func TestDelegates(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name     string
 		opts     []jsoncodec.Option
@@ -162,6 +200,7 @@ func TestDelegates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			called := false
 			err := jsoncodec.New(tt.opts...)("Field", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(),
 				func(string, reflect.Value, reflect.Value) error {
@@ -190,6 +229,7 @@ type eventModel struct {
 
 func TestConverterRoundTrip(t *testing.T) {
 	t.Parallel()
+
 	opts := []converter.Option{converter.WithErrorCodecs(jsoncodec.New(jsoncodec.WithJSONOptions(json.Deterministic(true))))}
 	src := event{ID: 1, Payload: jsontext.Value(`{"x":1,"y":2}`), Meta: stdjson.RawMessage(`{"k":"v"}`), Tags: new(jsontext.Value(`["a","b"]`))}
 
@@ -204,7 +244,9 @@ func TestConverterRoundTrip(t *testing.T) {
 
 func TestConverterReturnsErrorUnchanged(t *testing.T) {
 	t.Parallel()
+
 	_, err := converter.ConvertE(event{Payload: jsontext.Value(`{"x":"one"}`)}, &eventModel{}, converter.WithErrorCodecs(jsoncodec.New()))
+
 	var codecErr jsoncodec.Error
 	require.ErrorAs(t, err, &codecErr)
 	require.Equal(t, "payload", codecErr.Path)
@@ -217,14 +259,17 @@ func ExampleNew() {
 		ID    int
 		Items stdjson.RawMessage
 	}
+
 	type Item struct {
 		SKU string `json:"sku"`
 		Qty int    `json:"qty"`
 	}
+
 	type OrderModel struct {
 		ID    int
 		Items []Item
 	}
+
 	codec := jsoncodec.New()
 
 	model, err := converter.ConvertE(Order{ID: 7, Items: stdjson.RawMessage(`[{"sku":"A1","qty":2}]`)}, &OrderModel{}, converter.WithErrorCodecs(codec))

@@ -22,6 +22,7 @@ func ExampleNewE() {
 		Attrs map[string]any
 		Tags  []any
 	}
+
 	type EventMessage struct {
 		Name  string
 		Attrs *structpb.Struct
@@ -38,6 +39,7 @@ func ExampleNewE() {
 	fmt.Println(err, back.Attrs["plan"], back.Attrs["seats"], back.Tags)
 
 	_, err = converter.ConvertE(Event{Attrs: map[string]any{"ratio": math.NaN()}}, &EventMessage{}, codec)
+
 	var valueErr jsonpb.ValueError
 	fmt.Println(errors.As(err, &valueErr), valueErr.Path)
 	// Output:

@@ -20,6 +20,7 @@ func BenchmarkNew_NullToValue(b *testing.B) {
 	dst := reflect.New(reflect.TypeFor[string]()).Elem()
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = codec("Name", src, dst, nopNext)
 	}
@@ -32,6 +33,7 @@ func BenchmarkNew_PointerToNull(b *testing.B) {
 	dst := reflect.New(reflect.TypeFor[sql.Null[int64]]()).Elem()
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = codec("Age", src, dst, nopNext)
 	}
@@ -43,6 +45,7 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 	dst := reflect.New(reflect.TypeFor[string]()).Elem()
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = codec("Name", src, dst, nopNext)
 	}

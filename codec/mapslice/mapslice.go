@@ -45,6 +45,7 @@ func Values(fieldName string, src, dst reflect.Value, next convcodec.CodecHandle
 		next(fieldName, src, dst)
 		return
 	}
+
 	srcType := sourceMap.Type()
 	dstType := reflectutils.IndirectType(dst.Type())
 
@@ -71,6 +72,7 @@ func Values(fieldName string, src, dst reflect.Value, next convcodec.CodecHandle
 	if sliceDst.IsNil() {
 		sliceDst.Set(reflect.MakeSlice(dstType, 0, len(keys)))
 	}
+
 	for i := range keys {
 		sliceDst.Set(reflect.Append(sliceDst, sourceMap.MapIndex(keys[i])))
 	}
@@ -92,6 +94,7 @@ func Keys(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler)
 		next(fieldName, src, dst)
 		return
 	}
+
 	srcType := sourceMap.Type()
 	dstType := reflectutils.IndirectType(dst.Type())
 
@@ -118,6 +121,7 @@ func Keys(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler)
 	if sliceDst.IsNil() {
 		sliceDst.Set(reflect.MakeSlice(dstType, 0, len(keys)))
 	}
+
 	for i := range keys {
 		sliceDst.Set(reflect.Append(sliceDst, keys[i]))
 	}
@@ -136,7 +140,9 @@ func sliceDestination(dst reflect.Value) (reflect.Value, bool) {
 	if dst.Kind() == reflect.Pointer && dst.IsNil() && !dst.CanSet() {
 		return reflect.Value{}, false
 	}
+
 	reflectutils.MakeDst(&dst, reflectutils.IndirectType(dst.Type()))
 	dst = reflectutils.IndirectValue(dst)
+
 	return dst, dst.Kind() == reflect.Slice && dst.CanSet()
 }

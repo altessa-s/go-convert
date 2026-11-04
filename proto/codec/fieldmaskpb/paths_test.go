@@ -169,6 +169,7 @@ func profileDescriptor(t *testing.T) protoreflect.MessageDescriptor {
 	}
 	fd, err := protodesc.NewFile(file, nil)
 	require.NoError(t, err)
+
 	return fd.Messages().ByName("Profile")
 }
 

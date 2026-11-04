@@ -26,6 +26,7 @@ type UnknownValueError struct {
 	Value any
 }
 
+// Error reports the field path, the enum type and the unknown value.
 func (e UnknownValueError) Error() string {
 	return fmt.Sprintf("enumcodec: field %q: unknown %s value %#v", e.Path, e.Enum, e.Value)
 }
@@ -41,6 +42,7 @@ type RangeError struct {
 	Kind reflect.Kind
 }
 
+// Error reports the field path and the value that does not fit the kind.
 func (e RangeError) Error() string {
 	return fmt.Sprintf("enumcodec: field %q: value %d overflows %s", e.Path, e.Value, e.Kind)
 }
@@ -49,8 +51,9 @@ func (e RangeError) Error() string {
 // strings using names, which maps every known enum value to its spelling.
 //
 // The codec claims a field pair only when one side is exactly E or *E and the
-// other is a type of string kind (or a pointer to one) other than E; every
-// other pair is delegated to next. Formatting looks the enum value up in
+// other is the predeclared string type (or a pointer to it); every other
+// pair, including one with another defined type such as a second enum, is
+// delegated to next. Formatting looks the enum value up in
 // names; parsing looks the string up in the reverse table, ignoring case with
 // [WithCaseInsensitive]. A value missing from the table is an
 // [UnknownValueError] unless [WithUnspecified] or [WithUnknownAsZero] applies.
@@ -65,6 +68,7 @@ func (e RangeError) Error() string {
 //	converter.ConvertE(src, &dst, converter.WithErrorCodecs(codec))
 func New[E comparable](names map[E]string, opts ...Option) convcodec.CodecE {
 	o := newOptions(opts...)
+
 	c := newTable(names, o, isStringKind, readString, writeString)
 	if o.caseInsensitive {
 		c.folded = make(map[string]E, len(names))
@@ -73,9 +77,11 @@ func New[E comparable](names map[E]string, opts ...Option) convcodec.CodecE {
 			if _, dup := c.folded[key]; dup {
 				panic(fmt.Sprintf("enumcodec: %s names %q collide ignoring case", c.enumType, name))
 			}
+
 			c.folded[key] = e
 		}
 	}
+
 	return c.codec
 }
 
@@ -83,19 +89,26 @@ func New[E comparable](names map[E]string, opts ...Option) convcodec.CodecE {
 // integers using values, which maps every known enum value to its number.
 //
 // The codec claims a field pair only when one side is exactly E or *E and the
-// other is a type of signed or unsigned integer kind (or a pointer to one)
-// other than E; every other pair is delegated to next. An integer missing
+// other is a predeclared signed or unsigned integer type, such as int32 (or a
+// pointer to one); every other pair, including one with another defined type
+// such as a second enum, is delegated to next. An integer missing
 // from the table is an [UnknownValueError] unless [WithUnspecified] or
 // [WithUnknownAsZero] applies; a table integer that does not fit the
 // destination is a [RangeError]. A nil pointer source zeroes the destination.
 //
-// NewInt panics when two enum values share a number.
+// NewInt panics when two enum values share a number, and when
+// [WithCaseInsensitive] is given, because integers have no case.
 //
 // Example:
 //
 //	codec := enumcodec.NewInt(map[Color]int64{Red: 1, Green: 2})
 func NewInt[E comparable](values map[E]int64, opts ...Option) convcodec.CodecE {
-	return newTable(values, newOptions(opts...), isIntegerKind, readInteger, writeInteger).codec
+	o := newOptions(opts...)
+	if o.caseInsensitive {
+		panic(fmt.Sprintf("enumcodec: WithCaseInsensitive does not apply to the integer codec of %s", reflect.TypeFor[E]()))
+	}
+
+	return newTable(values, o, isIntegerKind, readInteger, writeInteger).codec
 }
 
 // table holds both directions of an enum mapping onto wire values of type W
@@ -114,6 +127,7 @@ type table[E, W comparable] struct {
 	write func(path string, dst reflect.Value, w W) error
 }
 
+// newTable builds the forward and reverse lookups, panicking on duplicates.
 func newTable[E, W comparable](
 	forward map[E]W, opts *options,
 	isWire func(reflect.Kind) bool,
@@ -133,9 +147,11 @@ func newTable[E, W comparable](
 		if _, dup := t.reverse[w]; dup {
 			panic(fmt.Sprintf("enumcodec: %s wire value %v is mapped more than once", t.enumType, w))
 		}
+
 		t.forward[e] = w
 		t.reverse[w] = e
 	}
+
 	return t
 }
 
@@ -157,13 +173,16 @@ func (t *table[E, W]) isEnum(typ reflect.Type) bool {
 	return typ == t.enumType || typ.Kind() == reflect.Pointer && typ.Elem() == t.enumType
 }
 
-// isWireType reports whether typ, or the type it points to, has a wire kind
-// and is not the enum type itself.
+// isWireType reports whether typ, or the type it points to, is a predeclared
+// type of a wire kind, such as string or int32, and not the enum type itself.
+// Defined types, such as another enum, are never wire types, so a pair of
+// enums is not mapped through this table.
 func (t *table[E, W]) isWireType(typ reflect.Type) bool {
 	if typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
-	return typ != t.enumType && t.isWire(typ.Kind())
+
+	return typ != t.enumType && typ.PkgPath() == "" && typ.Name() != "" && t.isWire(typ.Kind())
 }
 
 // format converts an enum source into a wire destination.
@@ -173,8 +192,10 @@ func (t *table[E, W]) format(path string, src, dst reflect.Value) error {
 			dst.SetZero()
 			return nil
 		}
+
 		src = src.Elem()
 	}
+
 	e, isEnum := reflect.TypeAssert[E](src)
 	if !isEnum {
 		return UnknownValueError{Path: path, Enum: t.enumType, Value: src.Interface()}
@@ -187,7 +208,9 @@ func (t *table[E, W]) format(path string, src, dst reflect.Value) error {
 			return UnknownValueError{Path: path, Enum: t.enumType, Value: e}
 		}
 	}
+
 	reflectutils.MakeDst(&dst, dst.Type())
+
 	return t.write(path, dst, w)
 }
 
@@ -198,20 +221,26 @@ func (t *table[E, W]) parse(path string, src, dst reflect.Value) error {
 			dst.SetZero()
 			return nil
 		}
+
 		src = src.Elem()
 	}
+
 	e, ok := t.lookup(src)
 	if !ok && !t.opts.unknownAsZero {
 		return UnknownValueError{Path: path, Enum: t.enumType, Value: src.Interface()}
 	}
+
 	reflectutils.MakeDst(&dst, dst.Type())
+
 	if dst.CanAddr() {
 		if p, isEnum := reflect.TypeAssert[*E](dst.Addr()); isEnum {
 			*p = e
 			return nil
 		}
 	}
+
 	setValue(dst, e)
+
 	return nil
 }
 
@@ -225,24 +254,31 @@ func setValue[E any](dst reflect.Value, e E) {
 // returned for the zero wire value with [WithUnspecified].
 func (t *table[E, W]) lookup(src reflect.Value) (E, bool) {
 	var zero E
+
 	w, ok := t.read(src)
 	if !ok {
 		return zero, false
 	}
+
 	if e, found := t.reverse[w]; found {
 		return e, true
 	}
+
 	if t.folded != nil {
 		if e, found := t.folded[strings.ToLower(src.String())]; found {
 			return e, true
 		}
 	}
+
 	var zeroWire W
+
 	return zero, t.opts.unspecified && w == zeroWire
 }
 
+// isStringKind reports whether k is the string kind.
 func isStringKind(k reflect.Kind) bool { return k == reflect.String }
 
+// isIntegerKind reports whether k is a signed or unsigned integer kind.
 func isIntegerKind(k reflect.Kind) bool {
 	switch k {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -253,8 +289,10 @@ func isIntegerKind(k reflect.Kind) bool {
 	}
 }
 
+// readString reads the wire value of a string-kind field.
 func readString(v reflect.Value) (string, bool) { return v.String(), true }
 
+// writeString stores s in a string-kind destination.
 func writeString(_ string, dst reflect.Value, s string) error {
 	dst.SetString(s)
 	return nil
@@ -266,24 +304,32 @@ func readInteger(v reflect.Value) (int64, bool) {
 	if v.CanInt() {
 		return v.Int(), true
 	}
+
 	u := v.Uint()
 	if u > math.MaxInt64 {
 		return 0, false
 	}
+
 	return int64(u), true
 }
 
+// writeInteger stores n in an integer-kind destination, failing when it does not fit.
 func writeInteger(path string, dst reflect.Value, n int64) error {
 	if dst.CanInt() {
 		if dst.OverflowInt(n) {
 			return RangeError{Path: path, Value: n, Kind: dst.Kind()}
 		}
+
 		dst.SetInt(n)
+
 		return nil
 	}
+
 	if n < 0 || dst.OverflowUint(uint64(n)) {
 		return RangeError{Path: path, Value: n, Kind: dst.Kind()}
 	}
+
 	dst.SetUint(uint64(n))
+
 	return nil
 }

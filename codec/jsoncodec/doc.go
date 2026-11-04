@@ -11,7 +11,9 @@
 // are never decoded. JSON text is unmarshaled into, and marshaled from,
 // structs, maps, slices and empty interfaces. Both pointer and non-pointer
 // variants are supported. Options from encoding/json/v2 and
-// encoding/json/jsontext are passed through with [WithJSONOptions].
+// encoding/json/jsontext are passed through with [WithJSONOptions], and
+// [WithMaxBytes] limits the size of decoded JSON text, which is unlimited by
+// default.
 //
 // Marshal and unmarshal failures are returned as an [Error] that wraps the
 // encoding/json/v2 error; converter.ConvertE returns it unchanged.

@@ -21,10 +21,12 @@ type Error struct {
 	Err error
 }
 
+// Error reports the field path and the decoding failure.
 func (e *Error) Error() string {
 	if e.Path == "" {
 		return fmt.Sprintf("b64codec: %v", e.Err)
 	}
+
 	return fmt.Sprintf("b64codec: field %q: %v", e.Path, e.Err)
 }
 
@@ -39,9 +41,11 @@ func (e *Error) Unwrap() error { return e.Err }
 //   - string kind -> []byte kind: decodes with the configured encoding
 //
 // The encoding is base64.StdEncoding unless [WithEncoding] sets another. An
-// empty string sets the destination to its zero value (a nil slice or nil
-// pointer); a nil source pointer leaves the destination unchanged. Invalid
-// input is returned as an [*Error] and leaves the destination unchanged.
+// empty string decodes to a non-nil empty slice, keeping []byte{} apart from
+// nil; only a nil source pointer sets the destination to its zero value (a
+// nil slice, "" or a nil pointer).
+// Invalid input is returned as an [*Error] and leaves the destination
+// unchanged.
 //
 // Example:
 //
@@ -55,6 +59,7 @@ func New(opts ...Option) convcodec.CodecE {
 			if err != nil {
 				return &Error{Path: fieldPath, Err: err}
 			}
+
 			return nil
 		}
 
@@ -63,7 +68,8 @@ func New(opts ...Option) convcodec.CodecE {
 }
 
 // tryConvert converts between byte slices and base64 strings. It reports
-// whether the conversion was handled (including a nil source).
+// whether the conversion was handled; a nil source sets dst to its zero
+// value.
 func tryConvert(src, dst reflect.Value, enc *base64.Encoding) (bool, error) {
 	srcType := reflectutils.IndirectType(src.Type())
 	dstType := reflectutils.IndirectType(dst.Type())
@@ -72,27 +78,31 @@ func tryConvert(src, dst reflect.Value, enc *base64.Encoding) (bool, error) {
 	case isBytes(srcType) && dstType.Kind() == reflect.String:
 		srcValue := reflectutils.IndirectValue(src)
 		if !srcValue.IsValid() {
+			dst.SetZero()
 			return true, nil
 		}
+
 		reflectutils.MakeDst(&dst, dstType)
 		dst.SetString(enc.EncodeToString(srcValue.Bytes()))
+
 		return true, nil
 
 	case srcType.Kind() == reflect.String && isBytes(dstType):
 		srcValue := reflectutils.IndirectValue(src)
 		if !srcValue.IsValid() {
-			return true, nil
-		}
-		if srcValue.Len() == 0 {
 			dst.SetZero()
 			return true, nil
 		}
+
+		// DecodeString returns a non-nil empty slice for "".
 		decoded, err := enc.DecodeString(srcValue.String())
 		if err != nil {
 			return true, err
 		}
+
 		reflectutils.MakeDst(&dst, dstType)
 		dst.SetBytes(decoded)
+
 		return true, nil
 
 	default:

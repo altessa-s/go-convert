@@ -54,6 +54,10 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 	case srcType == timeType && dstType == int64Type:
 		// Handle nil pointer source
 		if !srcValue.IsValid() {
+			if !opts.ignoreZero {
+				reflectutils.SetZero(dst)
+			}
+
 			return true
 		}
 
@@ -81,6 +85,10 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 	case srcType == int64Type && dstType == timeType:
 		// Handle nil pointer source
 		if !srcValue.IsValid() {
+			if !opts.ignoreZero {
+				reflectutils.SetZero(dst)
+			}
+
 			return true
 		}
 
@@ -115,11 +123,13 @@ func readTime(v reflect.Value) (time.Time, bool) {
 	if !v.IsValid() || v.Type() != timeType {
 		return time.Time{}, false
 	}
+
 	if v.CanAddr() {
 		return *(*time.Time)(unsafe.Pointer(v.UnsafeAddr())), true
 	}
 
 	t, ok := reflect.TypeAssert[time.Time](v)
+
 	return t, ok
 }
 

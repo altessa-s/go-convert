@@ -12,7 +12,9 @@ import (
 
 func TestGeneratedStructCachesRemainBounded(t *testing.T) {
 	const count = maxCachedFieldMappings + 100
+
 	intType := reflect.TypeFor[int]()
+
 	types := make([]reflect.Type, count+1)
 	for i := range types {
 		types[i] = reflect.StructOf([]reflect.StructField{{
@@ -36,6 +38,7 @@ func TestGeneratedStructCachesRemainBounded(t *testing.T) {
 	if metadataCount > maxCachedFieldMetadata {
 		t.Fatalf("field metadata cache contains %d entries, limit is %d", metadataCount, maxCachedFieldMetadata)
 	}
+
 	if mappingCount > maxCachedFieldMappings {
 		t.Fatalf("field mapping cache contains %d entries, limit is %d", mappingCount, maxCachedFieldMappings)
 	}

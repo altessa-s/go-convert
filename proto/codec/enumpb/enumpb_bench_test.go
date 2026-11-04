@@ -18,7 +18,9 @@ func noopNext(string, reflect.Value, reflect.Value) error { return nil }
 func BenchmarkNew_EnumToString(b *testing.B) {
 	codec := enumpb.New(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower))
 	src := reflect.ValueOf(typepb.Field_CARDINALITY_REPEATED)
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	b.ReportAllocs()
@@ -31,7 +33,9 @@ func BenchmarkNew_EnumToString(b *testing.B) {
 func BenchmarkNew_StringToEnum(b *testing.B) {
 	codec := enumpb.New(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower))
 	src := reflect.ValueOf("repeated")
+
 	var dst typepb.Field_Cardinality
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	b.ReportAllocs()
@@ -44,7 +48,9 @@ func BenchmarkNew_StringToEnum(b *testing.B) {
 func BenchmarkNew_PassThrough(b *testing.B) {
 	codec := enumpb.New()
 	src := reflect.ValueOf("hello")
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	b.ReportAllocs()
@@ -57,7 +63,9 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 func BenchmarkNewMapping_EnumToGo(b *testing.B) {
 	codec := enumpb.NewMapping(cardinalities)
 	src := reflect.ValueOf(typepb.Field_CARDINALITY_REPEATED)
+
 	var dst cardinality
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	b.ReportAllocs()
@@ -70,7 +78,9 @@ func BenchmarkNewMapping_EnumToGo(b *testing.B) {
 func BenchmarkNewMapping_GoToEnum(b *testing.B) {
 	codec := enumpb.NewMapping(cardinalities)
 	src := reflect.ValueOf(cardinalityRepeated)
+
 	var dst typepb.Field_Cardinality
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	b.ReportAllocs()

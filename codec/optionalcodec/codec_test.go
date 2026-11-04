@@ -35,6 +35,7 @@ func TestCodec_OptionalToPointer_Some(t *testing.T) {
 	src := reflect.ValueOf(optional.Some("hi"))
 
 	var dstPtr *string
+
 	dst := reflect.ValueOf(&dstPtr).Elem()
 
 	optionalcodec.Codec("f", src, dst, failingHandler(t))
@@ -58,9 +59,11 @@ func TestCodec_PointerToOptional_Nil(t *testing.T) {
 	t.Parallel()
 
 	var srcPtr *string
+
 	src := reflect.ValueOf(&srcPtr).Elem()
 
 	var dst optional.Optional[string]
+
 	dstV := reflect.ValueOf(&dst).Elem()
 
 	optionalcodec.Codec("f", src, dstV, failingHandler(t))
@@ -74,6 +77,7 @@ func TestCodec_PointerToOptional_NonNil(t *testing.T) {
 	src := reflect.ValueOf(&srcPtr).Elem()
 
 	var dst optional.Optional[string]
+
 	dstV := reflect.ValueOf(&dst).Elem()
 
 	optionalcodec.Codec("f", src, dstV, failingHandler(t))
@@ -87,6 +91,7 @@ func TestCodec_OptionalToOptional_SameType(t *testing.T) {
 	src := reflect.ValueOf(optional.Some(42))
 
 	var dst optional.Optional[int]
+
 	dstV := reflect.ValueOf(&dst).Elem()
 
 	optionalcodec.Codec("f", src, dstV, failingHandler(t))
@@ -100,6 +105,7 @@ func TestCodec_OptionalToValue_Some(t *testing.T) {
 	src := reflect.ValueOf(optional.Some(7))
 
 	var dst int
+
 	dstV := reflect.ValueOf(&dst).Elem()
 
 	optionalcodec.Codec("f", src, dstV, failingHandler(t))
@@ -124,6 +130,7 @@ func TestCodec_ValueToOptional(t *testing.T) {
 	src := reflect.ValueOf("hi")
 
 	var dst optional.Optional[string]
+
 	dstV := reflect.ValueOf(&dst).Elem()
 
 	optionalcodec.Codec("f", src, dstV, failingHandler(t))
@@ -137,9 +144,11 @@ func TestCodec_DelegatesOnUnrelatedTypes(t *testing.T) {
 	src := reflect.ValueOf(int64(7))
 
 	var dst int32
+
 	dstV := reflect.ValueOf(&dst).Elem()
 
 	var called bool
+
 	terminal := func(fieldName string, src, dst reflect.Value) {
 		called = true
 	}
@@ -153,9 +162,11 @@ func TestCodec_DelegatesOnMismatchedOptionalInner(t *testing.T) {
 	src := reflect.ValueOf(optional.Some("hi"))
 
 	var dstPtr *int
+
 	dst := reflect.ValueOf(&dstPtr).Elem()
 
 	var called bool
+
 	terminal := func(fieldName string, src, dst reflect.Value) {
 		called = true
 	}
@@ -173,6 +184,7 @@ func TestCodec_IntegrationViaConverter_PointerToOptional(t *testing.T) {
 		DeletedAt *time.Time
 		Note      *string
 	}
+
 	type entity struct {
 		DeletedAt optional.Optional[time.Time]
 		Note      optional.Optional[string]
@@ -205,6 +217,7 @@ func TestCodec_IntegrationViaConverter_NilPointersBecomeNone(t *testing.T) {
 	type model struct {
 		DeletedAt *time.Time
 	}
+
 	type entity struct {
 		DeletedAt optional.Optional[time.Time]
 	}
@@ -225,6 +238,7 @@ func TestCodec_IntegrationViaConverter_OptionalToPointer(t *testing.T) {
 	type entity struct {
 		DeletedAt optional.Optional[time.Time]
 	}
+
 	type model struct {
 		DeletedAt *time.Time
 	}
@@ -249,6 +263,7 @@ func TestCodec_IntegrationViaConverter_NoneToNilPointer(t *testing.T) {
 	type entity struct {
 		DeletedAt optional.Optional[time.Time]
 	}
+
 	type model struct {
 		DeletedAt *time.Time
 	}
@@ -269,6 +284,7 @@ func TestCodecOptionalValueShapes(t *testing.T) {
 	t.Parallel()
 	t.Run("some to value", func(t *testing.T) {
 		t.Parallel()
+
 		src := reflect.ValueOf(optional.Some("present"))
 		dst := reflect.New(reflect.TypeFor[string]()).Elem()
 		optionalcodec.Codec("field", src, dst, failingHandler(t))
@@ -276,6 +292,7 @@ func TestCodecOptionalValueShapes(t *testing.T) {
 	})
 	t.Run("none to value", func(t *testing.T) {
 		t.Parallel()
+
 		src := reflect.ValueOf(optional.None[string]())
 		dst := reflect.New(reflect.TypeFor[string]()).Elem()
 		dst.SetString("initial")
@@ -284,6 +301,7 @@ func TestCodecOptionalValueShapes(t *testing.T) {
 	})
 	t.Run("zero value to optional", func(t *testing.T) {
 		t.Parallel()
+
 		src := reflect.ValueOf(true)
 		dst := reflect.New(reflect.TypeFor[optional.Optional[struct{}]]()).Elem()
 		optionalcodec.Codec("field", src, dst, func(string, reflect.Value, reflect.Value) {})

@@ -72,10 +72,12 @@ type Error struct {
 	Detail string
 }
 
+// Error reports the field path, the kind of failure and its detail.
 func (e Error) Error() string {
 	if e.Path != "" {
 		return fmt.Sprintf("googletype: field %q: %s: %s", e.Path, e.Kind.Error(), e.Detail)
 	}
+
 	return fmt.Sprintf("googletype: %s: %s", e.Kind.Error(), e.Detail)
 }
 

@@ -10,13 +10,25 @@ Package `fieldmaskpb` converts `fieldmaskpb.FieldMask` values and applies them t
 ## Codec
 
 `New` converts between `fieldmaskpb.FieldMask` and a slice of any string kind holding its paths, in both directions.
-Paths are copied, never aliased. A nil mask or nil slice leaves the destination unchanged; pointer variants of either side
-are supported.
+Paths are copied, never aliased. A nil mask or nil slice sets the destination to its zero value (a nil pointer or slice), and a
+mask without paths leaves a slice pointer destination nil; `WithIgnoreEmpty` keeps the destination instead. Pointer variants
+of either side are supported.
+
+`NewE` returns an error codec (`convcodec.CodecE`) that converts the same way but validates every path first and fails with
+`PathError`, leaving the destination unchanged. Without `WithMessage` a path must be lower snake_case segments separated by
+dots (`address.city`), and `*` is accepted as the only path; with `WithMessage(msg)` every path must select a field of `msg`,
+following the `IgnorePaths` rules below. `New` keeps passing paths through unchecked.
+
+```go
+codec := fieldmaskpb.NewE(fieldmaskpb.WithMessage(&userpb.User{}))
+_, err := converter.ConvertE(src, &dst, converter.WithErrorCodecs(codec))
+```
 
 | Option            | Description                                                         |
 |-------------------|---------------------------------------------------------------------|
-| `WithIgnoreEmpty` | Skip masks without paths and empty slices                           |
+| `WithIgnoreEmpty` | Skip nil or empty masks and slices, leaving the destination         |
 | `WithNormalize`   | Sort the paths and drop duplicates and paths covered by a parent    |
+| `WithMessage`     | `NewE` only: validate paths against the message descriptor          |
 
 ## Partial updates
 

@@ -36,6 +36,7 @@ var colorNumbers = map[color]int64{colorRed: 10, colorGreen: 20, colorBlue: 300}
 // failing the test when the codec delegates.
 func run(t *testing.T, codec convcodec.CodecE, src, dstPtr any) error {
 	t.Helper()
+
 	return codec("Field", reflect.ValueOf(src), reflect.ValueOf(dstPtr).Elem(), func(string, reflect.Value, reflect.Value) error {
 		require.Fail(t, "next should not be called")
 		return nil
@@ -44,6 +45,7 @@ func run(t *testing.T, codec convcodec.CodecE, src, dstPtr any) error {
 
 func TestNew_Format(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		opts []enumcodec.Option
@@ -62,7 +64,9 @@ func TestNew_Format(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			dst := "unchanged"
+
 			err := run(t, enumcodec.New(colorNames, tt.opts...), tt.src, &dst)
 			if tt.err {
 				var unknown enumcodec.UnknownValueError
@@ -70,8 +74,10 @@ func TestNew_Format(t *testing.T) {
 				require.Equal(t, "Field", unknown.Path)
 				require.Equal(t, reflect.TypeFor[color](), unknown.Enum)
 				require.Equal(t, "unchanged", dst)
+
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.want, dst)
 		})
@@ -80,6 +86,7 @@ func TestNew_Format(t *testing.T) {
 
 func TestNew_Parse(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		opts []enumcodec.Option
@@ -88,7 +95,6 @@ func TestNew_Parse(t *testing.T) {
 		err  bool
 	}{
 		{name: "known", src: "green", want: colorGreen},
-		{name: "named string", src: label("blue"), want: colorBlue},
 		{name: "pointer source", src: new("red"), want: colorRed},
 		{name: "unknown", src: "purple", err: true},
 		{name: "wrong case", src: "RED", err: true},
@@ -100,15 +106,19 @@ func TestNew_Parse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			dst := colorBlue
+
 			err := run(t, enumcodec.New(colorNames, tt.opts...), tt.src, &dst)
 			if tt.err {
 				var unknown enumcodec.UnknownValueError
 				require.ErrorAs(t, err, &unknown)
 				require.Equal(t, reflect.Indirect(reflect.ValueOf(tt.src)).Interface(), unknown.Value)
 				require.Equal(t, colorBlue, dst)
+
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.want, dst)
 		})
@@ -117,6 +127,7 @@ func TestNew_Parse(t *testing.T) {
 
 func TestNew_Pointers(t *testing.T) {
 	t.Parallel()
+
 	codec := enumcodec.New(colorNames)
 
 	var name *string
@@ -138,6 +149,7 @@ func TestNew_Pointers(t *testing.T) {
 
 func TestNewInt(t *testing.T) {
 	t.Parallel()
+
 	codec := enumcodec.NewInt(colorNumbers)
 
 	var i32 int32
@@ -159,33 +171,83 @@ func TestNewInt(t *testing.T) {
 	require.Equal(t, 11, unknown.Value)
 	require.ErrorAs(t, run(t, codec, uint64(1<<63), &c), &unknown)
 
-	var u8 uint8
-	var rangeErr enumcodec.RangeError
+	var (
+		u8       uint8
+		rangeErr enumcodec.RangeError
+	)
 	require.ErrorAs(t, run(t, codec, colorBlue, &u8), &rangeErr)
 	require.Equal(t, enumcodec.RangeError{Path: "Field", Value: 300, Kind: reflect.Uint8}, rangeErr)
 	require.Zero(t, u8)
 
 	unspecified := enumcodec.NewInt(colorNumbers, enumcodec.WithUnspecified())
+
 	var n int
 	require.NoError(t, run(t, unspecified, colorUnspecified, &n))
 	require.Zero(t, n)
+
 	c = colorRed
 	require.NoError(t, run(t, unspecified, 0, &c))
 	require.Equal(t, colorUnspecified, c)
 }
 
+// shade is a second int32 enum whose values differ from paint's table.
+type shade int32
+
+// paint is an int32 enum with a NewInt table.
+type paint int32
+
+type canvas struct {
+	Paint paint
+	Shade *shade
+}
+
+type canvasDTO struct {
+	Paint shade
+	Shade *paint
+}
+
+func TestNewInt_EnumPairDelegates(t *testing.T) {
+	t.Parallel()
+
+	codec := enumcodec.NewInt(map[paint]int64{1: 100, 2: 200})
+
+	called := false
+	err := codec("Field", reflect.ValueOf(paint(1)), reflect.ValueOf(new(shade)).Elem(), func(string, reflect.Value, reflect.Value) error {
+		called = true
+		return nil
+	})
+	require.NoError(t, err)
+	require.True(t, called, "an enum to enum pair must be delegated")
+
+	dto, err := converter.ConvertE(canvas{Paint: 2, Shade: new(shade(1))}, &canvasDTO{}, converter.WithErrorCodecs(codec))
+	require.NoError(t, err)
+	require.Equal(t, &canvasDTO{Paint: 2, Shade: new(paint(1))}, dto, "the engine converts enum pairs by value")
+}
+
+func TestNewInt_CaseInsensitivePanics(t *testing.T) {
+	t.Parallel()
+	require.Panics(t, func() { enumcodec.NewInt(colorNumbers, enumcodec.WithCaseInsensitive()) })
+}
+
 func TestNegativeIntoUnsigned(t *testing.T) {
 	t.Parallel()
+
 	codec := enumcodec.NewInt(map[color]int64{colorRed: -1})
-	var u uint
-	var rangeErr enumcodec.RangeError
+
+	var (
+		u        uint
+		rangeErr enumcodec.RangeError
+	)
 	require.ErrorAs(t, run(t, codec, colorRed, &u), &rangeErr)
 }
 
 func TestDelegates(t *testing.T) {
 	t.Parallel()
+
 	type other int
+
 	codec := enumcodec.New(colorNames)
+
 	tests := []struct {
 		name     string
 		src, dst any
@@ -196,10 +258,14 @@ func TestDelegates(t *testing.T) {
 		{name: "other type to string", src: other(1), dst: new(string)},
 		{name: "double pointer", src: new(new(colorRed)), dst: new(string)},
 		{name: "string to other", src: "red", dst: new(other)},
+		{name: "named string to enum", src: label("blue"), dst: new(color)},
+		{name: "enum to named string", src: colorBlue, dst: new(label)},
+		{name: "enum to named string pointer", src: colorBlue, dst: new(*label)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			called := false
 			err := codec("Field", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), func(string, reflect.Value, reflect.Value) error {
 				called = true
@@ -213,14 +279,19 @@ func TestDelegates(t *testing.T) {
 
 func TestStringKindEnum(t *testing.T) {
 	t.Parallel()
+
 	type status string
+
 	codec := enumcodec.New(map[status]string{"ACTIVE": "active"})
+
 	var dst string
 	require.NoError(t, run(t, codec, status("ACTIVE"), &dst))
 	require.Equal(t, "active", dst)
 
 	called := false
+
 	var same status
+
 	err := codec("Field", reflect.ValueOf(status("ACTIVE")), reflect.ValueOf(&same).Elem(), func(string, reflect.Value, reflect.Value) error {
 		called = true
 		return nil
@@ -241,8 +312,10 @@ func TestDuplicatesPanic(t *testing.T) {
 
 func TestErrorMessages(t *testing.T) {
 	t.Parallel()
+
 	err := enumcodec.UnknownValueError{Path: "a.b", Enum: reflect.TypeFor[color](), Value: "x"}
 	require.Equal(t, `enumcodec: field "a.b": unknown enumcodec_test.color value "x"`, err.Error())
+
 	rangeErr := enumcodec.RangeError{Path: "a", Value: 300, Kind: reflect.Uint8}
 	require.Equal(t, `enumcodec: field "a": value 300 overflows uint8`, rangeErr.Error())
 }
@@ -263,6 +336,7 @@ type orderDTO struct {
 
 func TestConverterRoundTrip(t *testing.T) {
 	t.Parallel()
+
 	opts := []converter.Option{converter.WithErrorCodecs(
 		enumcodec.New(colorNames),
 		enumcodec.NewInt(colorNumbers),
@@ -281,6 +355,7 @@ func TestConverterRoundTrip(t *testing.T) {
 
 func TestConverterReturnsErrorUnchanged(t *testing.T) {
 	t.Parallel()
+
 	_, err := converter.ConvertE(orderDTO{Color: "purple"}, &order{}, converter.WithErrorCodecs(enumcodec.New(colorNames)))
 	require.Equal(t, enumcodec.UnknownValueError{Path: "color", Enum: reflect.TypeFor[color](), Value: "purple"}, err)
 
@@ -291,12 +366,15 @@ func TestConverterReturnsErrorUnchanged(t *testing.T) {
 
 func ExampleNew() {
 	type Status int
+
 	const (
 		Unknown Status = iota
 		Active
 		Suspended
 	)
+
 	type User struct{ Status Status }
+
 	type UserDTO struct{ Status string }
 
 	codec := enumcodec.New(map[Status]string{Active: "active", Suspended: "suspended"}, enumcodec.WithCaseInsensitive())

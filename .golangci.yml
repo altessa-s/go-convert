@@ -40,6 +40,8 @@ linters:
     - dupl
     - gocyclo
     - gocognit
+    - wsl_v5
+    - godoclint
   settings:
     lll:
       line-length: 156
@@ -74,10 +76,39 @@ linters:
       always: false
     misspell:
       locale: US
+    godoclint:
+      default: basic
+      enable:
+        - require-doc
   exclusions:
     generated: lax
-    paths:
-      - ".*_test\\.go"
+    rules:
+      # Tests are held to the formatting rules only.
+      - path: _test\.go
+        linters:
+          - bidichk
+          - bodyclose
+          - contextcheck
+          - dogsled
+          - errcheck
+          - prealloc
+          - mnd
+          - unconvert
+          - exhaustive
+          - goconst
+          - gocritic
+          - godox
+          - govet
+          - lll
+          - makezero
+          - nilnil
+          - noctx
+          - staticcheck
+          - unparam
+          - dupl
+          - gocyclo
+          - gocognit
+          - godoclint
 
 formatters:
   enable:

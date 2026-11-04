@@ -8,7 +8,9 @@
 // [New] creates a codec for bidirectional conversion between
 // fieldmaskpb.FieldMask and a slice of strings holding its paths. Empty masks
 // can be skipped with [WithIgnoreEmpty], and [WithNormalize] sorts the paths
-// and drops redundant ones.
+// and drops redundant ones. [NewE] is the error codec variant: it validates
+// the paths, by syntax or against a message with [WithMessage], and reports
+// invalid ones as a [PathError].
 //
 // [IgnorePaths] turns an update mask into converter ignore paths. A mask lists
 // the fields to update while the converter excludes fields, so it returns the

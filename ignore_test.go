@@ -142,6 +142,7 @@ func TestIgnorePaths(t *testing.T) {
 
 func TestIgnorePathsNormalizesCaseAndDots(t *testing.T) {
 	t.Parallel()
+
 	var dst pathDest
 	converter.Convert(pathFixture(), &dst, converter.WithIgnorePaths(".SMTP.Password."))
 	require.Empty(t, dst.SMTP.Password)
@@ -153,6 +154,7 @@ func TestIgnorePathsRootContainers(t *testing.T) {
 
 	t.Run("root slice", func(t *testing.T) {
 		t.Parallel()
+
 		var dst []pathLeaf
 		converter.Convert([]pathLeaf{{Password: "x", Headers: "h"}}, &dst, converter.WithIgnorePaths("password"))
 		require.Empty(t, dst[0].Password)
@@ -161,11 +163,14 @@ func TestIgnorePathsRootContainers(t *testing.T) {
 
 	t.Run("ConvertSeq", func(t *testing.T) {
 		t.Parallel()
+
 		conv := converter.New[pathLeaf, pathLeaf](converter.WithIgnorePaths("password"))
+
 		var got []pathLeaf
 		for out := range conv.ConvertSeq([]pathLeaf{{Password: "x", Headers: "h"}}) {
 			got = append(got, out)
 		}
+
 		require.Len(t, got, 1)
 		require.Empty(t, got[0].Password)
 		require.Equal(t, "h", got[0].Headers)
@@ -173,6 +178,7 @@ func TestIgnorePathsRootContainers(t *testing.T) {
 
 	t.Run("ConvertMapSeq", func(t *testing.T) {
 		t.Parallel()
+
 		var got []pathLeaf
 		for _, out := range converter.ConvertMapSeq[string, pathLeaf](
 			map[string]pathLeaf{"k": {Password: "x", Headers: "h"}},
@@ -180,6 +186,7 @@ func TestIgnorePathsRootContainers(t *testing.T) {
 		) {
 			got = append(got, out)
 		}
+
 		require.Len(t, got, 1)
 		require.Empty(t, got[0].Password)
 		require.Equal(t, "h", got[0].Headers)
@@ -188,13 +195,16 @@ func TestIgnorePathsRootContainers(t *testing.T) {
 
 func TestIgnorePathsConvertMapSeqKeepsKeys(t *testing.T) {
 	t.Parallel()
+
 	src := map[pathLeaf]string{{Password: "k"}: "v"}
+
 	var got []pathLeaf
 	for key := range converter.ConvertMapSeq[pathLeaf, string](
 		src, converter.WithIgnorePaths("password"),
 	) {
 		got = append(got, key)
 	}
+
 	require.Len(t, got, 1)
 	require.Equal(t, "k", got[0].Password)
 }
@@ -209,7 +219,9 @@ type arrayDest struct {
 
 func TestIgnorePathsArray(t *testing.T) {
 	t.Parallel()
+
 	src := arraySource{Pair: [2]pathLeaf{{Password: "a", Headers: "ha"}, {Password: "b", Headers: "hb"}}}
+
 	var dst arrayDest
 	converter.Convert(src, &dst, converter.WithIgnorePaths("pair.password"))
 	require.Empty(t, dst.Pair[0].Password)
@@ -227,7 +239,9 @@ type nestedMapDest struct {
 
 func TestIgnorePathsNestedMapOfSlices(t *testing.T) {
 	t.Parallel()
+
 	src := nestedMapSource{Groups: map[string][]pathLeaf{"g": {{Password: "x", Headers: "h"}}}}
+
 	var dst nestedMapDest
 	converter.Convert(src, &dst, converter.WithIgnorePaths("groups.password"))
 	require.Empty(t, dst.Groups["g"][0].Password)
@@ -246,8 +260,11 @@ type pointerSliceDest struct {
 
 func TestIgnorePathsNilPointerElements(t *testing.T) {
 	t.Parallel()
+
 	src := pointerSliceSource{Items: []*pathLeaf{nil}, ByID: map[string]*pathLeaf{"k": nil}}
+
 	var dst pointerSliceDest
+
 	require.NotPanics(t, func() {
 		converter.Convert(src, &dst, converter.WithIgnorePaths("password"))
 	})
@@ -265,7 +282,9 @@ type pointerPathDest struct {
 
 func TestIgnorePathsPointerField(t *testing.T) {
 	t.Parallel()
+
 	src := pointerPathSource{SMTP: &pathLeaf{Password: "secret", Headers: "h"}}
+
 	var dst pointerPathDest
 	converter.Convert(src, &dst, converter.WithIgnorePaths("smtp.password"))
 	require.Empty(t, dst.SMTP.Password)
@@ -286,10 +305,12 @@ type ptrContainerDest struct {
 
 func TestIgnorePathsPointerContainers(t *testing.T) {
 	t.Parallel()
+
 	items := []pathLeaf{{Password: "i", Headers: "ih"}}
 	pair := [2]pathLeaf{{Password: "a", Headers: "ah"}, {Password: "b", Headers: "bh"}}
 	byID := map[string]pathLeaf{"k": {Password: "m", Headers: "mh"}}
 	src := ptrContainerSource{Items: &items, Pair: &pair, ByID: &byID}
+
 	var dst ptrContainerDest
 	converter.Convert(src, &dst,
 		converter.WithIgnorePaths("items.password", "pair.password", "byid.password"))
@@ -318,10 +339,13 @@ type keyMapDest struct {
 
 func TestIgnorePathsDoesNotTouchMapKeys(t *testing.T) {
 	t.Parallel()
+
 	src := keyMapSource{Items: map[keySource]string{{ID: "a"}: "1", {ID: "b"}: "2"}}
+
 	var dst keyMapDest
 	converter.Convert(src, &dst, converter.WithIgnorePaths("id"))
 	require.Len(t, dst.Items, 2)
+
 	for k := range dst.Items {
 		require.NotEmpty(t, k.ID)
 	}
@@ -346,10 +370,13 @@ type distinctKeyMapDest struct {
 
 func TestIgnorePathsDoesNotTouchNonConvertibleMapKeys(t *testing.T) {
 	t.Parallel()
+
 	src := distinctKeyMapSource{Items: map[distinctKeySource]string{{ID: "a"}: "1", {ID: "b"}: "2"}}
+
 	var dst distinctKeyMapDest
 	converter.Convert(src, &dst, converter.WithIgnorePaths("id"))
 	require.Len(t, dst.Items, 2)
+
 	for k := range dst.Items {
 		require.NotEmpty(t, k.ID)
 	}
@@ -370,6 +397,7 @@ type updateDest struct {
 
 func TestIgnorePathsPreservesPrePopulatedDestination(t *testing.T) {
 	t.Parallel()
+
 	tls := "on"
 	dst := updateDest{SMTP: updateLeaf{Password: "old", TLS: &tls}}
 	converter.Convert(updateSource{SMTP: updateLeaf{Password: "new"}}, &dst,
@@ -387,8 +415,11 @@ type recursiveMapHolder struct {
 
 func TestIgnorePathsSelfReferentialContainer(t *testing.T) {
 	t.Parallel()
+
 	src := recursiveMapHolder{Meta: recursiveMap{"a": recursiveMap{}}}
+
 	var dst recursiveMapHolder
+
 	require.NotPanics(t, func() {
 		converter.Convert(src, &dst, converter.WithIgnorePaths("other"))
 	})
@@ -412,13 +443,17 @@ func TestIgnorePathsRootPreservesPrivateState(t *testing.T) {
 		Visible, Name string
 		state         int
 	}
+
 	src, dst := item{"source", "new", 7}, item{"keep", "old", 3}
 	converter.Convert(src, &dst, converter.WithIgnorePaths("visible"))
+
 	if want := (item{"keep", "new", 3}); dst != want {
 		t.Fatalf("root = %+v, want %+v", dst, want)
 	}
+
 	var out []item
 	converter.Convert([]item{src}, &out, converter.WithIgnorePaths("visible"))
+
 	if want := (item{"", "new", 7}); len(out) != 1 || out[0] != want {
 		t.Fatalf("root slice = %+v, want [%+v]", out, want)
 	}
@@ -426,6 +461,7 @@ func TestIgnorePathsRootPreservesPrivateState(t *testing.T) {
 
 func TestIgnorePathsPreservesPrivateState(t *testing.T) {
 	t.Parallel()
+
 	type root struct {
 		Value   privateState
 		Pointer *privateState
@@ -433,6 +469,7 @@ func TestIgnorePathsPreservesPrivateState(t *testing.T) {
 		Map     map[string]privateState
 		Array   [1]privateState
 	}
+
 	for _, tc := range []struct {
 		name   string
 		option converter.Option
@@ -445,30 +482,37 @@ func TestIgnorePathsPreservesPrivateState(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			source := newPrivateState("source secret", "source", 7)
 			old := newPrivateState("old secret", "old", 3)
 			optional := "keep"
 			old.Optional = &optional
 			src := root{source, &source, []privateState{source}, map[string]privateState{"k": source}, [1]privateState{source}}
 			dst := root{Value: old, Pointer: &old}
+
 			opts := []converter.Option{converter.WithIgnorePaths("value.secret", "pointer.secret", "items.secret", "map.secret", "array.secret")}
 			if tc.option != nil {
 				opts = append(opts, tc.option)
 			}
+
 			converter.Convert(src, &dst, opts...)
+
 			for _, got := range []privateState{dst.Value, *dst.Pointer} {
 				require.Equal(t, "old secret", got.Secret)
 				require.Equal(t, "source", got.Name)
 				require.Equal(t, tc.state, got.State())
 				require.Equal(t, &optional, got.Optional)
 			}
+
 			if tc.option == nil {
 				for _, got := range []privateState{dst.Items[0], dst.Map["k"], dst.Array[0]} {
 					require.Equal(t, 7, got.State())
 					require.Empty(t, got.Secret)
 				}
 			}
+
 			require.Equal(t, "source secret", source.Secret)
+
 			if tc.option == nil {
 				require.Equal(t, "old", old.Name)
 			}
@@ -478,8 +522,11 @@ func TestIgnorePathsPreservesPrivateState(t *testing.T) {
 
 func TestIgnorePathsAliasedDestination(t *testing.T) {
 	t.Parallel()
+
 	type source struct{ Item *privateState }
+
 	type destination struct{ Item *privateState }
+
 	item := newPrivateState("secret", "name", 7)
 	src, dst := source{&item}, destination{&item}
 	converter.Convert(src, &dst, converter.WithIgnorePaths("item.secret"), converter.WithIgnoreFields("name"))
@@ -491,13 +538,16 @@ func TestIgnorePathsAliasedDestination(t *testing.T) {
 
 func TestIgnorePathsLeafAndCopySlices(t *testing.T) {
 	t.Parallel()
+
 	type item struct {
 		Secret string
 		Name   string
 		Tags   []string
 		state  int
 	}
+
 	type root struct{ Item item }
+
 	src := root{item{"source secret", "source name", []string{"source tag"}, 7}}
 	dst := root{Item: item{Secret: "keep secret", Name: "keep name"}}
 	converter.Convert(src, &dst, converter.WithIgnorePaths("item.secret"), converter.WithIgnoreFields("name"), converter.WithCopySlices())
@@ -510,12 +560,14 @@ func TestIgnorePathsLeafAndCopySlices(t *testing.T) {
 
 func TestIgnorePathsWithFieldMappingsPreservesDestination(t *testing.T) {
 	t.Parallel()
+
 	type item struct {
 		Original string
 		Target   string
 		Secret   string
 		state    int
 	}
+
 	source := item{"new", "unused", "source secret", 7}
 	old := item{"keep original", "old target", "keep secret", 3}
 	want := item{"keep original", "new", "keep secret", 7}
@@ -523,6 +575,7 @@ func TestIgnorePathsWithFieldMappingsPreservesDestination(t *testing.T) {
 		converter.WithFieldMappings(map[string]string{"original": "target", "target": "missing"}),
 		converter.WithIgnorePaths("item.secret"),
 	}
+
 	t.Run("static", func(t *testing.T) {
 		src := struct{ Item item }{source}
 		dst := struct{ Item item }{old}

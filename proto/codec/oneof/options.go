@@ -46,6 +46,7 @@ func WithFieldConverter(fieldName string, converter FieldConverter) Option {
 		if o.fieldConverters == nil {
 			o.fieldConverters = make(map[string]FieldConverter)
 		}
+
 		o.fieldConverters[intern.LowerString(fieldName)] = converter
 	}
 }
@@ -80,11 +81,13 @@ func WithWrapperRegistry(registry map[string]any) Option {
 		if o.wrapperRegistry == nil {
 			o.wrapperRegistry = make(map[string]reflect.Type)
 		}
+
 		for fieldName, prototype := range registry {
 			protoType := reflect.TypeOf(prototype)
 			if protoType.Kind() == reflect.Pointer {
 				protoType = protoType.Elem()
 			}
+
 			o.wrapperRegistry[intern.LowerString(fieldName)] = protoType
 		}
 	}

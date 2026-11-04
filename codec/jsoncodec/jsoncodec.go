@@ -43,12 +43,27 @@ type Error struct {
 	Err error
 }
 
+// Error reports the field path, the operation and the cause.
 func (e Error) Error() string {
 	return fmt.Sprintf("jsoncodec: field %q: %s: %v", e.Path, e.Op, e.Err)
 }
 
 // Unwrap returns the underlying encoding/json/v2 error.
 func (e Error) Unwrap() error { return e.Err }
+
+// SizeError reports JSON text longer than the limit set with [WithMaxBytes].
+// It is the Err of an [Error] with [OpUnmarshal].
+type SizeError struct {
+	// Size is the length of the rejected text in bytes.
+	Size int
+	// Limit is the configured maximum in bytes.
+	Limit int
+}
+
+// Error reports the size of the text and the limit.
+func (e SizeError) Error() string {
+	return fmt.Sprintf("JSON text of %d bytes exceeds the limit of %d", e.Size, e.Limit)
+}
 
 // New returns an error codec that converts between JSON text and Go values
 // with encoding/json/v2.
@@ -67,7 +82,9 @@ func (e Error) Unwrap() error { return e.Err }
 //     options (encoding/json/v2 writes {} and [] by default).
 //
 // Failures are returned as an [Error] wrapping the encoding/json/v2 error.
-// Options passed with [WithJSONOptions] apply to both directions.
+// Options passed with [WithJSONOptions] apply to both directions. With
+// [WithMaxBytes], text longer than the limit is rejected before decoding
+// with an [Error] wrapping [SizeError].
 //
 // Example:
 //
@@ -82,8 +99,10 @@ type codec struct {
 	options
 }
 
+// convert handles JSON text and value pairs and delegates the rest to next.
 func (c *codec) convert(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 	srcType := reflectutils.IndirectType(src.Type())
+
 	dstType := reflectutils.IndirectType(dst.Type())
 	switch {
 	case c.isText(srcType) && isValue(dstType):
@@ -115,9 +134,12 @@ func isValue(t reflect.Type) bool {
 	}
 }
 
+// unmarshal decodes the JSON text src into a fresh value and assigns it to dst.
 func (c *codec) unmarshal(path string, src, dst reflect.Value, dstType reflect.Type) error {
 	src = reflectutils.IndirectValue(src)
+
 	var text []byte
+
 	switch {
 	case !src.IsValid():
 	case src.Kind() == reflect.String:
@@ -125,20 +147,28 @@ func (c *codec) unmarshal(path string, src, dst reflect.Value, dstType reflect.T
 	default:
 		text = src.Bytes()
 	}
+
 	if len(text) == 0 {
 		dst.SetZero()
 		return nil
+	}
+
+	if c.maxBytes > 0 && len(text) > c.maxBytes {
+		return Error{Path: path, Op: OpUnmarshal, Err: SizeError{Size: len(text), Limit: c.maxBytes}}
 	}
 
 	value := reflect.New(dstType)
 	if err := json.Unmarshal(text, value.Interface(), c.jsonOptions...); err != nil {
 		return Error{Path: path, Op: OpUnmarshal, Err: err}
 	}
+
 	reflectutils.MakeDst(&dst, dstType)
 	dst.Set(value.Elem())
+
 	return nil
 }
 
+// marshal encodes src as JSON text into dst.
 func (c *codec) marshal(path string, src, dst reflect.Value, dstType reflect.Type) error {
 	src = reflectutils.IndirectValue(src)
 	if !src.IsValid() || src.Kind() == reflect.Interface && src.IsNil() {
@@ -152,15 +182,19 @@ func (c *codec) marshal(path string, src, dst reflect.Value, dstType reflect.Typ
 	if src.CanAddr() {
 		in = src.Addr()
 	}
+
 	text, err := json.Marshal(in.Interface(), c.jsonOptions...)
 	if err != nil {
 		return Error{Path: path, Op: OpMarshal, Err: err}
 	}
+
 	reflectutils.MakeDst(&dst, dstType)
+
 	if dst.Kind() == reflect.String {
 		dst.SetString(string(text))
 	} else {
 		dst.SetBytes(text)
 	}
+
 	return nil
 }

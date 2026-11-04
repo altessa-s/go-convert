@@ -19,6 +19,7 @@ func BenchmarkNew_UUIDToString(b *testing.B) {
 
 	for b.Loop() {
 		var dst string
+
 		_ = codec("ID", src, reflect.ValueOf(&dst).Elem(), benchNext)
 	}
 }
@@ -29,6 +30,7 @@ func BenchmarkNew_StringToAddr(b *testing.B) {
 
 	for b.Loop() {
 		var dst netip.Addr
+
 		_ = codec("Addr", src, reflect.ValueOf(&dst).Elem(), benchNext)
 	}
 }
@@ -39,6 +41,7 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 
 	for b.Loop() {
 		var dst string
+
 		_ = codec("Name", src, reflect.ValueOf(&dst).Elem(), benchNext)
 	}
 }

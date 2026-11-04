@@ -36,7 +36,8 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           commit=$(git rev-parse "refs/tags/$TAG^{commit}")
-          for module in codec/optionalcodec proto googletype; do
+          modules=$(make --no-print-directory print-nested-modules)
+          for module in $modules; do
             for version in $(go mod edit -json "$module/go.mod" | jq -r '.Require[] | select(.Path | startswith("github.com/altessa-s/go-convert")) | .Version'); do
               if [ "$version" != "$TAG" ]; then
                 echo "$module/go.mod requires go-convert $version, want $TAG"
@@ -45,6 +46,18 @@ jobs:
             done
             if [ "$(git rev-parse -q --verify "refs/tags/$module/$TAG^{commit}" || true)" != "$commit" ]; then
               echo "$module/$TAG must point at $TAG; use make release"
+              exit 1
+            fi
+          done
+          for module in $(find . -name go.mod -not -path ./go.mod -not -path './devtools/*' | xargs -n1 dirname | sed 's|^\./||'); do
+            if ! grep -qx "$module" <<< "$modules"; then
+              echo "$module has a go.mod but is missing from NESTED_MODULES in the Makefile"
+              exit 1
+            fi
+          done
+          for tag in $(git tag --points-at "$commit" | grep "/$TAG\$" || true); do
+            if ! grep -qx "${tag%/$TAG}" <<< "$modules"; then
+              echo "$tag does not belong to a nested module"
               exit 1
             fi
           done

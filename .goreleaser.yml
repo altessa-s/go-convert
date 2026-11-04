@@ -9,21 +9,24 @@ changelog:
   use: github
   format: "{{ .Message }}"
   groups:
+    - title: Breaking Changes
+      regexp: '^.*?[a-z]+(\([[:word:]/-]+\))?!:.+$'
+      order: 0
     - title: Features
       regexp: '^.*?feat(\([[:word:]/-]+\))??!?:.+$'
-      order: 0
+      order: 1
     - title: Bug Fixes
       regexp: '^.*?fix(\([[:word:]/-]+\))??!?:.+$'
-      order: 1
+      order: 2
     - title: Performance
       regexp: '^.*?perf(\([[:word:]/-]+\))??!?:.+$'
-      order: 2
+      order: 3
     - title: Refactoring
       regexp: '^.*?refactor(\([[:word:]/-]+\))??!?:.+$'
-      order: 3
+      order: 4
     - title: Documentation
       regexp: '^.*?docs(\([[:word:]/-]+\))??!?:.+$'
-      order: 4
+      order: 5
     - title: Other
       order: 999
   filters:

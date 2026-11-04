@@ -7,6 +7,7 @@ package googletype
 import (
 	"maps"
 	"reflect"
+	"sync"
 	"time"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
@@ -48,10 +49,13 @@ func New(opts ...Option) convcodec.CodecE {
 }
 
 // buildOptions applies opts and copies the caller's map, so that changing it
-// later cannot race with conversions.
+// later cannot race with conversions, and gives the codec its own cache of
+// Money struct shapes.
 func buildOptions(opts []Option) *options {
 	o := newOptions(opts...)
 	o.currencyScales = maps.Clone(o.currencyScales)
+	o.moneyShapes = new(sync.Map)
+
 	return o
 }
 
@@ -71,7 +75,16 @@ func newCodec(o *options, fns ...convertFunc) convcodec.CodecE {
 				return err
 			}
 		}
+
 		return next(fieldPath, src, dst)
+	}
+}
+
+// clearNil zeroes the destination of a nil source unless WithIgnoreZero
+// keeps it.
+func clearNil(p pair, o *options) {
+	if !o.ignoreZero {
+		reflectutils.SetZero(p.dst)
 	}
 }
 
@@ -83,9 +96,11 @@ func messagePtr[T any](v reflect.Value) *T {
 			return ptr
 		}
 	}
+
 	ptr := reflect.New(v.Type())
 	ptr.Elem().Set(v)
 	msg, _ := reflect.TypeAssert[*T](ptr)
+
 	return msg
 }
 
@@ -94,6 +109,7 @@ func messagePtr[T any](v reflect.Value) *T {
 func messageDst[T any](dst reflect.Value, dstType reflect.Type) *T {
 	reflectutils.MakeDst(&dst, dstType)
 	msg, _ := reflect.TypeAssert[*T](dst.Addr())
+
 	return msg
 }
 
@@ -106,12 +122,14 @@ func readValue[T any](v reflect.Value) T {
 // setValue allocates every nil pointer layer of dst and stores value in it.
 func setValue[T any](dst reflect.Value, dstType reflect.Type, value T) {
 	reflectutils.MakeDst(&dst, dstType)
+
 	if dst.CanAddr() {
 		if ptr, ok := reflect.TypeAssert[*T](dst.Addr()); ok {
 			*ptr = value
 			return
 		}
 	}
+
 	dst.Set(reflect.ValueOf(value))
 }
 
@@ -122,6 +140,7 @@ func appendPadded(buf []byte, v, width int) []byte {
 		digits[i] = byte('0' + v%decimalBase)
 		v /= decimalBase
 	}
+
 	return append(buf, digits[:width]...)
 }
 
@@ -130,14 +149,18 @@ func parseDigits(s string) (int, bool) {
 	if s == "" {
 		return 0, false
 	}
+
 	n := 0
+
 	for i := range len(s) {
 		c := s[i]
 		if c < '0' || c > '9' {
 			return 0, false
 		}
+
 		n = n*decimalBase + int(c-'0')
 	}
+
 	return n, true
 }
 
@@ -146,13 +169,16 @@ func parseFraction(s string) (int32, bool) {
 	if len(s) > maxFractionDigits {
 		return 0, false
 	}
+
 	n, ok := parseDigits(s)
 	if !ok {
 		return 0, false
 	}
+
 	for range maxFractionDigits - len(s) {
 		n *= decimalBase
 	}
+
 	return int32(n), true
 }
 
@@ -162,13 +188,17 @@ func parseFraction(s string) (int32, bool) {
 func appendFraction(buf []byte, nanos int32, minDigits int) []byte {
 	var digits [maxFractionDigits]byte
 	appendPadded(digits[:0], int(nanos), maxFractionDigits)
+
 	n := maxFractionDigits
 	for n > minDigits && digits[n-1] == '0' {
 		n--
 	}
+
 	if n == 0 {
 		return buf
 	}
+
 	buf = append(buf, '.')
+
 	return append(buf, digits[:n]...)
 }

@@ -71,46 +71,86 @@ func convertMoney(p pair, o *options) (bool, error) {
 		if !ok {
 			return false, nil
 		}
+
 		if !p.src.IsValid() {
+			clearNil(p, o)
+
 			return true, nil
 		}
+
 		m := messagePtr[money.Money](p.src)
 		if o.ignoreZero && m.GetCurrencyCode() == "" && m.GetUnits() == 0 && m.GetNanos() == 0 {
 			return true, nil
 		}
+
 		return true, moneyTo(p, m, amount, currency, o)
 	case p.dstType == moneyType && p.srcType != moneyType:
 		amount, currency, ok := o.moneyShape(p.srcType)
 		if !ok {
 			return false, nil
 		}
+
 		if !p.src.IsValid() || o.ignoreZero && p.src.IsZero() {
+			if !p.src.IsValid() {
+				clearNil(p, o)
+			}
+
 			return true, nil
 		}
+
 		return true, moneyFrom(p, amount, currency, o)
 	default:
 		return false, nil
 	}
 }
 
+// moneyStructShape is the cached result of [options.moneyShape] for a
+// struct type.
+type moneyStructShape struct {
+	amount, currency []int
+	ok               bool
+}
+
 // moneyShape reports whether t converts to and from Money. For a struct
-// registered with [WithMoneyStruct] it returns the field indexes; for int64
-// and string both are nil.
+// registered with [WithMoneyStruct] it returns the field indexes, resolved
+// once per type and cached by the codec; for int64 and string both are nil.
 func (o *options) moneyShape(t reflect.Type) (amount, currency []int, ok bool) {
 	if t == int64Type || t == stringType {
 		return nil, nil, true
 	}
+
 	if o.amountField == "" || t.Kind() != reflect.Struct {
 		return nil, nil, false
 	}
+
+	if o.moneyShapes == nil {
+		return o.resolveMoneyShape(t)
+	}
+
+	if cached, found := o.moneyShapes.Load(t); found {
+		shape, _ := cached.(moneyStructShape)
+		return shape.amount, shape.currency, shape.ok
+	}
+
+	amount, currency, ok = o.resolveMoneyShape(t)
+	o.moneyShapes.Store(t, moneyStructShape{amount: amount, currency: currency, ok: ok})
+
+	return amount, currency, ok
+}
+
+// resolveMoneyShape looks up the [WithMoneyStruct] fields of the struct type
+// t.
+func (o *options) resolveMoneyShape(t reflect.Type) (amount, currency []int, ok bool) {
 	amountField, found := t.FieldByName(o.amountField)
 	if !found || !amountField.IsExported() || len(amountField.Index) != 1 || !isAmountKind(amountField.Type.Kind()) {
 		return nil, nil, false
 	}
+
 	currencyField, found := t.FieldByName(o.currencyField)
 	if !found || !currencyField.IsExported() || len(currencyField.Index) != 1 || currencyField.Type.Kind() != reflect.String {
 		return nil, nil, false
 	}
+
 	return amountField.Index, currencyField.Index, true
 }
 
@@ -131,9 +171,11 @@ func moneyTo(p pair, m *money.Money, amountIdx, currencyIdx []int, o *options) e
 	if err := validateMoney(p.path, currency, units, nanos); err != nil {
 		return err
 	}
+
 	if amountIdx == nil && o.currency != "" && currency != o.currency {
 		return newError(p.path, ErrCurrencyMismatch, "money currency %q, want %q", currency, o.currency)
 	}
+
 	scale, err := o.scaleFor(p.path, currency)
 	if err != nil {
 		return err
@@ -145,12 +187,14 @@ func moneyTo(p pair, m *money.Money, amountIdx, currencyIdx []int, o *options) e
 		if err != nil {
 			return err
 		}
+
 		setValue(p.dst, p.dstType, minor)
 	case stringType:
 		setValue(p.dst, p.dstType, formatDecimal(units, nanos, scale))
 	default:
 		return moneyToStruct(p, amountIdx[0], currencyIdx[0], currency, units, nanos, scale)
 	}
+
 	return nil
 }
 
@@ -163,19 +207,25 @@ func moneyFrom(p pair, amountIdx, currencyIdx []int, o *options) error {
 			currency = c
 		}
 	}
+
 	if currency == "" {
 		return newError(p.path, ErrInvalidCurrency, "no currency: set one with WithCurrency")
 	}
+
 	if !validCurrency(currency) {
 		return newError(p.path, ErrInvalidCurrency, "%q is not a three-letter ISO 4217 code", currency)
 	}
+
 	scale, err := o.scaleFor(p.path, currency)
 	if err != nil {
 		return err
 	}
 
-	var units int64
-	var nanos int32
+	var (
+		units int64
+		nanos int32
+	)
+
 	switch amount.Kind() {
 	case reflect.String:
 		if units, nanos, err = parseDecimal(p.path, amount.String()); err != nil {
@@ -185,6 +235,7 @@ func moneyFrom(p pair, amountIdx, currencyIdx []int, o *options) error {
 		if amount.Uint() > math.MaxInt64 {
 			return newError(p.path, ErrOverflow, "amount %d overflows int64", amount.Uint())
 		}
+
 		units, nanos = fromMinorUnits(int64(amount.Uint()), scale)
 	default:
 		units, nanos = fromMinorUnits(amount.Int(), scale)
@@ -192,6 +243,7 @@ func moneyFrom(p pair, amountIdx, currencyIdx []int, o *options) error {
 
 	m := messageDst[money.Money](p.dst, p.dstType)
 	m.CurrencyCode, m.Units, m.Nanos = currency, units, nanos
+
 	return nil
 }
 
@@ -199,12 +251,15 @@ func moneyFrom(p pair, amountIdx, currencyIdx []int, o *options) error {
 // the destination of p. Nothing is written when the amount does not fit.
 func moneyToStruct(p pair, amountIdx, currencyIdx int, currency string, units int64, nanos int32, scale int) error {
 	amountType := p.dstType.Field(amountIdx).Type
+
 	var minor int64
+
 	if amountType.Kind() != reflect.String {
 		var err error
 		if minor, err = toMinorUnits(p.path, units, nanos, scale); err != nil {
 			return err
 		}
+
 		if !fitsAmount(amountType, minor) {
 			return newError(p.path, ErrOverflow, "%d minor units overflow %s", minor, amountType)
 		}
@@ -213,6 +268,7 @@ func moneyToStruct(p pair, amountIdx, currencyIdx int, currency string, units in
 	dst := p.dst
 	reflectutils.MakeDst(&dst, p.dstType)
 	amount := dst.Field(amountIdx)
+
 	switch amountType.Kind() {
 	case reflect.String:
 		amount.SetString(formatDecimal(units, nanos, scale))
@@ -221,7 +277,9 @@ func moneyToStruct(p pair, amountIdx, currencyIdx int, currency string, units in
 	default:
 		amount.SetInt(minor)
 	}
+
 	dst.Field(currencyIdx).SetString(currency)
+
 	return nil
 }
 
@@ -241,9 +299,11 @@ func (o *options) scaleFor(path, currency string) (int, error) {
 	if !ok {
 		scale = o.scale
 	}
+
 	if scale < 0 || scale > maxFractionDigits {
 		return 0, newError(path, ErrInvalidScale, "scale %d for %s", scale, currency)
 	}
+
 	return scale, nil
 }
 
@@ -252,11 +312,13 @@ func validCurrency(code string) bool {
 	if len(code) != currencyCodeLen {
 		return false
 	}
+
 	for i := range len(code) {
 		if code[i] < 'A' || code[i] > 'Z' {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -265,12 +327,15 @@ func validateMoney(path, currency string, units int64, nanos int32) error {
 	if !validCurrency(currency) {
 		return newError(path, ErrInvalidCurrency, "%q is not a three-letter ISO 4217 code", currency)
 	}
+
 	if nanos > maxNanos || nanos < -maxNanos {
 		return newError(path, ErrOutOfRange, "nanos %d outside ±999,999,999", nanos)
 	}
+
 	if units > 0 && nanos < 0 || units < 0 && nanos > 0 {
 		return newError(path, ErrNanosSign, "units %d, nanos %d", units, nanos)
 	}
+
 	return nil
 }
 
@@ -280,14 +345,17 @@ func toMinorUnits(path string, units int64, nanos int32, scale int) (int64, erro
 	if int64(nanos)%divisor != 0 {
 		return 0, newError(path, ErrPrecision, "nanos %d at scale %d", nanos, scale)
 	}
+
 	factor, frac := pow10[scale], int64(nanos)/divisor
 	if units > math.MaxInt64/factor || units < math.MinInt64/factor {
 		return 0, newError(path, ErrOverflow, "units %d at scale %d overflow int64", units, scale)
 	}
+
 	minor := units * factor
 	if frac > 0 && minor > math.MaxInt64-frac || frac < 0 && minor < math.MinInt64-frac {
 		return 0, newError(path, ErrOverflow, "units %d at scale %d overflow int64", units, scale)
 	}
+
 	return minor + frac, nil
 }
 
@@ -300,16 +368,20 @@ func fromMinorUnits(minor int64, scale int) (units int64, nanos int32) {
 // formatDecimal formats a valid amount with at least scale fraction digits.
 func formatDecimal(units int64, nanos int32, scale int) string {
 	var buf [32]byte
+
 	out := buf[:0]
 	if units < 0 || nanos < 0 {
 		out = append(out, '-')
 		nanos = -nanos
 	}
+
 	magnitude := uint64(units)
 	if units < 0 {
 		magnitude = -magnitude
 	}
+
 	out = strconv.AppendUint(out, magnitude, decimalBase)
+
 	return string(appendFraction(out, nanos, scale))
 }
 
@@ -320,22 +392,27 @@ func parseDecimal(path, s string) (units int64, nanos int32, err error) {
 		negative = digits[0] == '-'
 		digits = digits[1:]
 	}
+
 	whole, fraction, hasDot := strings.Cut(digits, ".")
 	if _, ok := parseDigits(whole); !ok {
 		return 0, 0, newError(path, ErrSyntax, "%q is not a decimal amount", s)
 	}
+
 	if hasDot {
 		var ok bool
 		if nanos, ok = parseFraction(fraction); !ok {
 			return 0, 0, newError(path, ErrSyntax, "%q is not a decimal amount", s)
 		}
 	}
+
 	magnitude, parseErr := strconv.ParseUint(whole, decimalBase, 64)
 	if parseErr != nil || magnitude > maxInt64Magnitude || !negative && magnitude > math.MaxInt64 {
 		return 0, 0, newError(path, ErrOverflow, "%q overflows int64 units", s)
 	}
+
 	if negative {
 		return int64(-magnitude), -nanos, nil
 	}
+
 	return int64(magnitude), nanos, nil
 }

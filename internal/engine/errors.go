@@ -21,10 +21,12 @@ type UnsupportedTypeError struct {
 	Err error
 }
 
+// Error reports the source and destination types and the reason.
 func (e UnsupportedTypeError) Error() string {
 	return fmt.Sprintf("convert: unsupported conversion from %T to %T: %s", e.Source, e.Destination, e.Reason)
 }
 
+// Unwrap returns the underlying error, if any.
 func (e UnsupportedTypeError) Unwrap() error { return e.Err }
 
 // OverflowError reports a narrowing numeric conversion that would lose data.
@@ -35,10 +37,12 @@ type OverflowError struct {
 	Value any
 }
 
+// Error reports the field, the value and the kinds involved.
 func (e OverflowError) Error() string {
 	if e.Field != "" {
 		return fmt.Sprintf("convert: field %q: %s value %v overflows %s", e.Field, e.From, e.Value, e.To)
 	}
+
 	return fmt.Sprintf("convert: %s value %v overflows %s", e.From, e.Value, e.To)
 }
 
@@ -55,10 +59,12 @@ type DepthError struct {
 	Path  string
 }
 
+// Error reports the limit and, when tracked, the path.
 func (e DepthError) Error() string {
 	if e.Path != "" {
 		return fmt.Sprintf("convert: nesting exceeds %d levels at %q", e.Limit, e.Path)
 	}
+
 	return fmt.Sprintf("convert: nesting exceeds %d levels", e.Limit)
 }
 
@@ -67,4 +73,5 @@ type codecError struct {
 	error
 }
 
+// Unwrap returns the codec error.
 func (e codecError) Unwrap() error { return e.error }

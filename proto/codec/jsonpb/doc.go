@@ -9,6 +9,9 @@
 // returns an error codec that also converts structpb.Value <-> any,
 // structpb.ListValue <-> []any and structpb.Struct <-> map[string]any, and
 // reports values google.protobuf.Value cannot hold, such as NaN, as errors.
+// JSON text is parsed and rendered with encoding/json/v2, which rejects
+// duplicate object names and invalid UTF-8. [NewE] limits the nesting of
+// lists and maps ([WithMaxDepth]) and rejects values that contain themselves.
 //
 // Both pointer and non-pointer variants are supported. Nil sources are handled
 // gracefully and can be skipped with [WithIgnoreNil].

@@ -20,7 +20,9 @@ func (w *walker) convertSlices(path, fieldName string, srcValue reflect.Value, d
 	if !srcValue.IsValid() {
 		return
 	}
+
 	reflectutils.MakeDst(&dstValue, reflectutils.IndirectType(dstValue.Type()))
+
 	dstValue = reflectutils.IndirectValue(dstValue)
 	if srcValue.IsNil() {
 		dstValue.Set(reflect.Zero(dstValue.Type()))
@@ -36,6 +38,7 @@ func (w *walker) convertSlices(path, fieldName string, srcValue reflect.Value, d
 
 	for i := range n {
 		name := w.elementName(fieldName, i)
+
 		srcElem := srcValue.Index(i)
 		if elemIsPointer {
 			if srcElem.Kind() == reflect.Pointer && srcElem.IsNil() {
@@ -48,6 +51,7 @@ func (w *walker) convertSlices(path, fieldName string, srcValue reflect.Value, d
 		} else {
 			w.convertValueAt(path, name, srcElem, slots.Index(i))
 		}
+
 		dstValue.SetLen(i + 1)
 	}
 }
@@ -65,6 +69,7 @@ func (w *walker) elementName(fieldName string, i int) string {
 	if !w.namesObserved {
 		return fieldName
 	}
+
 	return makeFieldName(fieldName, strconv.Itoa(i))
 }
 
@@ -73,6 +78,7 @@ func (w *walker) entryName(fieldName string, key reflect.Value) string {
 	if !w.namesObserved {
 		return fieldName
 	}
+
 	return makeFieldName(fieldName, fmt.Sprintf("[%v]", key.Interface()))
 }
 
@@ -84,8 +90,10 @@ func (w *walker) convertArrays(path, fieldName string, srcValue reflect.Value, d
 	if !srcValue.IsValid() {
 		return
 	}
+
 	reflectutils.MakeDst(&dstValue, reflectutils.IndirectType(dstValue.Type()))
 	dstValue = reflectutils.IndirectValue(dstValue)
+
 	n := min(srcValue.Len(), dstValue.Len())
 	for i := range n {
 		w.convertValueAt(path, w.elementName(fieldName, i), srcValue.Index(i), dstValue.Index(i))
@@ -98,7 +106,9 @@ func (w *walker) convertMaps(path, fieldName string, srcValue reflect.Value, dst
 	if !srcValue.IsValid() {
 		return
 	}
+
 	reflectutils.MakeDst(&dstValue, reflectutils.IndirectType(dstValue.Type()))
+
 	dstValue = reflectutils.IndirectValue(dstValue)
 	if srcValue.IsNil() {
 		dstValue.Set(reflect.Zero(dstValue.Type()))
@@ -134,16 +144,20 @@ func (w *walker) convertMapKey(fieldName string, key reflect.Value, dstKeyType r
 	if key.Type().AssignableTo(dstKeyType) {
 		return key
 	}
+
 	if converted, ok := reflectutils.ConvertValue(key, dstKeyType); ok {
 		if w.cfg.OverflowCheck && w.overflows(key, converted) {
 			panic(OverflowError{Field: makeFieldName(fieldName, "key"), From: key.Kind(), To: converted.Kind(), Value: key.Interface()})
 		}
+
 		return converted
 	}
+
 	dstKey := reflect.New(dstKeyType).Elem()
 	// Map keys are part of the map's identity, not of the value
 	// namespace: ignore paths never apply to them.
 	w.convertValueAt(noIgnorePath, makeFieldName(fieldName, "key"), key, dstKey)
+
 	return dstKey
 }
 
@@ -158,6 +172,7 @@ func (w *walker) convertMapValue(
 		if srcMapValue.Type().AssignableTo(dstValueType) {
 			return srcMapValue
 		}
+
 		if converted, ok := reflectutils.ConvertValue(srcMapValue, dstValueType); ok {
 			return converted
 		}
@@ -178,16 +193,21 @@ func (w *walker) convertStructMapValue(path, fieldName string, srcMapValue refle
 	if dstValueType.Kind() == reflect.Pointer && srcMapValue.Kind() == reflect.Pointer && srcMapValue.IsNil() {
 		return reflect.Zero(dstValueType)
 	}
+
 	if !w.canConvertType(srcMapValue.Type(), dstValueType) {
 		return reflect.Zero(dstValueType)
 	}
+
 	if dstValueType.Kind() == reflect.Pointer {
 		slot := reflect.New(dstValueType).Elem()
 		w.convertValueAt(path, fieldName, srcMapValue, slot)
+
 		return slot
 	}
+
 	dstMapValue := reflect.New(dstValueType).Elem()
 	w.convertValueAt(path, fieldName, srcMapValue, dstMapValue)
+
 	return dstMapValue
 }
 
@@ -207,6 +227,7 @@ func (w *walker) convertPrimitiveMapValue(path, fieldName string, srcMapValue re
 		if w.cfg.OverflowCheck && w.overflows(srcMapValue, converted) {
 			panic(OverflowError{Field: fieldName, From: srcMapValue.Kind(), To: converted.Kind(), Value: srcMapValue.Interface()})
 		}
+
 		dstMapValue.Set(converted)
 	} else {
 		w.convertValueAt(path, fieldName, srcMapValue, dstMapValue)

@@ -20,6 +20,7 @@ func BenchmarkNew_Unmarshal(b *testing.B) {
 	dst := reflect.New(reflect.TypeFor[point]()).Elem()
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = codec("Payload", src, dst, nopNext)
 	}
@@ -31,6 +32,7 @@ func BenchmarkNew_Marshal(b *testing.B) {
 	dst := reflect.New(reflect.TypeFor[jsontext.Value]()).Elem()
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = codec("Payload", src, dst, nopNext)
 	}
@@ -42,6 +44,7 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 	dst := reflect.New(reflect.TypeFor[string]()).Elem()
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_ = codec("Name", src, dst, nopNext)
 	}

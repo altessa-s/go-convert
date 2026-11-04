@@ -18,7 +18,8 @@ text and a nil source zero the destination. Value to text marshals the value; a 
 slices follow the JSON options. Any other pair is delegated to the next codec.
 
 Failures are returned as an `Error` with the field path and operation, wrapping the `encoding/json/v2` error (`errors.As` reaches
-`*json.SemanticError` and `*jsontext.SyntacticError`); `converter.ConvertE` returns it unchanged.
+`*json.SemanticError` and `*jsontext.SyntacticError`); `converter.ConvertE` returns it unchanged. Text longer than the `WithMaxBytes` limit is
+rejected before decoding with an `Error` wrapping `SizeError`.
 
 ## Options
 
@@ -27,5 +28,6 @@ Failures are returned as an `Error` with the field path and operation, wrapping 
 | `WithBytes`       | Also treat plain `[]byte` fields as JSON text                            |
 | `WithStrings`     | Also treat plain `string` fields as JSON text                            |
 | `WithJSONOptions` | Pass `encoding/json/v2` and `jsontext` options to marshal and unmarshal  |
+| `WithMaxBytes`    | Reject JSON text longer than n bytes before decoding (default unlimited) |
 
 Both pointer and non-pointer variants are supported.

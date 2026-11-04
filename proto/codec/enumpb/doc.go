@@ -16,7 +16,8 @@
 // [UnknownValueError], so both codecs are error codecs: register them with
 // converter.WithErrorCodecs and call converter.ConvertE, which returns the
 // error unchanged. Pointer variants of either side are supported; a nil source
-// pointer leaves the destination unchanged.
+// pointer sets the destination to its zero value (a nil pointer, "" or the
+// zero enum or Go value).
 //
 // Example:
 //

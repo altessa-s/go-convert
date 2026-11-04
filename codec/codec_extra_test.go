@@ -34,6 +34,7 @@ func TestSet_Run_FinishHandlerCalled(t *testing.T) {
 	s := convcodec.NewCodecsSet()
 
 	var called bool
+
 	s.Run("field", reflect.ValueOf(0), reflect.ValueOf(0), func(fieldName string, src, dst reflect.Value) {
 		called = true
 	})
@@ -42,6 +43,7 @@ func TestSet_Run_FinishHandlerCalled(t *testing.T) {
 
 func TestSet_Run_CodecHandlesConversion(t *testing.T) {
 	var codecFieldName string
+
 	codec := func(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler) {
 		codecFieldName = fieldName
 		// Handle conversion, don't call next
@@ -50,6 +52,7 @@ func TestSet_Run_CodecHandlesConversion(t *testing.T) {
 	s := convcodec.NewCodecsSet(codec)
 
 	finishCalled := false
+
 	s.Run("myField", reflect.ValueOf(1), reflect.ValueOf(2), func(fieldName string, src, dst reflect.Value) {
 		finishCalled = true
 	})
@@ -66,6 +69,7 @@ func TestSet_Run_CodecPassesToNext(t *testing.T) {
 	s := convcodec.NewCodecsSet(passthrough)
 
 	var finishCalled bool
+
 	s.Run("f", reflect.ValueOf(0), reflect.ValueOf(0), func(fieldName string, src, dst reflect.Value) {
 		finishCalled = true
 	})
@@ -77,14 +81,17 @@ func TestSet_Run_MultipleCodecsChain(t *testing.T) {
 
 	codec1 := func(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler) {
 		order = append(order, 1)
+
 		next(fieldName, src, dst)
 	}
 	codec2 := func(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler) {
 		order = append(order, 2)
+
 		next(fieldName, src, dst)
 	}
 	codec3 := func(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler) {
 		order = append(order, 3)
+
 		next(fieldName, src, dst)
 	}
 
@@ -102,6 +109,7 @@ func TestSet_Run_CodecStopsChainMidway(t *testing.T) {
 
 	codec1 := func(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler) {
 		order = append(order, 1)
+
 		next(fieldName, src, dst)
 	}
 	codec2 := func(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler) {
@@ -110,6 +118,7 @@ func TestSet_Run_CodecStopsChainMidway(t *testing.T) {
 	}
 	codec3 := func(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler) {
 		order = append(order, 3)
+
 		next(fieldName, src, dst)
 	}
 

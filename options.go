@@ -70,14 +70,17 @@ func (o *options) config() engine.Config {
 	for _, field := range o.ignoreFields {
 		cfg.IgnoreFields[strings.ToLower(field)] = struct{}{}
 	}
+
 	for _, path := range o.ignorePaths {
 		if path = strings.Trim(path, "."); path != "" {
 			cfg.IgnorePaths[strings.ToLower(path)] = struct{}{}
 		}
 	}
+
 	for source, destination := range o.fieldMappings {
 		cfg.FieldMappings[strings.ToLower(source)] = strings.ToLower(destination)
 	}
+
 	return cfg
 }
 

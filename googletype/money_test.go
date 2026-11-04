@@ -73,12 +73,15 @@ func TestNewMoney_ToInt64(t *testing.T) {
 			t.Parallel()
 
 			dst := int64(-42)
+
 			err := run(googletype.NewMoney(tt.opts...), moneyValue(tt.src), &dst)
 			if tt.kind != 0 {
 				requireKind(t, err, tt.kind)
 				require.Equal(t, int64(-42), dst, "destination must stay unchanged on error")
+
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.want, dst)
 		})
@@ -113,12 +116,15 @@ func TestNewMoney_FromInt64(t *testing.T) {
 			t.Parallel()
 
 			var dst *money.Money
+
 			err := run(googletype.NewMoney(tt.opts...), reflect.ValueOf(tt.src), &dst)
 			if tt.kind != 0 {
 				requireKind(t, err, tt.kind)
 				require.Nil(t, dst)
+
 				return
 			}
+
 			require.NoError(t, err)
 			require.NotNil(t, dst)
 			require.Equal(t, tt.want, amountOf(dst))
@@ -155,11 +161,13 @@ func TestNewMoney_ToString(t *testing.T) {
 			t.Parallel()
 
 			var dst string
+
 			err := run(googletype.NewMoney(tt.opts...), moneyValue(tt.src), &dst)
 			if tt.kind != 0 {
 				requireKind(t, err, tt.kind)
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.want, dst)
 		})
@@ -203,12 +211,15 @@ func TestNewMoney_FromString(t *testing.T) {
 			t.Parallel()
 
 			var dst money.Money
+
 			err := run(googletype.NewMoney(googletype.WithCurrency("USD")), reflect.ValueOf(tt.src), &dst)
 			if tt.kind != 0 {
 				requireKind(t, err, tt.kind)
 				require.Equal(t, amount{}, amountOf(&dst))
+
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.want, amountOf(&dst))
 		})
@@ -289,6 +300,7 @@ func TestNewMoney_Struct(t *testing.T) {
 		t.Parallel()
 
 		withDefault := googletype.NewMoney(googletype.WithMoneyStruct("Amount", "Currency"), googletype.WithCurrency("CHF"))
+
 		var m money.Money
 		require.NoError(t, run(withDefault, reflect.ValueOf(price{Amount: 100}), &m))
 		require.Equal(t, amount{"CHF", 1, 0}, amountOf(&m))
@@ -301,6 +313,7 @@ func TestNewMoney_Struct(t *testing.T) {
 		t.Parallel()
 
 		type other struct{ Value int64 }
+
 		var o other
 		require.ErrorIs(t, run(codec, moneyValue(amount{"USD", 1, 0}), &o), errNext)
 
@@ -314,9 +327,11 @@ func TestNewMoney_NilAndZero(t *testing.T) {
 
 	codec := googletype.NewMoney(googletype.WithCurrency("USD"))
 
+	cleared := int64(7)
+	require.NoError(t, run(codec, reflect.ValueOf((*money.Money)(nil)), &cleared))
+	require.Zero(t, cleared)
+
 	dst := int64(7)
-	require.NoError(t, run(codec, reflect.ValueOf((*money.Money)(nil)), &dst))
-	require.Equal(t, int64(7), dst)
 
 	var m *money.Money
 	require.NoError(t, run(codec, reflect.ValueOf((*int64)(nil)), &m))
@@ -338,6 +353,7 @@ func TestNewMoney_Pointers(t *testing.T) {
 	codec := googletype.NewMoney(googletype.WithCurrency("USD"))
 
 	src := &money.Money{CurrencyCode: "USD", Units: 2, Nanos: 10_000_000}
+
 	var dst **int64
 	require.NoError(t, run(codec, reflect.ValueOf(&src), &dst))
 	require.NotNil(t, dst)
@@ -345,6 +361,7 @@ func TestNewMoney_Pointers(t *testing.T) {
 	require.Equal(t, int64(201), **dst)
 
 	cents := int64(99)
+
 	var m **money.Money
 	require.NoError(t, run(codec, reflect.ValueOf(&cents), &m))
 	require.Equal(t, amount{"USD", 0, 990_000_000}, amountOf(*m))

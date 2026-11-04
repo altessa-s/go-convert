@@ -29,6 +29,7 @@ func TestNewDate_ToTime(t *testing.T) {
 	t.Parallel()
 
 	partial := []googletype.Option{googletype.WithAllowPartialDates()}
+
 	tests := []struct {
 		name string
 		opts []googletype.Option
@@ -59,12 +60,15 @@ func TestNewDate_ToTime(t *testing.T) {
 			t.Parallel()
 
 			var dst time.Time
+
 			err := run(googletype.NewDate(tt.opts...), dateValue(tt.src), &dst)
 			if tt.kind != 0 {
 				requireKind(t, err, tt.kind)
 				require.True(t, dst.IsZero())
+
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.want, dst)
 		})
@@ -75,6 +79,7 @@ func TestNewDate_FromTime(t *testing.T) {
 	t.Parallel()
 
 	tokyo := time.FixedZone("JST", 9*60*60)
+
 	tests := []struct {
 		name string
 		src  time.Time
@@ -93,12 +98,15 @@ func TestNewDate_FromTime(t *testing.T) {
 			t.Parallel()
 
 			var dst *date.Date
+
 			err := run(googletype.NewDate(), reflect.ValueOf(tt.src), &dst)
 			if tt.kind != 0 {
 				requireKind(t, err, tt.kind)
 				require.Nil(t, dst)
+
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.want, ymdOf(dst))
 		})
@@ -109,6 +117,7 @@ func TestNewDate_String(t *testing.T) {
 	t.Parallel()
 
 	partial := []googletype.Option{googletype.WithAllowPartialDates()}
+
 	tests := []struct {
 		name string
 		opts []googletype.Option
@@ -118,8 +127,6 @@ func TestNewDate_String(t *testing.T) {
 		{name: "full", s: "2025-06-15", d: ymd{2025, 6, 15}},
 		{name: "first", s: "0001-01-01", d: ymd{1, 1, 1}},
 		{name: "last", s: "9999-12-31", d: ymd{9999, 12, 31}},
-		{name: "month and day", opts: partial, s: "0000-12-25", d: ymd{0, 12, 25}},
-		{name: "year only", opts: partial, s: "2025-00-00", d: ymd{2025, 0, 0}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -135,6 +142,27 @@ func TestNewDate_String(t *testing.T) {
 			require.NoError(t, run(codec, reflect.ValueOf(tt.s), &d))
 			require.Equal(t, tt.d, ymdOf(&d))
 		})
+	}
+
+	// A partial date has no YYYY-MM-DD form: it is not written as a string,
+	// although such strings are still read with WithAllowPartialDates.
+	for _, tt := range []struct {
+		s string
+		d ymd
+	}{
+		{s: "0000-12-25", d: ymd{0, 12, 25}},
+		{s: "2025-00-00", d: ymd{2025, 0, 0}},
+		{s: "2025-06-00", d: ymd{2025, 6, 0}},
+	} {
+		codec := googletype.NewDate(partial...)
+
+		s := "kept"
+		require.ErrorIs(t, run(codec, dateValue(tt.d), &s), googletype.ErrPartialDate, tt.s)
+		require.Equal(t, "kept", s)
+
+		var d date.Date
+		require.NoError(t, run(codec, reflect.ValueOf(tt.s), &d))
+		require.Equal(t, tt.d, ymdOf(&d))
 	}
 }
 
@@ -174,9 +202,11 @@ func TestNewDate_NilZeroAndDelegation(t *testing.T) {
 	codec := googletype.NewDate()
 	sentinel := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 
+	cleared := sentinel
+	require.NoError(t, run(codec, reflect.ValueOf((*date.Date)(nil)), &cleared))
+	require.Zero(t, cleared)
+
 	dst := sentinel
-	require.NoError(t, run(codec, reflect.ValueOf((*date.Date)(nil)), &dst))
-	require.Equal(t, sentinel, dst)
 
 	var d *date.Date
 	require.NoError(t, run(codec, reflect.ValueOf((*string)(nil)), &d))

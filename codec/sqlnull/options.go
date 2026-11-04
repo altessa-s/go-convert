@@ -8,8 +8,10 @@ package sqlnull
 
 // options holds configuration options for database/sql null type conversion.
 type options struct {
-	// zeroAsNull ([WithZeroAsNull]) stores a zero T source as an invalid
-	// (NULL) value instead of a valid zero. It applies to T sources only; a
-	// non-nil *T source is always valid.
+	// zeroAsNull ([WithZeroAsNull]) stores a zero value as an invalid (NULL)
+	// value instead of a valid zero: a zero T source, a non-pointer source
+	// the chain converts to a zero T, and a valid null source whose value
+	// converts to a zero T2. A non-nil pointer source is always valid; a nil
+	// one is always NULL.
 	zeroAsNull bool
 }

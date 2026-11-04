@@ -40,10 +40,12 @@ func Example() {
 
 func ExampleNewMapping() {
 	type Cardinality int
+
 	const (
 		Optional Cardinality = iota + 1
 		Repeated
 	)
+
 	type Column struct {
 		Name        string
 		Cardinality Cardinality

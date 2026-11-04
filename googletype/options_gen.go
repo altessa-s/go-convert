@@ -14,8 +14,9 @@ type Option func(o *options)
 //
 // allowPartialDates ([WithAllowPartialDates]) accepts Date values whose
 // year, month or day is 0. Date -> time.Time replaces a missing month or
-// day with 1 and keeps a missing year as year 0; Date <-> string writes
-// and reads the missing parts as zeros, such as "0000-12-25".
+// day with 1 and keeps a missing year as year 0; string -> Date reads the
+// missing parts as zeros, such as "0000-12-25", but Date -> string still
+// fails with [ErrPartialDate], as a partial date has no YYYY-MM-DD form.
 func WithAllowPartialDates() Option {
 	return func(o *options) {
 		value := true
@@ -64,8 +65,8 @@ func WithCurrencyScales(v map[string]int) Option {
 // WithIgnoreZero enables the ignoreZero option.
 //
 // ignoreZero ([WithIgnoreZero]) skips the conversion, leaving the
-// destination unchanged, when the source is zero: a message with every
-// field zero, the zero time.Time or time.Duration, 0, "" or [0, 0].
+// destination unchanged, when the source is nil or zero: a message with
+// every field zero, the zero time.Time or time.Duration, 0, "" or [0, 0].
 func WithIgnoreZero() Option {
 	return func(o *options) {
 		value := true

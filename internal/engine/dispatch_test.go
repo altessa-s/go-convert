@@ -48,8 +48,10 @@ func TestConvertByKindDispatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			w := New(Config{}).walker()
 			defer w.release()
+
 			dst := reflect.ValueOf(tt.dst).Elem()
 			w.convertByKind("", "", reflect.ValueOf(tt.src), dst)
 			require.Equal(t, tt.want, dst.Interface())
@@ -63,7 +65,9 @@ func TestConvertByKindOverflow(t *testing.T) {
 
 	w := New(Config{OverflowCheck: true}).walker()
 	defer w.release()
+
 	var dst int8
+
 	require.PanicsWithValue(t, OverflowError{Field: "f", From: reflect.Int, To: reflect.Int8, Value: 1000}, func() {
 		w.convertByKind("", "f", reflect.ValueOf(1000), reflect.ValueOf(&dst).Elem())
 	})
@@ -123,6 +127,7 @@ func TestDynamicTraversal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			dst := tt.dst
 			err := New(Config{IgnorePaths: set(tt.ignore...)}).Convert(&tt.src, &dst)
 			require.NoError(t, err)
@@ -140,6 +145,7 @@ func TestDynamicTraversalBreaksCycles(t *testing.T) {
 
 	err := New(Config{IgnorePaths: set("v.secret", "v.self.secret")}).Convert(&dynamicHolder{V: cyclic}, &dst)
 	require.NoError(t, err)
+
 	out, ok := dst.V.(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "kept", out["secret"])
@@ -154,7 +160,9 @@ func TestDynamicTraversalHonorsTheDepthLimit(t *testing.T) {
 	for range 20 {
 		deep = map[string]any{"n": deep}
 	}
+
 	err := New(Config{MaxDepth: 5, IgnorePaths: set("v.n.n.n.n.n.n.n.n.x")}).Convert(&dynamicHolder{V: deep}, &dynamicHolder{})
+
 	var depthErr DepthError
 	require.ErrorAs(t, err, &depthErr)
 	require.Equal(t, 5, depthErr.Limit)
@@ -172,6 +180,7 @@ func TestMappedFieldIndex(t *testing.T) {
 	idx, ok = w.mappedFieldIndex("a", 0, info)
 	require.True(t, ok)
 	require.Equal(t, 1, idx)
+
 	_, ok = w.mappedFieldIndex("b", 0, info)
 	require.False(t, ok)
 }

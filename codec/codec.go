@@ -79,6 +79,7 @@ func (c *Set) Run(fieldName string, src, dst reflect.Value, finishHandler CodecH
 			ctx = &codecContext{}
 			ctx.nextFn = ctx.next
 		}
+
 		ctx.codecs = c.customCodecs
 		ctx.final = finishHandler
 		ctx.index = 1
@@ -112,6 +113,7 @@ var codecCtxPool = sync.Pool{
 	New: func() any {
 		ctx := &codecContext{}
 		ctx.nextFn = ctx.next
+
 		return ctx
 	},
 }
@@ -124,6 +126,7 @@ func (ctx *codecContext) next(fieldName string, src, dst reflect.Value) {
 		ctx.final(fieldName, src, dst)
 		return
 	}
+
 	ctx.index = i + 1
 	ctx.codecs[i](fieldName, src, dst, ctx.nextFn)
 }
@@ -152,10 +155,12 @@ func (c *Set) RunError(fieldPath, fieldName string, src, dst reflect.Value, fini
 	if !ok {
 		ctx = newErrorContext()
 	}
+
 	ctx.set, ctx.fieldName, ctx.finish, ctx.index = c, fieldName, finishHandler, 0
 	err := ctx.next(fieldPath, src, dst)
 	*ctx = errorContext{nextFn: ctx.nextFn, legacyFn: ctx.legacyFn}
 	errorCtxPool.Put(ctx)
+
 	return err
 }
 
@@ -174,10 +179,12 @@ type errorContext struct {
 
 var errorCtxPool = sync.Pool{New: func() any { return newErrorContext() }}
 
+// newErrorContext returns a context with its continuations bound.
 func newErrorContext() *errorContext {
 	ctx := &errorContext{}
 	ctx.nextFn = ctx.next
 	ctx.legacyFn = ctx.legacy
+
 	return ctx
 }
 
@@ -190,13 +197,16 @@ func (ctx *errorContext) next(path string, src, dst reflect.Value) error {
 		ctx.index = i + 1
 		err := ctx.set.errorCodecs[i](path, src, dst, ctx.nextFn)
 		ctx.index = i
+
 		return err
 	}
+
 	prevPath, prevErr := ctx.path, ctx.err
 	ctx.path, ctx.err = path, nil
 	ctx.set.Run(ctx.fieldName, src, dst, ctx.legacyFn)
 	err := ctx.err
 	ctx.path, ctx.err = prevPath, prevErr
+
 	return err
 }
 

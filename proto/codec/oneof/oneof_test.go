@@ -17,10 +17,13 @@ func TestNew_PassThrough(t *testing.T) {
 	codec := oneof.New()
 
 	src := reflect.ValueOf("hello")
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	codec("Name", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -32,10 +35,13 @@ func TestNewForField_PassThrough(t *testing.T) {
 	codec := oneof.NewForField("Payload")
 
 	src := reflect.ValueOf("hello")
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	codec("OtherField", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -92,22 +98,27 @@ func TestNew_OneofToStruct_InterfaceField(t *testing.T) {
 	src := reflect.ValueOf(msg).FieldByName("Payload")
 
 	var dst testPayload
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	codec("Payload", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
 
 	assert.False(t, nextCalled, "codec must handle the oneof interface itself")
+
 	if assert.NotNil(t, dst.Contractor, "active wrapper field must be unpacked") {
 		assert.Equal(t, "acme", dst.Contractor.Name)
 	}
+
 	assert.Nil(t, dst.Agent, "inactive oneof variants must stay nil")
 }
 
 func TestNew_PointerDepthForOneofConversions(t *testing.T) {
 	t.Parallel()
+
 	codec := oneof.New(oneof.WithWrapperRegistry(map[string]any{
 		"Contractor": &TestMessage_Contractor{},
 		"Agent":      &TestMessage_Agent{},
@@ -115,19 +126,24 @@ func TestNew_PointerDepthForOneofConversions(t *testing.T) {
 
 	payload := testPayload{Contractor: &testContractor{Name: "nested"}}
 	payloadPtr := &payload
+
 	var msg testMessage
+
 	src := reflect.ValueOf(&payloadPtr)
 	dst := reflect.ValueOf(&msg).Elem().FieldByName("Payload")
 	codec("Payload", src, dst, func(string, reflect.Value, reflect.Value) { assert.Fail(t, "next called") })
+
 	wrapper, ok := msg.Payload.(*TestMessage_Contractor)
 	if assert.True(t, ok) {
 		assert.Equal(t, "nested", wrapper.Contractor.Name)
 	}
 
 	var nilInner *testPayload
+
 	msg.Payload = &TestMessage_Contractor{Contractor: &testContractor{Name: "preserved"}}
 	codec("Payload", reflect.ValueOf(&nilInner), reflect.ValueOf(&msg).Elem().FieldByName("Payload"),
 		func(string, reflect.Value, reflect.Value) {})
+
 	wrapper, ok = msg.Payload.(*TestMessage_Contractor)
 	if assert.True(t, ok) {
 		assert.Equal(t, "preserved", wrapper.Contractor.Name, "nil source at any pointer depth leaves the oneof untouched")
@@ -136,6 +152,7 @@ func TestNew_PointerDepthForOneofConversions(t *testing.T) {
 	var output **testPayload
 	codec("Payload", reflect.ValueOf(msg).FieldByName("Payload"), reflect.ValueOf(&output).Elem(),
 		func(string, reflect.Value, reflect.Value) { assert.Fail(t, "next called") })
+
 	if assert.NotNil(t, output) && assert.NotNil(t, *output) {
 		assert.Equal(t, "preserved", (**output).Contractor.Name)
 	}
@@ -143,6 +160,7 @@ func TestNew_PointerDepthForOneofConversions(t *testing.T) {
 	var oneofPtr **isTestMessage_Payload
 	codec("Payload", reflect.ValueOf(&payloadPtr), reflect.ValueOf(&oneofPtr).Elem(),
 		func(string, reflect.Value, reflect.Value) { assert.Fail(t, "next called") })
+
 	if assert.NotNil(t, oneofPtr) && assert.NotNil(t, *oneofPtr) {
 		wrapper, ok = (**oneofPtr).(*TestMessage_Contractor)
 		if assert.True(t, ok, "pointer-wrapped oneof destination receives the wrapper") {
@@ -151,7 +169,9 @@ func TestNew_PointerDepthForOneofConversions(t *testing.T) {
 	}
 
 	var untouched **isTestMessage_Payload
+
 	nextCalled := false
+
 	codec("Payload", reflect.ValueOf(testPayload{}), reflect.ValueOf(&untouched).Elem(),
 		func(string, reflect.Value, reflect.Value) { nextCalled = true })
 	assert.True(t, nextCalled, "an empty source is left to next")
@@ -171,17 +191,21 @@ func TestNew_OneofToStruct_ConcreteWrapper(t *testing.T) {
 	src := reflect.ValueOf(&TestMessage_Agent{Agent: &testAgent{Name: "bond"}})
 
 	var dst testPayload
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	codec("Payload", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
 
 	assert.False(t, nextCalled, "registered wrapper must be handled by the codec")
+
 	if assert.NotNil(t, dst.Agent) {
 		assert.Equal(t, "bond", dst.Agent.Name)
 	}
+
 	assert.Nil(t, dst.Contractor)
 }
 
@@ -193,15 +217,18 @@ func TestNew_OneofToStruct_NilInterface(t *testing.T) {
 	src := reflect.ValueOf(msg).FieldByName("Payload")
 
 	var dst testPayload
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	oneof.New(oneof.WithIgnoreNilFields())("Payload", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
 	assert.False(t, nextCalled, "nil oneof must be swallowed with WithIgnoreNilFields")
 
 	nextCalled = false
+
 	oneof.New()("Payload", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -217,9 +244,11 @@ func TestNew_OneofToStruct_UnregisteredConcreteWrapper(t *testing.T) {
 	src := reflect.ValueOf(&TestMessage_Agent{Agent: &testAgent{Name: "bond"}})
 
 	var dst testPayload
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	codec("Payload", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -239,6 +268,7 @@ func TestNew_StructToOneof_RoundTrip(t *testing.T) {
 	)
 
 	payload := testPayload{Contractor: &testContractor{Name: "acme"}}
+
 	var msg testMessage
 
 	srcField := reflect.ValueOf(payload)
@@ -254,6 +284,7 @@ func TestNew_StructToOneof_RoundTrip(t *testing.T) {
 	}
 
 	var back testPayload
+
 	backVal := reflect.ValueOf(&back).Elem()
 	codec("Payload", reflect.ValueOf(msg).FieldByName("Payload"), backVal, func(_ string, _, _ reflect.Value) {
 		t.Fatal("oneof→struct must be handled by the codec")

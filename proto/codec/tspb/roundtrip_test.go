@@ -21,12 +21,18 @@ import (
 
 func TestTimestampRoundTrip(t *testing.T) {
 	t.Parallel()
+
 	type domain struct{ Created time.Time }
+
 	instant := time.Date(2026, 11, 2, 10, 30, 0, 0, time.UTC)
+
 	var message struct{ Created *timestamppb.Timestamp }
+
 	_, err := converter.ConvertE(domain{Created: instant}, &message, converter.WithCodecs(tspb.New()))
 	require.NoError(t, err)
+
 	var result domain
+
 	_, err = converter.ConvertE(message, &result, converter.WithCodecs(tspb.New()))
 	require.NoError(t, err)
 	require.True(t, instant.Equal(result.Created))

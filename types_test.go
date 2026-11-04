@@ -66,7 +66,9 @@ func TestShortSliceToArrayDoesNotPanic(t *testing.T) {
 	t.Parallel()
 
 	src := intSide{Pair: []int64{1}, PairMap: map[string][]int64{"k": {1}}}
+
 	var got *textSide
+
 	require.NotPanics(t, func() { got = converter.Convert(src, &textSide{}) })
 	require.Equal(t, [2]int64{}, got.Pair)
 	require.Equal(t, [2]int64{}, got.PairMap["k"])
@@ -90,14 +92,17 @@ func TestStringBytesAndRunesKeepGoSemantics(t *testing.T) {
 
 func TestNilContainersRemainNilAcrossElementConversions(t *testing.T) {
 	t.Parallel()
+
 	type source struct {
 		Items  []int
 		Values map[string]int
 	}
+
 	type destination struct {
 		Items  []int64
 		Values map[string]int64
 	}
+
 	got := converter.Convert(source{}, &destination{
 		Items:  []int64{1, 2},
 		Values: map[string]int64{"old": 1},

@@ -40,6 +40,7 @@ func TestDurationOverflowSaturates(t *testing.T) {
 			pb := &durationpb.Duration{Seconds: tc.seconds, Nanos: tc.nanos}
 			require.NoError(t, pb.CheckValid())
 			src := durProto{TTL: pb, Grace: pb, Splits: []*durationpb.Duration{pb}, Meta: map[string]*durationpb.Duration{"ttl": pb}}
+
 			var dst durDomain
 			converter.Convert(src, &dst, converter.WithCodecs(durpb.New()))
 

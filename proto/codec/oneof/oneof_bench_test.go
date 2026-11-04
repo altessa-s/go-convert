@@ -40,11 +40,14 @@ func BenchmarkNew_StructToOneof(b *testing.B) {
 		"Contractor": &benchMessage_Contractor{},
 	}))
 	src := reflect.ValueOf(benchPayload{Contractor: &benchContractor{ID: 42, Name: "acme"}})
+
 	var dst isBenchMessage_Payload
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 	nop := func(_ string, _, _ reflect.Value) {}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		codec("Payload", src, dstVal, nop)
 	}
@@ -53,11 +56,14 @@ func BenchmarkNew_StructToOneof(b *testing.B) {
 func BenchmarkNewForField_NonTargetField(b *testing.B) {
 	codec := oneof.NewForField("Payload")
 	src := reflect.ValueOf("hello")
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 	nop := func(_ string, _, _ reflect.Value) {}
 
 	b.ReportAllocs()
+
 	for b.Loop() {
 		codec("Other", src, dstVal, nop)
 	}

@@ -39,6 +39,9 @@ jobs:
         # go fix -diff exits non-zero when any modernizer would rewrite code.
         run: make vet
 
+      - name: Check generated files
+        run: make generate-check
+
   test:
     name: Test
     runs-on: ubuntu-latest

@@ -57,9 +57,10 @@ func TestNewMapping_Conversions(t *testing.T) {
 			src: cardinalityNone, dst: new(typepb.Field_CARDINALITY_REPEATED), want: typepb.Field_CARDINALITY_UNKNOWN},
 		{name: "zero Go value to nil enum pointer", opts: []enumpb.Option{enumpb.WithUnspecifiedAsEmpty()},
 			src: cardinalityNone, dst: new(typepb.Field_CARDINALITY_REPEATED.Enum()), want: (*typepb.Field_Cardinality)(nil)},
-		{name: "nil enum pointer leaves the destination", src: (*typepb.Field_Cardinality)(nil), dst: new(cardinalityRequired), want: cardinalityRequired},
-		{name: "nil Go pointer leaves the destination", src: (*cardinality)(nil),
-			dst: new(typepb.Field_CARDINALITY_REQUIRED), want: typepb.Field_CARDINALITY_REQUIRED},
+		{name: "nil enum pointer zeroes the destination", src: (*typepb.Field_Cardinality)(nil), dst: new(cardinalityRequired), want: cardinalityNone},
+		{name: "nil enum pointer clears a Go pointer", src: (*typepb.Field_Cardinality)(nil), dst: new(new(cardinalityRequired)), want: (*cardinality)(nil)},
+		{name: "nil Go pointer zeroes the destination", src: (*cardinality)(nil),
+			dst: new(typepb.Field_CARDINALITY_REQUIRED), want: typepb.Field_CARDINALITY_UNKNOWN},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -153,6 +154,7 @@ func TestNewMapping_PanicsOnDuplicateGoValue(t *testing.T) {
 		typepb.Field_CARDINALITY_OPTIONAL: cardinalityOptional,
 		typepb.Field_CARDINALITY_REQUIRED: cardinalityOptional,
 	}
+
 	require.Panics(t, func() { enumpb.NewMapping(table) })
 }
 
@@ -167,11 +169,13 @@ func TestConverter_Mapping(t *testing.T) {
 	opts := []converter.Option{converter.WithErrorCodecs(enumpb.NewMapping(cardinalities))}
 
 	var dto columnDTO
+
 	_, err := converter.ConvertE(&typepb.Field{Name: "tags", Cardinality: typepb.Field_CARDINALITY_REPEATED}, &dto, opts...)
 	require.NoError(t, err)
 	require.Equal(t, columnDTO{Name: "tags", Cardinality: cardinalityRepeated}, dto)
 
 	var field typepb.Field
+
 	_, err = converter.ConvertE(&columnDTO{Name: "id", Cardinality: cardinalityMissing}, &field, opts...)
 	require.Equal(t, error(enumpb.UnknownValueError{Enum: "google.protobuf.Field.Cardinality", Path: "cardinality", Value: cardinalityMissing}), err)
 }

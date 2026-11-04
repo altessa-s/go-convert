@@ -18,6 +18,7 @@ func BenchmarkNew_DurationToString(b *testing.B) {
 
 	for b.Loop() {
 		var dst string
+
 		_ = codec("Timeout", src, reflect.ValueOf(&dst).Elem(), benchNext)
 	}
 }
@@ -28,6 +29,7 @@ func BenchmarkNew_StringToDuration(b *testing.B) {
 
 	for b.Loop() {
 		var dst time.Duration
+
 		_ = codec("Timeout", src, reflect.ValueOf(&dst).Elem(), benchNext)
 	}
 }
@@ -38,6 +40,7 @@ func BenchmarkNew_FloatToDuration(b *testing.B) {
 
 	for b.Loop() {
 		var dst time.Duration
+
 		_ = codec("Timeout", src, reflect.ValueOf(&dst).Elem(), benchNext)
 	}
 }
@@ -48,6 +51,7 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 
 	for b.Loop() {
 		var dst string
+
 		_ = codec("Name", src, reflect.ValueOf(&dst).Elem(), benchNext)
 	}
 }

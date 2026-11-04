@@ -26,6 +26,7 @@ func FuzzConvert(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, s string, i int, b bool) {
 		src := FuzzStruct{S: s, I: i, B: b}
+
 		var dst FuzzStruct
 
 		// Should never panic
@@ -34,7 +35,6 @@ func FuzzConvert(f *testing.F) {
 		assert.Equal(t, s, dst.S)
 		assert.Equal(t, i, dst.I)
 		assert.Equal(t, b, dst.B)
-
 	})
 }
 
@@ -127,17 +127,21 @@ func (d *fzDecoder) byte() byte {
 	if d.pos >= len(d.data) {
 		return 0
 	}
+
 	b := d.data[d.pos]
 	d.pos++
+
 	return b
 }
 
 func (d *fzDecoder) string() string {
 	n := int(d.byte()) % (fzMaxStr + 1)
+
 	b := make([]byte, n)
 	for i := range b {
 		b[i] = d.byte()
 	}
+
 	return string(b)
 }
 
@@ -152,12 +156,14 @@ func (d *fzDecoder) node(depth int) *fzNode {
 	case b%4 == 2 && len(d.done) > 0:
 		return d.done[int(d.byte())%len(d.done)]
 	}
+
 	d.nodes++
 	n := &fzNode{}
 	d.ancestors = append(d.ancestors, n)
 	d.fill(n, depth)
 	d.ancestors = d.ancestors[:len(d.ancestors)-1]
 	d.done = append(d.done, n)
+
 	return n
 }
 
@@ -165,36 +171,43 @@ func (d *fzDecoder) fill(n *fzNode, depth int) {
 	n.Name = d.string()
 	n.Num = int64(int8(d.byte())) << (d.byte() % 64)
 	flags := d.byte()
+
 	n.Flag = flags&1 != 0
 	if flags&2 != 0 {
 		score := float64(d.byte()) / 4
 		n.Score = &score
 	}
+
 	n.Inner = fzInner{Secret: d.string(), Count: uint16(d.byte()) << 4}
 	if flags&4 != 0 {
 		n.Opt = &fzInner{Secret: d.string(), Count: uint16(d.byte())}
 	}
+
 	if flags&8 != 0 {
 		n.Tags = make([]string, int(d.byte())%(fzMaxItems+1))
 		for i := range n.Tags {
 			n.Tags[i] = d.string()
 		}
 	}
+
 	if flags&16 != 0 {
 		n.Kids = make([]*fzNode, int(d.byte())%(fzMaxItems+1))
 		for i := range n.Kids {
 			n.Kids[i] = d.node(depth + 1)
 		}
 	}
+
 	if flags&32 != 0 {
 		n.Attrs = make(map[string]*fzNode)
 		for range int(d.byte()) % (fzMaxItems + 1) {
 			n.Attrs[d.string()] = d.node(depth + 1)
 		}
 	}
+
 	if flags&64 != 0 {
 		n.Dyn = d.dynamic(depth + 1)
 	}
+
 	n.Next = d.node(depth + 1)
 }
 
@@ -203,6 +216,7 @@ func (d *fzDecoder) dynamic(depth int) any {
 	if depth >= fzMaxDepth {
 		return nil
 	}
+
 	switch d.byte() % 10 {
 	case 1:
 		return d.string()
@@ -219,18 +233,21 @@ func (d *fzDecoder) dynamic(depth int) any {
 		for range int(d.byte()) % (fzMaxItems + 1) {
 			m[d.string()] = d.dynamic(depth + 1)
 		}
+
 		return m
 	case 7:
 		s := make([]any, int(d.byte())%(fzMaxItems+1))
 		for i := range s {
 			s[i] = d.dynamic(depth + 1)
 		}
+
 		return s
 	case 8:
 		m := map[string]any{"secret": d.string()}
 		if d.allowCycles {
 			m["self"] = m
 		}
+
 		return m
 	case 9:
 		return map[string]any{"name": d.string(), "inner": map[string]any{"secret": d.string()}}
@@ -247,31 +264,40 @@ var (
 // fzOptions derives an option set from the decoder's next bytes.
 func fzOptions(d *fzDecoder) []converter.Option {
 	flags := d.byte()
+
 	var opts []converter.Option
 	if flags&1 != 0 {
 		opts = append(opts, converter.WithIgnorePaths(fzIgnorePaths[int(d.byte())%len(fzIgnorePaths)], fzIgnorePaths[int(d.byte())%len(fzIgnorePaths)]))
 	}
+
 	if flags&2 != 0 {
 		opts = append(opts, converter.WithIgnoreFields(fzIgnoreFields[int(d.byte())%len(fzIgnoreFields)]))
 	}
+
 	if flags&4 != 0 {
 		opts = append(opts, converter.WithSparseMerge())
 	}
+
 	if flags&8 != 0 {
 		opts = append(opts, converter.WithIgnoreZeroValues())
 	}
+
 	if flags&16 != 0 {
 		opts = append(opts, converter.WithCopySlices())
 	}
+
 	if flags&32 != 0 {
 		opts = append(opts, converter.WithOverflowCheck())
 	}
+
 	if flags&64 != 0 {
 		opts = append(opts, converter.WithMaxDepth(1+int(d.byte())%16))
 	}
+
 	if flags&128 != 0 {
 		opts = append(opts, converter.WithIgnoreNilValues())
 	}
+
 	return opts
 }
 
@@ -279,6 +305,7 @@ func fzOptions(d *fzDecoder) []converter.Option {
 // error types ConvertE documents for inputs without codecs.
 func requireDocumentedError(t *testing.T, err error) {
 	t.Helper()
+
 	switch err.(type) {
 	case nil, converter.UnsupportedTypeError, converter.OverflowError, converter.DepthError:
 	default:
@@ -305,6 +332,7 @@ func FuzzConvertEGraph(f *testing.F) {
 	for _, seed := range fzSeeds {
 		f.Add(seed)
 	}
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		d := newFzDecoder(data, true)
 		opts := fzOptions(d)
@@ -332,6 +360,7 @@ func FuzzConvertERoundTrip(f *testing.F) {
 	for _, seed := range fzSeeds {
 		f.Add(seed)
 	}
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		src := newFzDecoder(data, false).node(0)
 		if src == nil {
@@ -339,10 +368,12 @@ func FuzzConvertERoundTrip(f *testing.F) {
 		}
 
 		var mirror fzNodeMirror
+
 		_, err := converter.ConvertE(src, &mirror)
 		require.NoError(t, err)
 
 		var back fzNode
+
 		_, err = converter.ConvertE(&mirror, &back)
 		require.NoError(t, err)
 
@@ -370,12 +401,14 @@ func FuzzConvertEMaxDepth(f *testing.F) {
 			// Ignore paths enable path tracking without matching any field.
 			opts = append(opts, converter.WithIgnorePaths("next.missing"))
 		}
+
 		ring := mode&2 != 0 && src != nil
 		if ring {
 			last := src
 			for last.Next != nil {
 				last = last.Next
 			}
+
 			last.Next = src
 		}
 
@@ -386,8 +419,10 @@ func FuzzConvertEMaxDepth(f *testing.F) {
 			var depthErr converter.DepthError
 			require.ErrorAs(t, err, &depthErr)
 			require.Equal(t, n, depthErr.Limit)
+
 			return
 		}
+
 		require.NoError(t, err)
 	})
 }

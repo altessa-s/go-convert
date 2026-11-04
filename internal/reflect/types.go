@@ -19,6 +19,7 @@ func IndirectType(t reflect.Type) reflect.Type {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
+
 	return t
 }
 
@@ -29,8 +30,10 @@ func IndirectValue(v reflect.Value) reflect.Value {
 		if v.IsNil() {
 			return reflect.Value{}
 		}
+
 		v = v.Elem()
 	}
+
 	return v
 }
 
@@ -43,6 +46,7 @@ func MakeDst(dst *reflect.Value, t reflect.Type) {
 		if dst.IsNil() {
 			dst.Set(reflect.New(dst.Type().Elem()))
 		}
+
 		*dst = dst.Elem()
 	}
 }
@@ -79,8 +83,17 @@ func ConvertValue(v reflect.Value, t reflect.Type) (reflect.Value, bool) {
 		default:
 		}
 	}
+
 	if !v.CanConvert(t) {
 		return reflect.Value{}, false
 	}
+
 	return v.Convert(t), true
+}
+
+// SetZero sets v to its zero value when v is valid and settable.
+func SetZero(v reflect.Value) {
+	if v.IsValid() && v.CanSet() {
+		v.SetZero()
+	}
 }

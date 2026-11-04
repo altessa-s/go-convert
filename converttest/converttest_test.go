@@ -12,8 +12,11 @@ import (
 
 func TestRequireConvert(t *testing.T) {
 	t.Parallel()
+
 	type source struct{ Value int }
+
 	type destination struct{ Value int64 }
+
 	got := converttest.RequireConvert(t, source{Value: 42}, &destination{})
 	if got.Value != 42 {
 		t.Fatalf("value = %d, want 42", got.Value)

@@ -5,7 +5,10 @@
 package jsonpb
 
 import (
-	"encoding/json"
+	"bytes"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"errors"
 	"math"
 	"reflect"
 	"strconv"
@@ -29,11 +32,89 @@ const (
 	reasonNonFinite   = "non-finite numbers have no JSON representation"
 	reasonUnsupported = "unsupported type"
 	reasonInvalidUTF8 = "invalid UTF-8"
+	reasonCyclic      = "cyclic value"
+
+	// DefaultMaxDepth is the nesting limit of lists and maps used by [NewE]
+	// unless [WithMaxDepth] sets another one.
+	DefaultMaxDepth = 10000
+
+	// cycleCheckDepth is the nesting depth beyond which the walker starts
+	// tracking the containers it is inside of, so that shallow values do not
+	// pay for cycle detection.
+	cycleCheckDepth = 64
 )
+
+// errNotObject is wrapped by the [Error] returned when a json.RawMessage
+// converted into a structpb.Struct holds JSON other than an object or null.
+var errNotObject = errors.New("JSON value is not an object")
+
+// jsonOptions are the encoding/json/v2 options used to render JSON text:
+// object members are written in sorted order, as encoding/json v1 did.
+var jsonOptions = json.Deterministic(true)
 
 // converter converts a non-nil source value into the value stored in the
 // destination: a message pointer or a value of the destination's type.
-type converter func(path string, src reflect.Value) (reflect.Value, error)
+type converter func(w *walker, path string, src reflect.Value) (reflect.Value, error)
+
+// visitKey identifies a list or map being converted: the address of its
+// data and, for slices, its length.
+type visitKey struct {
+	ptr uintptr
+	n   int
+}
+
+// walker carries the state of one conversion: the current nesting depth and,
+// past cycleCheckDepth, the containers being converted.
+type walker struct {
+	visiting map[visitKey]struct{}
+	maxDepth int
+	depth    int
+}
+
+// enter records that w descends into container c, a map, slice or message
+// pointer, failing when the nesting limit is exceeded or c is already being
+// converted. Containers are tracked only past cycleCheckDepth.
+func enter[T any](w *walker, c T) error {
+	w.depth++
+	if w.depth > w.maxDepth {
+		return ValueError{Reason: "nesting exceeds " + strconv.Itoa(w.maxDepth) + " levels"}
+	}
+
+	if w.depth <= cycleCheckDepth {
+		return nil
+	}
+
+	key := keyOf(reflect.ValueOf(c))
+	if _, ok := w.visiting[key]; ok {
+		return ValueError{Reason: reasonCyclic}
+	}
+
+	if w.visiting == nil {
+		w.visiting = make(map[visitKey]struct{})
+	}
+
+	w.visiting[key] = struct{}{}
+
+	return nil
+}
+
+// leave undoes the matching [enter] for container c.
+func leave[T any](w *walker, c T) {
+	if w.depth > cycleCheckDepth {
+		delete(w.visiting, keyOf(reflect.ValueOf(c)))
+	}
+
+	w.depth--
+}
+
+// keyOf returns the visit key of a pointer, map or slice value.
+func keyOf(v reflect.Value) visitKey {
+	if v.Kind() == reflect.Slice {
+		return visitKey{ptr: v.Pointer(), n: v.Len()}
+	}
+
+	return visitKey{ptr: v.Pointer()}
+}
 
 // NewE creates an error codec for bidirectional conversion between the
 // structpb messages and their plain Go counterparts. Register it with
@@ -54,16 +135,24 @@ type converter func(path string, src reflect.Value) (reflect.Value, error)
 // converts into a structpb.Value, structpb.ListValue or structpb.Struct
 // according to its dynamic value.
 //
-// A nil source (nil pointer, nil interface, nil slice or map, or an empty
-// json.RawMessage) sets the destination to its zero value; with
-// [WithIgnoreNil] the destination is left untouched. A google.protobuf.Value
-// holding NullValue or no kind converts to nil, and nil inside []any or
-// map[string]any converts to NullValue.
+// A nil source (nil pointer, nil interface, nil slice or map, or a
+// json.RawMessage that is empty or holds JSON null) sets the destination to
+// its zero value; with [WithIgnoreNil] the destination is left untouched. A
+// google.protobuf.Value holding NullValue or no kind converts to nil, and nil
+// inside []any or map[string]any converts to NullValue.
+//
+// JSON text is parsed and rendered with encoding/json/v2, which rejects
+// duplicate object names and invalid UTF-8. A json.RawMessage holding JSON
+// null converts to a nil *structpb.Struct, the same as an empty one, and
+// {} converts to an empty Struct.
 //
 // Conversion fails with a [ValueError] for non-finite numbers (in either
-// direction), strings or keys that are not valid UTF-8, and values of any
-// other Go type; with an [Error] when a json.RawMessage does not hold a JSON
-// object. Other field pairs are passed to next unchanged.
+// direction), strings or keys that are not valid UTF-8, values of any other
+// Go type, lists and maps nested deeper than [WithMaxDepth] levels
+// ([DefaultMaxDepth] by default) and lists or maps that contain themselves;
+// with an [Error] when a json.RawMessage is not valid JSON or holds a JSON
+// value other than an object or null. Other field pairs are passed to next
+// unchanged.
 //
 // Example:
 //
@@ -71,6 +160,9 @@ type converter func(path string, src reflect.Value) (reflect.Value, error)
 //	converter.ConvertE(src, &dst, converter.WithErrorCodecs(codec))
 func NewE(opts ...Option) convcodec.CodecE {
 	o := newOptions(opts...)
+	if o.maxDepth <= 0 {
+		o.maxDepth = DefaultMaxDepth
+	}
 
 	return func(fieldPath string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 		convert := selectConverter(src.Type(), dst.Type())
@@ -83,13 +175,17 @@ func NewE(opts ...Option) convcodec.CodecE {
 			if !o.ignoreNil && dst.CanSet() {
 				dst.SetZero()
 			}
+
 			return nil
 		}
 
-		out, err := convert(fieldPath, value)
+		w := walker{maxDepth: o.maxDepth}
+
+		out, err := convert(&w, fieldPath, value)
 		if err != nil {
 			return err
 		}
+
 		setDst(dst, out)
 
 		return nil
@@ -146,8 +242,10 @@ func sourceValue(src reflect.Value) reflect.Value {
 		if value.IsNil() {
 			return reflect.Value{}
 		}
+
 		value = value.Elem()
 	}
+
 	return value
 }
 
@@ -156,14 +254,23 @@ func isNilSource(value reflect.Value) bool {
 	if !value.IsValid() {
 		return true
 	}
+
 	switch value.Kind() {
 	case reflect.Slice:
-		return value.IsNil() || (value.Type() == rawMessageType && value.Len() == 0)
+		return value.IsNil() || (value.Type() == rawMessageType && isJSONNull(value.Bytes()))
 	case reflect.Map:
 		return value.IsNil()
 	default:
 		return false
 	}
+}
+
+// isJSONNull reports whether text is empty or the JSON literal null, ignoring
+// surrounding JSON whitespace.
+func isJSONNull(text []byte) bool {
+	text = bytes.Trim(text, " \t\r\n")
+
+	return len(text) == 0 || string(text) == "null"
 }
 
 // setDst stores out into dst, allocating pointer layers. out is either a
@@ -174,15 +281,19 @@ func setDst(dst, out reflect.Value) {
 			dst.Set(out)
 			return
 		}
+
 		if dst.IsNil() {
 			dst.Set(reflect.New(dst.Type().Elem()))
 		}
+
 		dst = dst.Elem()
 	}
+
 	if out.Kind() == reflect.Pointer && out.Type().Elem() == dst.Type() {
 		dst.Set(out.Elem())
 		return
 	}
+
 	dst.Set(out)
 }
 
@@ -194,36 +305,50 @@ func messagePtr[T any](v reflect.Value) *T {
 		tmp.Elem().Set(v)
 		v = tmp.Elem()
 	}
+
 	p, _ := reflect.TypeAssert[*T](v.Addr())
+
 	return p
 }
 
-func rawToStruct(path string, src reflect.Value) (reflect.Value, error) {
-	var m map[string]any
-	if err := json.Unmarshal(src.Bytes(), &m); err != nil {
+// rawToStruct parses JSON object text into a Struct.
+func rawToStruct(w *walker, path string, src reflect.Value) (reflect.Value, error) {
+	var x any
+	if err := json.Unmarshal(src.Bytes(), &x); err != nil {
 		return reflect.Value{}, Error{Path: path, Err: err}
 	}
-	pb, err := toStruct(m)
+
+	m, ok := x.(map[string]any)
+	if !ok {
+		return reflect.Value{}, Error{Path: path, Err: errNotObject}
+	}
+
+	pb, err := w.toStruct(m)
 	if err != nil {
 		return reflect.Value{}, at(err, path)
 	}
+
 	return reflect.ValueOf(pb), nil
 }
 
-func structToRaw(path string, src reflect.Value) (reflect.Value, error) {
-	m, err := fromStruct(messagePtr[structpb.Struct](src))
+// structToRaw renders a Struct as JSON text.
+func structToRaw(w *walker, path string, src reflect.Value) (reflect.Value, error) {
+	m, err := w.fromStruct(messagePtr[structpb.Struct](src))
 	if err != nil {
 		return reflect.Value{}, at(err, path)
 	}
-	data, err := json.Marshal(m)
+
+	data, err := json.Marshal(m, jsonOptions)
 	if err != nil {
 		return reflect.Value{}, Error{Path: path, Err: err}
 	}
-	return reflect.ValueOf(json.RawMessage(data)), nil
+
+	return reflect.ValueOf(jsontext.Value(data)), nil
 }
 
-func valueToAny(path string, src reflect.Value) (reflect.Value, error) {
-	x, err := fromValue(messagePtr[structpb.Value](src))
+// valueToAny converts a Value into a Go value.
+func valueToAny(w *walker, path string, src reflect.Value) (reflect.Value, error) {
+	x, err := w.fromValue(messagePtr[structpb.Value](src))
 	if err != nil {
 		return reflect.Value{}, at(err, path)
 	}
@@ -231,51 +356,63 @@ func valueToAny(path string, src reflect.Value) (reflect.Value, error) {
 	return reflect.ValueOf(&x).Elem(), nil
 }
 
-func listToSlice(path string, src reflect.Value) (reflect.Value, error) {
-	s, err := fromList(messagePtr[structpb.ListValue](src))
+// listToSlice converts a ListValue into a []any.
+func listToSlice(w *walker, path string, src reflect.Value) (reflect.Value, error) {
+	s, err := w.fromList(messagePtr[structpb.ListValue](src))
 	if err != nil {
 		return reflect.Value{}, at(err, path)
 	}
+
 	return reflect.ValueOf(s), nil
 }
 
-func structToMap(path string, src reflect.Value) (reflect.Value, error) {
-	m, err := fromStruct(messagePtr[structpb.Struct](src))
+// structToMap converts a Struct into a map[string]any.
+func structToMap(w *walker, path string, src reflect.Value) (reflect.Value, error) {
+	m, err := w.fromStruct(messagePtr[structpb.Struct](src))
 	if err != nil {
 		return reflect.Value{}, at(err, path)
 	}
+
 	return reflect.ValueOf(m), nil
 }
 
-func anyToValue(path string, src reflect.Value) (reflect.Value, error) {
-	pb, err := toValue(src.Interface())
+// anyToValue converts a Go value into a Value.
+func anyToValue(w *walker, path string, src reflect.Value) (reflect.Value, error) {
+	pb, err := w.toValue(src.Interface())
 	if err != nil {
 		return reflect.Value{}, at(err, path)
 	}
+
 	return reflect.ValueOf(pb), nil
 }
 
-func sliceToList(path string, src reflect.Value) (reflect.Value, error) {
+// sliceToList converts a []any into a ListValue.
+func sliceToList(w *walker, path string, src reflect.Value) (reflect.Value, error) {
 	s, ok := reflect.TypeAssert[[]any](src)
 	if !ok {
 		return reflect.Value{}, ValueError{Path: path, Value: src.Interface(), Reason: reasonUnsupported}
 	}
-	pb, err := toList(s)
+
+	pb, err := w.toList(s)
 	if err != nil {
 		return reflect.Value{}, at(err, path)
 	}
+
 	return reflect.ValueOf(pb), nil
 }
 
-func mapToStruct(path string, src reflect.Value) (reflect.Value, error) {
+// mapToStruct converts a map[string]any into a Struct.
+func mapToStruct(w *walker, path string, src reflect.Value) (reflect.Value, error) {
 	m, ok := reflect.TypeAssert[map[string]any](src)
 	if !ok {
 		return reflect.Value{}, ValueError{Path: path, Value: src.Interface(), Reason: reasonUnsupported}
 	}
-	pb, err := toStruct(m)
+
+	pb, err := w.toStruct(m)
 	if err != nil {
 		return reflect.Value{}, at(err, path)
 	}
+
 	return reflect.ValueOf(pb), nil
 }
 
@@ -286,11 +423,12 @@ func at(err error, prefix string) error {
 		ve.Path = prefix + ve.Path
 		return ve
 	}
+
 	return err
 }
 
 // toValue converts a Go value into a google.protobuf.Value.
-func toValue(x any) (*structpb.Value, error) {
+func (w *walker) toValue(x any) (*structpb.Value, error) {
 	switch v := x.(type) {
 	case nil:
 		return structpb.NewNullValue(), nil
@@ -301,16 +439,26 @@ func toValue(x any) (*structpb.Value, error) {
 	case float64:
 		return numberValue(v)
 	case []any:
-		list, err := toList(v)
+		if v == nil {
+			return structpb.NewNullValue(), nil
+		}
+
+		list, err := w.toList(v)
 		if err != nil {
 			return nil, err
 		}
+
 		return structpb.NewListValue(list), nil
 	case map[string]any:
-		s, err := toStruct(v)
+		if v == nil {
+			return structpb.NewNullValue(), nil
+		}
+
+		s, err := w.toStruct(v)
 		if err != nil {
 			return nil, err
 		}
+
 		return structpb.NewStructValue(s), nil
 	default:
 		return scalarValue(reflect.ValueOf(x))
@@ -335,101 +483,149 @@ func scalarValue(v reflect.Value) (*structpb.Value, error) {
 	}
 }
 
+// numberValue wraps f, rejecting NaN and infinities.
 func numberValue(f float64) (*structpb.Value, error) {
 	if math.IsNaN(f) || math.IsInf(f, 0) {
 		return nil, ValueError{Value: f, Reason: reasonNonFinite}
 	}
+
 	return structpb.NewNumberValue(f), nil
 }
 
+// stringValue wraps s, rejecting invalid UTF-8.
 func stringValue(s string) (*structpb.Value, error) {
 	if !utf8.ValidString(s) {
 		return nil, ValueError{Value: s, Reason: reasonInvalidUTF8}
 	}
+
 	return structpb.NewStringValue(s), nil
 }
 
-func toList(s []any) (*structpb.ListValue, error) {
+// toList converts the elements of s into a ListValue.
+func (w *walker) toList(s []any) (*structpb.ListValue, error) {
+	if err := enter(w, s); err != nil {
+		return nil, err
+	}
+
+	defer leave(w, s)
+
 	values := make([]*structpb.Value, len(s))
 	for i, x := range s {
-		v, err := toValue(x)
+		v, err := w.toValue(x)
 		if err != nil {
 			return nil, at(err, "["+strconv.Itoa(i)+"]")
 		}
+
 		values[i] = v
 	}
+
 	return &structpb.ListValue{Values: values}, nil
 }
 
-func toStruct(m map[string]any) (*structpb.Struct, error) {
+// toStruct converts the entries of m into a Struct.
+func (w *walker) toStruct(m map[string]any) (*structpb.Struct, error) {
+	if err := enter(w, m); err != nil {
+		return nil, err
+	}
+
+	defer leave(w, m)
+
 	fields := make(map[string]*structpb.Value, len(m))
 	for key, x := range m {
 		if !utf8.ValidString(key) {
 			return nil, ValueError{Value: key, Reason: reasonInvalidUTF8}
 		}
-		v, err := toValue(x)
+
+		v, err := w.toValue(x)
 		if err != nil {
 			return nil, at(err, "."+key)
 		}
+
 		fields[key] = v
 	}
+
 	return &structpb.Struct{Fields: fields}, nil
 }
 
 // fromValue converts a google.protobuf.Value into a Go value. A nil Value, a
 // Value without a kind and NullValue all convert to nil.
-func fromValue(pb *structpb.Value) (any, error) {
+func (w *walker) fromValue(pb *structpb.Value) (any, error) {
 	var out any
+
 	switch kind := pb.GetKind().(type) {
 	case *structpb.Value_NumberValue:
 		f := kind.NumberValue
 		if math.IsNaN(f) || math.IsInf(f, 0) {
 			return nil, ValueError{Value: f, Reason: reasonNonFinite}
 		}
+
 		out = f
 	case *structpb.Value_StringValue:
 		out = kind.StringValue
 	case *structpb.Value_BoolValue:
 		out = kind.BoolValue
 	case *structpb.Value_StructValue:
-		m, err := fromStruct(kind.StructValue)
+		m, err := w.fromStruct(kind.StructValue)
 		if err != nil {
 			return nil, err
 		}
+
 		out = m
 	case *structpb.Value_ListValue:
-		s, err := fromList(kind.ListValue)
+		s, err := w.fromList(kind.ListValue)
 		if err != nil {
 			return nil, err
 		}
+
 		out = s
 	default:
 	}
+
 	return out, nil
 }
 
-func fromList(pb *structpb.ListValue) ([]any, error) {
+// fromList converts a ListValue into a []any.
+func (w *walker) fromList(pb *structpb.ListValue) ([]any, error) {
+	if err := enter(w, pb); err != nil {
+		return nil, err
+	}
+
+	defer leave(w, pb)
+
 	values := pb.GetValues()
+
 	out := make([]any, len(values))
 	for i, v := range values {
-		x, err := fromValue(v)
+		x, err := w.fromValue(v)
 		if err != nil {
 			return nil, at(err, "["+strconv.Itoa(i)+"]")
 		}
+
 		out[i] = x
 	}
+
 	return out, nil
 }
 
-func fromStruct(pb *structpb.Struct) (map[string]any, error) {
+// fromStruct converts a Struct into a map[string]any.
+func (w *walker) fromStruct(pb *structpb.Struct) (map[string]any, error) {
+	if err := enter(w, pb); err != nil {
+		return nil, err
+	}
+
+	defer leave(w, pb)
+
 	fields := pb.GetFields()
+
 	out := make(map[string]any, len(fields))
 	for key, v := range fields {
-		x, err := fromValue(v)
+		x, err := w.fromValue(v)
 		if err != nil {
 			return nil, at(err, "."+key)
 		}
+
 		out[key] = x
 	}
+
 	return out, nil
 }

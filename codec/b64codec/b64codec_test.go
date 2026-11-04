@@ -12,9 +12,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/altessa-s/go-convert/codec/b64codec"
+
 	converter "github.com/altessa-s/go-convert"
 	convcodec "github.com/altessa-s/go-convert/codec"
-	"github.com/altessa-s/go-convert/codec/b64codec"
 )
 
 var errNext = errors.New("next called")
@@ -77,8 +78,6 @@ func TestNew_Decode(t *testing.T) {
 		{"raw url", base64.RawURLEncoding, "-_-_AQ", new([]byte), payload},
 		{"pointer to pointer", nil, new("aGk="), new(*[]byte), new([]byte("hi"))},
 		{"named types", nil, token("aGk="), new(blob), blob("hi")},
-		{"empty string zeroes slice", nil, "", new([]byte("old")), []byte(nil)},
-		{"empty string sets nil pointer", nil, "", new(new([]byte("old"))), (*[]byte)(nil)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -91,15 +90,46 @@ func TestNew_Decode(t *testing.T) {
 
 func TestNew_NilSource(t *testing.T) {
 	t.Parallel()
+
 	codec := b64codec.New()
 
 	preset := new("keep")
 	require.NoError(t, run(t, codec, (*[]byte)(nil), &preset))
-	require.Equal(t, "keep", *preset)
+	require.Nil(t, preset, "nil source sets a nil pointer")
 
-	var dst *[]byte
+	text := "keep"
+	require.NoError(t, run(t, codec, (*[]byte)(nil), &text))
+	require.Empty(t, text, "nil source sets the empty string")
+
+	dst := new([]byte("old"))
 	require.NoError(t, run(t, codec, (*string)(nil), &dst))
-	require.Nil(t, dst)
+	require.Nil(t, dst, "nil source sets a nil pointer")
+
+	data := []byte("old")
+	require.NoError(t, run(t, codec, (*string)(nil), &data))
+	require.Nil(t, data, "nil source sets a nil slice")
+}
+
+func TestNew_EmptyStringDecodesToEmptySlice(t *testing.T) {
+	t.Parallel()
+
+	codec := b64codec.New()
+
+	data := []byte("old")
+	require.NoError(t, run(t, codec, "", &data))
+	require.NotNil(t, data)
+	require.Empty(t, data)
+
+	p := new([]byte("old"))
+	require.NoError(t, run(t, codec, new(""), &p))
+	require.NotNil(t, p)
+	require.NotNil(t, *p)
+	require.Empty(t, *p)
+
+	var encoded string
+	require.NoError(t, run(t, codec, []byte{}, &encoded))
+	require.NoError(t, run(t, codec, encoded, &data))
+	require.NotNil(t, data, "[]byte{} survives a round trip")
 }
 
 func TestNew_Errors(t *testing.T) {
@@ -119,11 +149,14 @@ func TestNew_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			before := reflect.ValueOf(tt.dst).Elem().Interface()
 			err := run(t, b64codec.New(b64codec.WithEncoding(tt.enc)), tt.src, tt.dst)
+
 			var b64Err *b64codec.Error
 			require.ErrorAs(t, err, &b64Err)
 			require.Equal(t, "field", b64Err.Path)
+
 			var corrupt base64.CorruptInputError
 			require.ErrorAs(t, err, &corrupt)
 			require.Contains(t, err.Error(), `b64codec: field "field": illegal base64 data`)
@@ -134,6 +167,7 @@ func TestNew_Errors(t *testing.T) {
 
 func TestError_RootPath(t *testing.T) {
 	t.Parallel()
+
 	err := &b64codec.Error{Err: base64.CorruptInputError(3)}
 	require.Equal(t, "b64codec: illegal base64 data at input byte 3", err.Error())
 }
@@ -154,6 +188,7 @@ func TestNew_PassThrough(t *testing.T) {
 		{"byte array to string", [2]byte{1, 2}, new(string)},
 	}
 	codec := b64codec.New()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -176,6 +211,7 @@ type fileDTO struct {
 
 func TestConvertE_RoundTrip(t *testing.T) {
 	t.Parallel()
+
 	opt := converter.WithErrorCodecs(b64codec.New(b64codec.WithEncoding(base64.RawURLEncoding)))
 	src := file{Name: "a.bin", Content: payload, Digest: new([]byte{1, 2, 3})}
 
@@ -190,8 +226,11 @@ func TestConvertE_RoundTrip(t *testing.T) {
 
 func TestConvertE_ReturnsCodecErrorUnchanged(t *testing.T) {
 	t.Parallel()
+
 	codec := b64codec.New()
+
 	var returned error
+
 	recording := func(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 		returned = codec(path, src, dst, next)
 		return returned

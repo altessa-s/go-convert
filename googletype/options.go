@@ -6,6 +6,8 @@ package googletype
 
 //go:generate optgen generate
 
+import "sync"
+
 // defaultScale is the number of minor-unit digits used for a currency that
 // [WithCurrencyScales] does not list, unless [WithScale] sets another one.
 const defaultScale = 2
@@ -28,14 +30,17 @@ type options struct {
 	currencyScales map[string]int
 	amountField    string `optgen:"manual"`
 	currencyField  string `optgen:"manual"`
+	// moneyShapes caches [options.moneyShape] per struct type.
+	moneyShapes *sync.Map `optgen:"manual"`
 	// allowPartialDates ([WithAllowPartialDates]) accepts Date values whose
 	// year, month or day is 0. Date -> time.Time replaces a missing month or
-	// day with 1 and keeps a missing year as year 0; Date <-> string writes
-	// and reads the missing parts as zeros, such as "0000-12-25".
+	// day with 1 and keeps a missing year as year 0; string -> Date reads the
+	// missing parts as zeros, such as "0000-12-25", but Date -> string still
+	// fails with [ErrPartialDate], as a partial date has no YYYY-MM-DD form.
 	allowPartialDates bool
 	// ignoreZero ([WithIgnoreZero]) skips the conversion, leaving the
-	// destination unchanged, when the source is zero: a message with every
-	// field zero, the zero time.Time or time.Duration, 0, "" or [0, 0].
+	// destination unchanged, when the source is nil or zero: a message with
+	// every field zero, the zero time.Time or time.Duration, 0, "" or [0, 0].
 	ignoreZero bool
 }
 

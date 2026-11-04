@@ -20,6 +20,7 @@ type TypeMismatchError struct {
 	Want string
 }
 
+// Error reports the field path, the type URL and the expected type.
 func (e TypeMismatchError) Error() string {
 	return fmt.Sprintf("anypb: %q: type URL %q does not match %s", e.Path, e.TypeURL, e.Want)
 }
@@ -36,10 +37,12 @@ type UnknownTypeError struct {
 	Type reflect.Type
 }
 
+// Error reports the field path and the unresolved type.
 func (e UnknownTypeError) Error() string {
 	if e.Type != nil {
 		return fmt.Sprintf("anypb: %q: %s is not a protobuf message or a registered domain type", e.Path, e.Type)
 	}
+
 	return fmt.Sprintf("anypb: %q: unknown message type %q", e.Path, e.TypeURL)
 }
 
@@ -51,6 +54,7 @@ type Error struct {
 	Err error
 }
 
+// Error reports the field path and the cause.
 func (e Error) Error() string {
 	return fmt.Sprintf("anypb: %q: %v", e.Path, e.Err)
 }

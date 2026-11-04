@@ -43,6 +43,7 @@ func TestNewLatLng(t *testing.T) {
 			codec := googletype.NewLatLng()
 
 			var ll *latlng.LatLng
+
 			err := run(codec, reflect.ValueOf(tt.coords), &ll)
 			if !tt.valid {
 				requireKind(t, err, googletype.ErrOutOfRange)
@@ -53,13 +54,17 @@ func TestNewLatLng(t *testing.T) {
 			}
 
 			msg := &latlng.LatLng{Latitude: tt.coords[0], Longitude: tt.coords[1]}
+
 			var coords [2]float64
+
 			err = run(codec, reflect.ValueOf(msg), &coords)
 			if !tt.valid {
 				requireKind(t, err, googletype.ErrOutOfRange)
 				require.Equal(t, [2]float64{}, coords)
+
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.coords, coords)
 		})
@@ -71,19 +76,23 @@ func TestNewLatLng_NilZeroAndDelegation(t *testing.T) {
 
 	codec := googletype.NewLatLng()
 
+	cleared := [2]float64{1, 2}
+	require.NoError(t, run(codec, reflect.ValueOf((*latlng.LatLng)(nil)), &cleared))
+	require.Zero(t, cleared)
+
 	coords := [2]float64{1, 2}
-	require.NoError(t, run(codec, reflect.ValueOf((*latlng.LatLng)(nil)), &coords))
-	require.Equal(t, [2]float64{1, 2}, coords)
 
 	ignoreZero := googletype.NewLatLng(googletype.WithIgnoreZero())
 	require.NoError(t, run(ignoreZero, reflect.ValueOf(&latlng.LatLng{}), &coords))
 	require.Equal(t, [2]float64{1, 2}, coords)
+
 	var ll *latlng.LatLng
 	require.NoError(t, run(ignoreZero, reflect.ValueOf([2]float64{}), &ll))
 	require.Nil(t, ll)
 
 	var pair [2]float32
 	require.ErrorIs(t, run(codec, reflect.ValueOf(&latlng.LatLng{}), &pair), errNext)
+
 	var slice []float64
 	require.ErrorIs(t, run(codec, reflect.ValueOf(&latlng.LatLng{}), &slice), errNext)
 }

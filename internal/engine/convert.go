@@ -65,10 +65,13 @@ func New(cfg Config) *Engine {
 	if cfg.Codecs == nil {
 		cfg.Codecs = convcodec.NewCodecsSet()
 	}
+
 	if cfg.MaxDepth <= 0 {
 		cfg.MaxDepth = DefaultMaxDepth
 	}
+
 	plans, flags := newPlanCache(&cfg)
+
 	return &Engine{
 		cfg:   cfg,
 		types: sharedTypes,
@@ -91,22 +94,28 @@ type walker struct {
 
 var walkers = sync.Pool{New: func() any { return newWalker() }}
 
+// newWalker returns a walker with its codec terminal bound.
 func newWalker() *walker {
 	w := &walker{}
 	w.terminal = w.convertByKindNoPath
+
 	return w
 }
 
+// walker takes a walker for e from the pool.
 func (e *Engine) walker() *walker {
 	w, ok := walkers.Get().(*walker)
 	if !ok {
 		w = newWalker()
 	}
+
 	w.Engine = e
 	w.depth = 0
+
 	return w
 }
 
+// release returns w to the pool.
 func (w *walker) release() {
 	w.Engine = nil
 	walkers.Put(w)
@@ -139,13 +148,17 @@ func (e *Engine) Convert(src, dst any) (err error) {
 	}()
 
 	dstValue := rootDestination(srcValue.Kind(), dst)
+
 	w := e.walker()
 	defer w.release()
+
 	if srcValue.Kind() == reflect.Struct {
 		w.convertStruct("", srcValue, dstValue, false)
 		return nil
 	}
+
 	w.convertValueAt("", "", srcValue, dstValue)
+
 	return nil
 }
 
@@ -155,19 +168,24 @@ func rootDestination(srcKind reflect.Kind, dst any) reflect.Value {
 	if srcKind != reflect.Struct && srcKind != reflect.Slice {
 		panic("src must be a struct or slice of structs")
 	}
+
 	dstValue := reflect.ValueOf(dst)
 	if !dstValue.IsValid() || dstValue.Kind() != reflect.Pointer || dstValue.IsNil() {
 		panic("dst must be a non-nil pointer to a struct or slice of structs")
 	}
+
 	for dstValue.Kind() == reflect.Pointer {
 		if dstValue.IsNil() {
 			dstValue.Set(reflect.New(dstValue.Type().Elem()))
 		}
+
 		dstValue = dstValue.Elem()
 	}
+
 	if dstValue.Kind() != srcKind {
 		panic("dst must be the same kind as src")
 	}
+
 	return dstValue
 }
 
@@ -199,15 +217,19 @@ func (e *Engine) ConvertKey(src, dst reflect.Value) error {
 	return e.convertEntry(noIgnorePath, src, dst)
 }
 
+// convertEntry converts one value at path and recovers failures as errors.
 func (e *Engine) convertEntry(path string, src, dst reflect.Value) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = classify(r, valueOf(src), valueOf(dst))
 		}
 	}()
+
 	w := e.walker()
 	defer w.release()
+
 	w.convertValueAt(path, "", src, dst)
+
 	return nil
 }
 
@@ -216,6 +238,7 @@ func valueOf(v reflect.Value) any {
 	if !v.IsValid() || !v.CanInterface() {
 		return nil
 	}
+
 	return v.Interface()
 }
 
@@ -225,9 +248,11 @@ func (w *walker) convertStruct(path string, src reflect.Value, dst reflect.Value
 	if nested && src.Type() == dstValue.Type() && w.hasIgnorePathBelow(path) && w.overwritesValues() {
 		src = w.copyPrivateState(src, dstValue)
 	}
+
 	if w.cfg.HandleEmbeddedStructs {
 		w.fillEmbeddedDestinations(path, src, dstValue)
 	}
+
 	w.convertStructFields(path, src, dst, dstValue)
 }
 
@@ -243,9 +268,11 @@ func (w *walker) overwritesValues() bool {
 func (w *walker) copyPrivateState(src, dstValue reflect.Value) reflect.Value {
 	snapshot := reflect.New(dstValue.Type()).Elem()
 	snapshot.Set(dstValue)
+
 	source := reflect.New(src.Type()).Elem()
 	source.Set(src)
 	dstValue.Set(source)
+
 	if w.cfg.CopySlices {
 		cloneSlicesInPlace(dstValue)
 	}
@@ -255,6 +282,7 @@ func (w *walker) copyPrivateState(src, dstValue reflect.Value) reflect.Value {
 			dstValue.Field(i).Set(snapshot.Field(i))
 		}
 	}
+
 	return source
 }
 
@@ -268,6 +296,7 @@ func (w *walker) fillEmbeddedDestinations(path string, src, dstValue reflect.Val
 			w.initEmbeddedPointer(path, fieldName, src, embedded)
 			continue
 		}
+
 		w.convertValueAt(path, fieldName, src, embedded)
 	}
 }
@@ -295,12 +324,14 @@ func (w *walker) convertEmbeddedSource(
 	if w.isIgnoredPath(fieldPath) {
 		return
 	}
+
 	if !dstFieldExists {
 		// A source embedded struct flattened into the destination
 		// contributes promoted fields at the parent path.
 		w.convertStruct(path, reflectutils.IndirectValue(srcFieldValue), dst, true)
 		return
 	}
+
 	reflectutils.MakeDst(&dstFieldValue, reflectutils.IndirectType(dstFieldValue.Type()))
 	// A destination embedded field keeps the embedded segment.
 	w.convertStruct(fieldPath, reflectutils.IndirectValue(srcFieldValue), dstFieldValue, true)
@@ -310,6 +341,7 @@ func (w *walker) convertEmbeddedSource(
 func (w *walker) skipValue(path, fieldName string, srcValue reflect.Value) bool {
 	if w.cfg.IgnoreNilValues || w.cfg.IgnoreZeroValues {
 		srcValueKind := srcValue.Kind()
+
 		isNilValue := (srcValueKind == reflect.Pointer || srcValueKind == reflect.Slice || srcValueKind == reflect.Map) && srcValue.IsNil()
 		if (w.cfg.IgnoreNilValues && isNilValue) || (w.cfg.IgnoreZeroValues && srcValue.IsZero()) {
 			return true
@@ -322,6 +354,7 @@ func (w *walker) skipValue(path, fieldName string, srcValue reflect.Value) bool 
 			return true
 		}
 	}
+
 	if len(w.cfg.IgnorePaths) > 0 && path != "" {
 		if _, ok := w.cfg.IgnorePaths[path]; ok {
 			return true
@@ -331,10 +364,12 @@ func (w *walker) skipValue(path, fieldName string, srcValue reflect.Value) bool 
 	return false
 }
 
+// convertValueAt converts one value: skip rules, codecs, assignment, primitives, then kind dispatch.
 func (w *walker) convertValueAt(path, fieldName string, srcValue reflect.Value, dstValue reflect.Value) {
 	if w.skipValue(path, fieldName, srcValue) {
 		return
 	}
+
 	w.descend(path)
 	defer func() { w.depth-- }()
 
@@ -346,6 +381,7 @@ func (w *walker) convertValueAt(path, fieldName string, srcValue reflect.Value, 
 		if err != nil {
 			panic(codecError{err})
 		}
+
 		return
 	}
 
@@ -369,6 +405,7 @@ func (w *walker) convertValueAt(path, fieldName string, srcValue reflect.Value, 
 					w.convertByKind(path, name, src, dst)
 				})
 		}
+
 		return
 	}
 
@@ -378,6 +415,7 @@ func (w *walker) convertValueAt(path, fieldName string, srcValue reflect.Value, 
 	if overflow {
 		panic(newOverflowError(fieldName, srcValue, reflectutils.IndirectType(dstValue.Type()).Kind()))
 	}
+
 	if handled {
 		return
 	}
@@ -407,6 +445,7 @@ func (w *walker) convertByKind(path, fieldName string, srcValue reflect.Value, d
 		if dstValue.CanSet() {
 			dstValue.Set(reflect.Zero(dstValue.Type()))
 		}
+
 		return
 	}
 
@@ -449,7 +488,9 @@ func (w *walker) convertFromStruct(path, fieldName string, srcValue, dstValue re
 		if reflectutils.IndirectType(dstValueType.Elem()) != srcValueType {
 			return false
 		}
+
 		w.convertStructToSlice(path, fieldName, srcValue, dstValue)
+
 		return true
 	default:
 		return false
@@ -472,10 +513,12 @@ func (w *walker) convertStructToStruct(path string, srcValue, dstValue reflect.V
 		dstValue.Set(reflect.Zero(dstValue.Type()))
 		return
 	}
+
 	if srcIsNil {
 		dstValue.Set(reflect.Zero(dstValue.Type()))
 		return
 	}
+
 	reflectutils.MakeDst(&dstValue, dstValueType)
 	w.convertStruct(path, srcIndirect, reflectutils.IndirectValue(dstValue), true)
 }
@@ -515,6 +558,7 @@ func (w *walker) convertConvertible(fieldName string, srcValue reflect.Value, ds
 	if !srcIndirect.IsValid() {
 		return
 	}
+
 	converted, ok := reflectutils.ConvertValue(srcIndirect, dstType)
 	if !ok {
 		return
@@ -527,6 +571,7 @@ func (w *walker) convertConvertible(fieldName string, srcValue reflect.Value, ds
 	if w.cfg.OverflowCheck && w.overflows(srcIndirect, dst) {
 		panic(newOverflowError(fieldName, srcIndirect, dst.Kind()))
 	}
+
 	dst.Set(converted)
 }
 
@@ -535,7 +580,9 @@ func (w *walker) isIgnoredPath(path string) bool {
 	if path == "" || len(w.cfg.IgnorePaths) == 0 {
 		return false
 	}
+
 	_, ok := w.cfg.IgnorePaths[path]
+
 	return ok
 }
 
@@ -545,9 +592,11 @@ func (w *walker) childPath(path, field string) string {
 	if path == noIgnorePath {
 		return noIgnorePath
 	}
+
 	if len(w.cfg.IgnorePaths) == 0 && !w.cfg.Codecs.HasErrorCodecs() {
 		return ""
 	}
+
 	return joinPath(path, field)
 }
 
@@ -558,6 +607,7 @@ func (w *walker) mustDescend(path string, t reflect.Type) bool {
 	if !w.hasIgnorePathBelow(path) {
 		return false
 	}
+
 	return typeHasMergeableStruct(t)
 }
 
@@ -579,7 +629,9 @@ func (w *walker) tryAssignValue(path string, src, dst reflect.Value) bool {
 		(w.cfg.SparseMerge && w.isMergeableStruct(src.Type())) {
 		return false
 	}
+
 	dst.Set(src)
+
 	if w.cfg.CopySlices {
 		if src.Kind() == reflect.Pointer && !src.IsNil() && src.Elem().Kind() == reflect.Slice {
 			cp := reflect.New(src.Type().Elem())
@@ -590,6 +642,7 @@ func (w *walker) tryAssignValue(path string, src, dst reflect.Value) bool {
 			cloneSlicesInPlace(dst)
 		}
 	}
+
 	return true
 }
 
@@ -598,7 +651,9 @@ func (w *walker) hasIgnorePathBelow(path string) bool {
 	if len(w.ignoreAncestors) == 0 || path == noIgnorePath {
 		return false
 	}
+
 	_, ok := w.ignoreAncestors[path]
+
 	return ok
 }
 
@@ -608,7 +663,9 @@ func ignoreAncestors(paths map[string]struct{}) map[string]struct{} {
 	if len(paths) == 0 {
 		return nil
 	}
+
 	ancestors := map[string]struct{}{"": {}}
+
 	for path := range paths {
 		for i := range len(path) {
 			if path[i] == '.' {
@@ -616,6 +673,7 @@ func ignoreAncestors(paths map[string]struct{}) map[string]struct{} {
 			}
 		}
 	}
+
 	return ancestors
 }
 
@@ -624,6 +682,7 @@ func detachPointer(v reflect.Value) {
 	if v.Kind() != reflect.Pointer || v.IsNil() {
 		return
 	}
+
 	cp := reflect.New(v.Type().Elem())
 	cp.Elem().Set(v.Elem())
 	v.Set(cp)

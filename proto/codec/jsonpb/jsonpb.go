@@ -5,7 +5,9 @@
 package jsonpb
 
 import (
-	"encoding/json"
+	"bytes"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"reflect"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -15,7 +17,9 @@ import (
 )
 
 var (
-	rawMessageType = reflect.TypeFor[json.RawMessage]()
+	// rawMessageType is jsontext.Value; encoding/json.RawMessage is an alias
+	// of it.
+	rawMessageType = reflect.TypeFor[jsontext.Value]()
 	structpbType   = reflect.TypeFor[structpb.Struct]()
 )
 
@@ -26,6 +30,9 @@ var (
 //   - *structpb.Struct -> *json.RawMessage: marshals the Struct to JSON bytes
 //
 // Non-pointer variants (json.RawMessage <-> structpb.Struct) are also supported.
+// JSON text is parsed and rendered with encoding/json/v2, so duplicate object
+// names and invalid UTF-8 are rejected (the field is passed to next) and
+// object members are written in sorted order.
 //
 // Example:
 //
@@ -53,10 +60,10 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 
 	switch {
 	case srcType == rawMessageType && dstType == structpbType:
-		return convertRawMessageToStruct(src, srcValue, dst, dstType, opts)
+		return convertRawMessageToStruct(srcValue, dst, dstType, opts)
 
 	case srcType == structpbType && dstType == rawMessageType:
-		return convertStructToRawMessage(src, srcValue, dst, dstType, opts)
+		return convertStructToRawMessage(srcValue, dst, dstType, opts)
 
 	default:
 		return false
@@ -64,18 +71,23 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 }
 
 // convertRawMessageToStruct handles json.RawMessage -> structpb.Struct conversion.
-func convertRawMessageToStruct(src, srcValue, dst reflect.Value, dstType reflect.Type, opts *options) bool {
-	// Handle nil pointer or nil/empty slice
-	if !srcValue.IsValid() || (srcValue.Kind() == reflect.Slice && (srcValue.IsNil() || srcValue.Len() == 0)) {
-		return true
+func convertRawMessageToStruct(srcValue, dst reflect.Value, dstType reflect.Type, opts *options) bool {
+	// A nil pointer, empty text and JSON null are absent: they zero the
+	// destination unless WithIgnoreNil keeps it.
+	var raw jsontext.Value
+
+	if srcValue.IsValid() {
+		var ok bool
+		if raw, ok = reflect.TypeAssert[jsontext.Value](srcValue); !ok {
+			return false
+		}
 	}
 
-	raw, ok := reflect.TypeAssert[json.RawMessage](srcValue)
-	if !ok {
-		return false
-	}
+	if trimmed := bytes.TrimSpace(raw); len(trimmed) == 0 || string(trimmed) == "null" {
+		if !opts.ignoreNil {
+			reflectutils.SetZero(dst)
+		}
 
-	if opts.ignoreNil && src.Kind() == reflect.Pointer && src.IsNil() {
 		return true
 	}
 
@@ -96,13 +108,13 @@ func convertRawMessageToStruct(src, srcValue, dst reflect.Value, dstType reflect
 }
 
 // convertStructToRawMessage handles structpb.Struct -> json.RawMessage conversion.
-func convertStructToRawMessage(src, srcValue, dst reflect.Value, dstType reflect.Type, opts *options) bool {
-	// Handle nil pointer source
+func convertStructToRawMessage(srcValue, dst reflect.Value, dstType reflect.Type, opts *options) bool {
+	// A nil source zeroes the destination unless WithIgnoreNil keeps it.
 	if !srcValue.IsValid() {
-		return true
-	}
+		if !opts.ignoreNil {
+			reflectutils.SetZero(dst)
+		}
 
-	if opts.ignoreNil && src.Kind() == reflect.Pointer && src.IsNil() {
 		return true
 	}
 
@@ -129,12 +141,12 @@ func convertStructToRawMessage(src, srcValue, dst reflect.Value, dstType reflect
 		}
 	}
 
-	data, err := json.Marshal(pb.AsMap())
+	data, err := json.Marshal(pb.AsMap(), jsonOptions)
 	if err != nil {
 		return false
 	}
 
-	raw := json.RawMessage(data)
+	raw := jsontext.Value(data)
 
 	reflectutils.MakeDst(&dst, dstType)
 	dst.Set(reflect.ValueOf(raw))

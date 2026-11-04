@@ -14,6 +14,7 @@ type Option func(o *options)
 //
 // nameCase ([WithCase]) sets the letter case of the names written to
 // strings; [CaseLower] and [CaseUpper] parse names case-insensitively.
+// Other values make [New] and [NewMapping] panic.
 func WithCase(v Case) Option {
 	return func(o *options) {
 		o.nameCase = v

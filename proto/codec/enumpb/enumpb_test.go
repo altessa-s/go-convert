@@ -5,6 +5,7 @@
 package enumpb_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -25,6 +26,7 @@ type label string
 
 func failNext(t *testing.T) func(string, reflect.Value, reflect.Value) error {
 	t.Helper()
+
 	return func(string, reflect.Value, reflect.Value) error {
 		require.Fail(t, "next should not be called")
 		return nil
@@ -103,6 +105,7 @@ func TestNew_Pointers(t *testing.T) {
 
 	t.Run("enum to string pointer", func(t *testing.T) {
 		t.Parallel()
+
 		var dst *label
 		require.NoError(t, codec("f", reflect.ValueOf(descriptorpb.FieldDescriptorProto_TYPE_GROUP), reflect.ValueOf(&dst).Elem(), failNext(t)))
 		require.NotNil(t, dst)
@@ -110,12 +113,14 @@ func TestNew_Pointers(t *testing.T) {
 	})
 	t.Run("unspecified to nil string pointer", func(t *testing.T) {
 		t.Parallel()
+
 		dst := new(label("stale"))
 		require.NoError(t, codec("f", reflect.ValueOf(typepb.Field_CARDINALITY_UNKNOWN), reflect.ValueOf(&dst).Elem(), failNext(t)))
 		require.Nil(t, dst)
 	})
 	t.Run("string to enum pointer", func(t *testing.T) {
 		t.Parallel()
+
 		var dst *descriptorpb.FieldDescriptorProto_Label
 		require.NoError(t, codec("f", reflect.ValueOf(new("repeated")), reflect.ValueOf(&dst).Elem(), failNext(t)))
 		require.NotNil(t, dst)
@@ -123,26 +128,52 @@ func TestNew_Pointers(t *testing.T) {
 	})
 	t.Run("empty string to nil enum pointer", func(t *testing.T) {
 		t.Parallel()
+
 		dst := descriptorpb.FeatureSet_EXPLICIT.Enum()
 		require.NoError(t, codec("f", reflect.ValueOf(""), reflect.ValueOf(&dst).Elem(), failNext(t)))
 		require.Nil(t, dst)
 	})
 }
 
-func TestNew_NilSourceLeavesDestination(t *testing.T) {
+func TestNew_NilSourceZeroesDestination(t *testing.T) {
 	t.Parallel()
 
 	codec := enumpb.New(enumpb.WithUnspecifiedAsEmpty())
 
 	var enumSrc *descriptorpb.FieldDescriptorProto_Type
-	dst := "unchanged"
+
+	dst := "stale"
 	require.NoError(t, codec("f", reflect.ValueOf(enumSrc), reflect.ValueOf(&dst).Elem(), failNext(t)))
-	require.Equal(t, "unchanged", dst)
+	require.Empty(t, dst)
+
+	ptrDst := new("stale")
+	require.NoError(t, codec("f", reflect.ValueOf(enumSrc), reflect.ValueOf(&ptrDst).Elem(), failNext(t)))
+	require.Nil(t, ptrDst)
 
 	var stringSrc *string
+
 	enumDst := typepb.Field_TYPE_BOOL
 	require.NoError(t, codec("f", reflect.ValueOf(stringSrc), reflect.ValueOf(&enumDst).Elem(), failNext(t)))
-	require.Equal(t, typepb.Field_TYPE_BOOL, enumDst)
+	require.Equal(t, typepb.Field_TYPE_UNKNOWN, enumDst)
+
+	enumPtrDst := typepb.Field_TYPE_BOOL.Enum()
+	require.NoError(t, codec("f", reflect.ValueOf(stringSrc), reflect.ValueOf(&enumPtrDst).Elem(), failNext(t)))
+	require.Nil(t, enumPtrDst)
+}
+
+func TestNew_InvalidCasePanics(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []enumpb.Case{enumpb.CaseUpper + 1, -1} {
+		require.PanicsWithValue(t, fmt.Sprintf("enumpb: New: invalid Case %d; use CaseKeep, CaseLower or CaseUpper", int(c)), func() {
+			enumpb.New(enumpb.WithCase(c))
+		})
+		require.Panics(t, func() {
+			enumpb.NewMapping(map[typepb.Field_Cardinality]string{}, enumpb.WithCase(c))
+		})
+	}
+
+	require.NotPanics(t, func() { enumpb.New(enumpb.WithCase(enumpb.CaseKeep)) })
 }
 
 func TestNew_UnknownValues(t *testing.T) {
@@ -201,9 +232,11 @@ func TestNew_UnknownValues(t *testing.T) {
 			t.Parallel()
 
 			err := enumpb.New(tt.opts...)("a.b", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), failNext(t))
+
 			var unknown enumpb.UnknownValueError
 			require.ErrorAs(t, err, &unknown)
 			require.Equal(t, tt.want, unknown)
+
 			if tt.message != "" {
 				require.EqualError(t, err, tt.message)
 			}
@@ -254,13 +287,17 @@ func TestConverter_BothDirections(t *testing.T) {
 	))}
 
 	field := &typepb.Field{Name: "id", Kind: typepb.Field_TYPE_INT64, Cardinality: typepb.Field_CARDINALITY_UNKNOWN}
+
 	var dto fieldDTO
+
 	_, err := converter.ConvertE(field, &dto, opts...)
 	require.NoError(t, err)
 	require.Equal(t, fieldDTO{Name: "id", Kind: "type_int64"}, dto)
 
 	dto.Cardinality = new("repeated")
+
 	var back typepb.Field
+
 	_, err = converter.ConvertE(&dto, &back, opts...)
 	require.NoError(t, err)
 	require.True(t, proto.Equal(&typepb.Field{Name: "id", Kind: typepb.Field_TYPE_INT64, Cardinality: typepb.Field_CARDINALITY_REPEATED}, &back))
@@ -270,7 +307,9 @@ func TestConverter_ErrorReturnedUnchanged(t *testing.T) {
 	t.Parallel()
 
 	dto := fieldDTO{Name: "id", Kind: "type_decimal"}
+
 	var field typepb.Field
+
 	_, err := converter.ConvertE(&dto, &field, converter.WithErrorCodecs(enumpb.New(enumpb.WithCase(enumpb.CaseLower))))
 
 	var unknown enumpb.UnknownValueError

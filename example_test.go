@@ -68,6 +68,7 @@ func ExampleNew() {
 			fmt.Println("error:", err)
 			continue
 		}
+
 		fmt.Println(dto.ID, dto.Name, dto.Tags == nil)
 	}
 	// Output:
@@ -80,11 +81,13 @@ func ExampleWithSparseMerge() {
 		City *string
 		Zip  *string
 	}
+
 	type Profile struct {
 		Name    *string
 		Age     *int
 		Address *Address
 	}
+
 	ptr := func(s string) *string { return &s }
 	age := 30
 
@@ -112,6 +115,7 @@ func ExampleWithFieldMappings() {
 		Login string
 		Email string
 	}
+
 	type AccountDTO struct {
 		Username string
 		Email    string
@@ -129,6 +133,7 @@ func ExampleWithCodecs() {
 		Title string
 		At    time.Time
 	}
+
 	type EventDTO struct {
 		Title string
 		At    string
@@ -137,10 +142,11 @@ func ExampleWithCodecs() {
 	// timeToString formats time.Time fields into string destinations and
 	// delegates everything else to the next codec.
 	timeToString := func(field string, src, dst reflect.Value, next convcodec.CodecHandler) {
-		if t, ok := src.Interface().(time.Time); ok && dst.Kind() == reflect.String {
+		if t, ok := reflect.TypeAssert[time.Time](src); ok && dst.Kind() == reflect.String {
 			dst.SetString(t.Format(time.DateOnly))
 			return
 		}
+
 		next(field, src, dst)
 	}
 
@@ -162,6 +168,7 @@ func ExampleWithErrorCodecs() {
 		if path == "email" && !strings.Contains(src.String(), "@") {
 			return fmt.Errorf("%s: %w", path, errInvalidEmail)
 		}
+
 		return next(path, src, dst)
 	}
 
@@ -209,6 +216,7 @@ func ExampleWithMaxDepth() {
 		Value int
 		Next  *Node
 	}
+
 	type NodeDTO struct {
 		Value int
 		Next  *NodeDTO

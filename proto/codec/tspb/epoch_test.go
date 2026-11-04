@@ -34,12 +34,14 @@ func TestMillisecondsBeforeEpoch(t *testing.T) {
 			t.Parallel()
 
 			convert := tspb.New(tspb.WithMilliseconds())
+
 			var dst *timestamppb.Timestamp
 			convert("CreatedAt", reflect.ValueOf(tc.millis), reflect.ValueOf(&dst).Elem(),
 				func(_ string, _, _ reflect.Value) { require.FailNow(t, "unexpected fallback") })
 
 			require.NotNil(t, dst)
 			require.NoError(t, dst.CheckValid())
+
 			want := timestamppb.New(time.UnixMilli(tc.millis))
 			require.Equal(t, want.Seconds, dst.Seconds)
 			require.Equal(t, want.Nanos, dst.Nanos)

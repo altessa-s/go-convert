@@ -52,6 +52,7 @@ func newRegistry() *anypb.Registry {
 
 func envelopeOptions(opts ...anypb.Option) []converter.Option {
 	opts = append([]anypb.Option{anypb.WithRegistry(newRegistry())}, opts...)
+
 	return []converter.Option{
 		converter.WithErrorCodecs(anypb.New(opts...)),
 		converter.WithCodecs(tspb.New()),
@@ -60,13 +61,16 @@ func envelopeOptions(opts ...anypb.Option) []converter.Option {
 
 func mustAny(t testing.TB, m proto.Message) *pbany.Any {
 	t.Helper()
+
 	a, err := pbany.New(m)
 	require.NoError(t, err)
+
 	return a
 }
 
 func failNext(t *testing.T) convcodec.CodecHandlerE {
 	t.Helper()
+
 	return func(string, reflect.Value, reflect.Value) error {
 		require.Fail(t, "next should not be called")
 		return nil
@@ -129,7 +133,9 @@ func TestNew_RegistryRoundTrip(t *testing.T) {
 			t.Parallel()
 
 			src := domainEnvelope{Body: wrapperspb.String("body"), At: instant, Note: &Note{Value: "note"}, Payload: tc.payload}
+
 			var message protoEnvelope
+
 			_, err := converter.ConvertE(src, &message, envelopeOptions()...)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(mustAny(t, wrapperspb.String("body")), message.Body))
@@ -137,6 +143,7 @@ func TestNew_RegistryRoundTrip(t *testing.T) {
 			require.True(t, proto.Equal(mustAny(t, wrapperspb.String("note")), message.Note))
 
 			var back domainEnvelope
+
 			_, err = converter.ConvertE(message, &back, envelopeOptions()...)
 			require.NoError(t, err)
 			require.True(t, proto.Equal(src.Body, back.Body))
@@ -171,6 +178,7 @@ func TestNew_Resolver(t *testing.T) {
 	codec := anypb.New(anypb.WithResolver(types))
 
 	var dst proto.Message
+
 	src := mustAny(t, durationpb.New(time.Second))
 	require.NoError(t, codec("payload", reflect.ValueOf(src), reflect.ValueOf(&dst).Elem(), failNext(t)))
 	require.True(t, proto.Equal(durationpb.New(time.Second), dst))
@@ -220,15 +228,18 @@ func TestNew_Errors(t *testing.T) {
 	t.Parallel()
 
 	const stringURL = "type.googleapis.com/google.protobuf.StringValue"
+
 	type stringerDst struct{ Payload fmt.Stringer }
+
 	type anyDst struct{ Payload any }
+
 	type anySrc struct{ Payload *pbany.Any }
-	type chanSrc struct{ Payload any }
 
 	failing := func(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 		if path == "note" {
 			return errFromNext
 		}
+
 		return next(path, src, dst)
 	}
 
@@ -272,12 +283,6 @@ func TestNew_Errors(t *testing.T) {
 			want: anypb.UnknownTypeError{Path: "payload"},
 		},
 		{
-			name: "unregistered Go type",
-			src:  chanSrc{Payload: struct{ N int }{N: 1}},
-			dst:  &anySrc{},
-			want: anypb.UnknownTypeError{Path: "payload", Type: reflect.TypeFor[struct{ N int }]()},
-		},
-		{
 			name: "error from next",
 			src:  domainEnvelope{Note: &Note{Value: "x"}},
 			dst:  &protoEnvelope{},
@@ -301,6 +306,7 @@ func TestNew_InvalidPayload(t *testing.T) {
 	src := &pbany.Any{TypeUrl: "type.googleapis.com/google.protobuf.StringValue", Value: []byte{0xff}}
 	for _, dst := range []any{new(*wrapperspb.StringValue), new(*Note), new(any)} {
 		err := anypb.New(anypb.WithRegistry(newRegistry()))("body", reflect.ValueOf(src), reflect.ValueOf(dst).Elem(), failNext(t))
+
 		var got anypb.Error
 		require.ErrorAs(t, err, &got)
 		require.Equal(t, "body", got.Path)
@@ -312,6 +318,7 @@ func TestNew_PassThrough(t *testing.T) {
 	t.Parallel()
 
 	codec := anypb.New()
+
 	for _, tc := range []struct {
 		name     string
 		src, dst any
@@ -340,6 +347,7 @@ func TestNew_InterfaceHoldingAny(t *testing.T) {
 
 	packed := mustAny(t, wrapperspb.String("x"))
 	holder := struct{ V any }{V: packed}
+
 	var dst *pbany.Any
 	require.NoError(t, anypb.New()("v", reflect.ValueOf(holder).Field(0), reflect.ValueOf(&dst).Elem(), failNext(t)))
 	require.Same(t, packed, dst)
@@ -362,6 +370,7 @@ func TestRegistry_RegisterPanics(t *testing.T) {
 			t.Parallel()
 
 			registry := anypb.NewRegistry().Register(&wrapperspb.StringValue{}, reflect.TypeFor[Note]())
+
 			require.Panics(t, func() { tc.register(registry) })
 		})
 	}

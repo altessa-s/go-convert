@@ -8,6 +8,7 @@ import (
 	"encoding"
 	"fmt"
 	"reflect"
+	"sync"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
 	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
@@ -17,6 +18,28 @@ var (
 	marshalerType   = reflect.TypeFor[encoding.TextMarshaler]()
 	unmarshalerType = reflect.TypeFor[encoding.TextUnmarshaler]()
 )
+
+// claims caches the claim decision of every source and destination type
+// pair, so the Implements checks run once per pair rather than per field:
+// typePair -> *claim.
+var claims sync.Map
+
+// typePair is a source and destination type, the key of [claims].
+type typePair struct{ src, dst reflect.Type }
+
+// claim is the cached decision for a type pair.
+type claim struct {
+	// srcType and dstType are the pair with pointers removed.
+	srcType, dstType reflect.Type
+	// handled reports whether the codec converts the pair.
+	handled bool
+	// srcMarshaler reports whether srcType or *srcType implements
+	// encoding.TextMarshaler.
+	srcMarshaler bool
+	// dstUnmarshaler reports whether *dstType implements
+	// encoding.TextUnmarshaler.
+	dstUnmarshaler bool
+}
 
 // Error reports a failed MarshalText or UnmarshalText call.
 type Error struct {
@@ -28,10 +51,12 @@ type Error struct {
 	Err error
 }
 
+// Error reports the field path, the type and the cause.
 func (e *Error) Error() string {
 	if e.Path == "" {
 		return fmt.Sprintf("textcodec: %s: %v", e.Type, e.Err)
 	}
+
 	return fmt.Sprintf("textcodec: field %q: %s: %v", e.Path, e.Type, e.Err)
 }
 
@@ -49,8 +74,9 @@ func (e *Error) Unwrap() error { return e.Err }
 // A method on either the value or the pointer receiver qualifies. Identical
 // source and destination types, and interface types, are passed to next.
 // Failures are returned as an [*Error]. Empty text sets the destination to its
-// zero value unless [WithParseEmpty] is set; a nil source pointer leaves the
-// destination unchanged.
+// zero value unless [WithParseEmpty] is set, and so does a nil source pointer.
+// MarshalText with a pointer receiver is called on a copy of the source, so
+// it cannot modify the source value.
 //
 // Example:
 //
@@ -69,33 +95,29 @@ func New(opts ...Option) convcodec.CodecE {
 }
 
 // tryConvert converts src into dst when one side is a text type. It reports
-// whether the conversion was handled (including a nil source).
+// whether the conversion was handled; a nil source sets dst to its zero
+// value.
 func tryConvert(fieldPath string, src, dst reflect.Value, opts *options) (bool, error) {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
-	if srcType == dstType || srcType.Kind() == reflect.Interface || dstType.Kind() == reflect.Interface {
+	c := claimOf(src.Type(), dst.Type())
+	if !c.handled {
 		return false, nil
 	}
 
-	dstUnmarshaler := reflect.PointerTo(dstType).Implements(unmarshalerType)
-	srcMarshaler := isMarshaler(srcType)
-
-	switch {
-	case srcMarshaler && (dstUnmarshaler || isText(dstType)):
-	case dstUnmarshaler && isText(srcType):
-	default:
-		return false, nil
-	}
+	srcType, dstType := c.srcType, c.dstType
+	srcMarshaler, dstUnmarshaler := c.srcMarshaler, c.dstUnmarshaler
 
 	srcValue := reflectutils.IndirectValue(src)
 	if !srcValue.IsValid() {
+		dst.SetZero()
 		return true, nil
 	}
+
 	if !srcValue.CanInterface() {
 		return false, nil
 	}
 
 	var text []byte
+
 	if srcMarshaler {
 		var err error
 		if text, err = marshal(srcValue); err != nil {
@@ -113,6 +135,7 @@ func tryConvert(fieldPath string, src, dst reflect.Value, opts *options) (bool, 
 	if !dstUnmarshaler {
 		reflectutils.MakeDst(&dst, dstType)
 		writeText(dst, text)
+
 		return true, nil
 	}
 
@@ -120,10 +143,33 @@ func tryConvert(fieldPath string, src, dst reflect.Value, opts *options) (bool, 
 	if err != nil {
 		return true, &Error{Path: fieldPath, Type: dstType, Err: err}
 	}
+
 	reflectutils.MakeDst(&dst, dstType)
 	dst.Set(value)
 
 	return true, nil
+}
+
+// claimOf returns the cached claim decision for a source and destination
+// type, computing it on first use.
+func claimOf(src, dst reflect.Type) *claim {
+	key := typePair{src: src, dst: dst}
+	if cached, ok := claims.Load(key); ok {
+		c, _ := cached.(*claim)
+		return c
+	}
+
+	c := &claim{srcType: reflectutils.IndirectType(src), dstType: reflectutils.IndirectType(dst)}
+	if c.srcType != c.dstType && c.srcType.Kind() != reflect.Interface && c.dstType.Kind() != reflect.Interface {
+		c.dstUnmarshaler = reflect.PointerTo(c.dstType).Implements(unmarshalerType)
+		c.srcMarshaler = isMarshaler(c.srcType)
+		c.handled = c.srcMarshaler && (c.dstUnmarshaler || isText(c.dstType)) ||
+			c.dstUnmarshaler && isText(c.srcType)
+	}
+
+	claims.Store(key, c)
+
+	return c
 }
 
 // isMarshaler reports whether t or *t implements encoding.TextMarshaler.
@@ -143,17 +189,15 @@ func isText(t reflect.Type) bool {
 	}
 }
 
-// marshal calls MarshalText on v, addressing a copy of v when only the pointer
-// type implements encoding.TextMarshaler and v is not addressable.
+// marshal calls MarshalText on v. When only the pointer type implements
+// encoding.TextMarshaler, it is called on a pointer to a copy of v, never on
+// v itself, so a method that caches into its receiver cannot modify the
+// source.
 func marshal(v reflect.Value) ([]byte, error) {
 	if !v.Type().Implements(marshalerType) {
-		if v.CanAddr() {
-			v = v.Addr()
-		} else {
-			ptr := reflect.New(v.Type())
-			ptr.Elem().Set(v)
-			v = ptr
-		}
+		ptr := reflect.New(v.Type())
+		ptr.Elem().Set(v)
+		v = ptr
 	}
 
 	m, ok := reflect.TypeAssert[encoding.TextMarshaler](v)
@@ -169,10 +213,12 @@ func marshal(v reflect.Value) ([]byte, error) {
 // decoding fails.
 func unmarshal(t reflect.Type, text []byte) (reflect.Value, error) {
 	ptr := reflect.New(t)
+
 	u, ok := reflect.TypeAssert[encoding.TextUnmarshaler](ptr)
 	if !ok {
 		return reflect.Value{}, fmt.Errorf("%s does not implement encoding.TextUnmarshaler", ptr.Type())
 	}
+
 	if err := u.UnmarshalText(text); err != nil {
 		return reflect.Value{}, err
 	}

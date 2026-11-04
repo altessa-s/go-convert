@@ -18,7 +18,9 @@ func TestNew_TimeToInt64(t *testing.T) {
 	codec := New()
 
 	src := reflect.ValueOf(ts)
+
 	var dst int64
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -30,10 +32,13 @@ func TestNew_TimeToInt64(t *testing.T) {
 
 func TestNew_Int64ToTime(t *testing.T) {
 	var unix int64 = 1750000000
+
 	codec := New()
 
 	src := reflect.ValueOf(unix)
+
 	var dst time.Time
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -48,7 +53,9 @@ func TestNew_Pointer_TimeToInt64(t *testing.T) {
 	codec := New()
 
 	src := reflect.ValueOf(&ts)
+
 	var dst *int64
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -61,10 +68,13 @@ func TestNew_Pointer_TimeToInt64(t *testing.T) {
 
 func TestNew_Pointer_Int64ToTime(t *testing.T) {
 	var unix int64 = 1750000000
+
 	codec := New()
 
 	src := reflect.ValueOf(&unix)
+
 	var dst *time.Time
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -77,10 +87,15 @@ func TestNew_Pointer_Int64ToTime(t *testing.T) {
 
 func TestNew_DoublePointerAndNilDepth(t *testing.T) {
 	t.Parallel()
+
 	tm := time.Unix(1750000000, 0)
+
 	var source *time.Time = &tm
+
 	src := reflect.ValueOf(&source).Elem()
+
 	var destination **int64
+
 	dst := reflect.ValueOf(&destination).Elem()
 	New()("CreatedAt", src, dst, func(string, reflect.Value, reflect.Value) { require.Fail(t, "next called") })
 	require.NotNil(t, destination)
@@ -88,20 +103,23 @@ func TestNew_DoublePointerAndNilDepth(t *testing.T) {
 	require.Equal(t, tm.Unix(), **destination)
 
 	var nilInner *time.Time
+
 	src = reflect.ValueOf(&nilInner).Elem()
-	unchanged := int64(42)
-	inner := &unchanged
+	previous := int64(42)
+	inner := &previous
 	destination = &inner
 	dst = reflect.ValueOf(&destination).Elem()
 	New()("CreatedAt", src, dst, func(string, reflect.Value, reflect.Value) { require.Fail(t, "next called") })
-	require.Equal(t, int64(42), **destination)
+	require.Nil(t, destination, "a nil source zeroes the destination")
 }
 
 func TestNew_IgnoreZero_Time(t *testing.T) {
 	codec := New(WithIgnoreZero())
 
 	src := reflect.ValueOf(time.Time{})
+
 	var dst int64 = 42
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -132,7 +150,9 @@ func TestNew_Milliseconds(t *testing.T) {
 
 	// time.Time -> int64 (milliseconds)
 	src := reflect.ValueOf(ts)
+
 	var dst int64
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -143,7 +163,9 @@ func TestNew_Milliseconds(t *testing.T) {
 
 	// int64 (milliseconds) -> time.Time (round-trip)
 	src2 := reflect.ValueOf(dst)
+
 	var dst2 time.Time
+
 	dstVal2 := reflect.ValueOf(&dst2).Elem()
 
 	codec("CreatedAt", src2, dstVal2, func(_ string, _, _ reflect.Value) {
@@ -157,10 +179,13 @@ func TestNew_PassThrough(t *testing.T) {
 	codec := New()
 
 	src := reflect.ValueOf("hello")
+
 	var dst string
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	nextCalled := false
+
 	codec("Name", src, dstVal, func(_ string, _, _ reflect.Value) {
 		nextCalled = true
 	})
@@ -172,8 +197,11 @@ func TestNew_NilPointer_Time(t *testing.T) {
 	codec := New()
 
 	var src *time.Time
+
 	srcVal := reflect.ValueOf(src)
+
 	var dst *int64
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", srcVal, dstVal, func(_ string, _, _ reflect.Value) {
@@ -187,8 +215,11 @@ func TestNew_NilPointer_Int64(t *testing.T) {
 	codec := New()
 
 	var src *int64
+
 	srcVal := reflect.ValueOf(src)
+
 	var dst *time.Time
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("CreatedAt", srcVal, dstVal, func(_ string, _, _ reflect.Value) {

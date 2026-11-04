@@ -27,7 +27,9 @@ func TestNew_DurationToGo(t *testing.T) {
 	codec := durpb.New()
 
 	src := reflect.ValueOf(pb).Elem()
+
 	var dst time.Duration
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Ttl", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -44,7 +46,9 @@ func TestNew_GoToDuration(t *testing.T) {
 	codec := durpb.New()
 
 	src := reflect.ValueOf(d)
+
 	var dst durationpb.Duration
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Ttl", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -56,10 +60,15 @@ func TestNew_GoToDuration(t *testing.T) {
 
 func TestNew_DoublePointerAndNilDepth(t *testing.T) {
 	t.Parallel()
+
 	duration := 90*time.Minute + 500*time.Millisecond
+
 	var source *time.Duration = &duration
+
 	src := reflect.ValueOf(&source).Elem()
+
 	var destination **durationpb.Duration
+
 	dst := reflect.ValueOf(&destination).Elem()
 	durpb.New()("Ttl", src, dst, func(string, reflect.Value, reflect.Value) { require.Fail(t, "next called") })
 	require.NotNil(t, destination)
@@ -67,6 +76,7 @@ func TestNew_DoublePointerAndNilDepth(t *testing.T) {
 	assert.Equal(t, duration, (**destination).AsDuration())
 
 	var nilInner *time.Duration
+
 	src = reflect.ValueOf(&nilInner).Elem()
 	destination = nil
 	dst = reflect.ValueOf(&destination).Elem()
@@ -82,6 +92,7 @@ func TestNew_NegativeDuration(t *testing.T) {
 
 	// go -> pb
 	src := reflect.ValueOf(d)
+
 	var pb durationpb.Duration
 	codec("Ttl", src, reflect.ValueOf(&pb).Elem(), func(_ string, _, _ reflect.Value) {
 		require.Fail(t, "next should not be called")
@@ -104,7 +115,9 @@ func TestNew_Pointer_DurationToGo(t *testing.T) {
 	codec := durpb.New()
 
 	src := reflect.ValueOf(pb) // *durationpb.Duration
+
 	var dst *time.Duration
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Ttl", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -122,7 +135,9 @@ func TestNew_Pointer_GoToDuration(t *testing.T) {
 	codec := durpb.New()
 
 	src := reflect.ValueOf(&d) // *time.Duration
+
 	var dst *durationpb.Duration
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Ttl", src, dstVal, func(_ string, _, _ reflect.Value) {
@@ -139,6 +154,7 @@ func TestNew_IgnoreZero_GoToDuration(t *testing.T) {
 	codec := durpb.New(durpb.WithIgnoreZero())
 
 	var dst durationpb.Duration
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	// Zero source is skipped (handled, next not called), dst stays zero.
@@ -155,7 +171,9 @@ func TestNew_IgnoreZero_DurationToGo(t *testing.T) {
 	codec := durpb.New(durpb.WithIgnoreZero())
 
 	var pb durationpb.Duration // {0,0}
+
 	var dst time.Duration = 42 // sentinel: must stay untouched
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Ttl", reflect.ValueOf(&pb).Elem(), dstVal, func(_ string, _, _ reflect.Value) {
@@ -173,6 +191,7 @@ func TestNew_Unrelated_DelegatesToNext(t *testing.T) {
 	next := func(_ string, _, _ reflect.Value) { called = true }
 
 	src := reflect.ValueOf("not a duration")
+
 	var dst string
 	codec("Field", src, reflect.ValueOf(&dst).Elem(), next)
 
@@ -185,8 +204,11 @@ func TestNew_NilPointer_DurationToGo(t *testing.T) {
 	codec := durpb.New()
 
 	var src *durationpb.Duration
+
 	srcVal := reflect.ValueOf(src)
+
 	var dst *time.Duration
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Ttl", srcVal, dstVal, func(_ string, _, _ reflect.Value) {
@@ -202,8 +224,11 @@ func TestNew_NilPointer_GoToDuration(t *testing.T) {
 	codec := durpb.New()
 
 	var src *time.Duration
+
 	srcVal := reflect.ValueOf(src)
+
 	var dst *durationpb.Duration
+
 	dstVal := reflect.ValueOf(&dst).Elem()
 
 	codec("Ttl", srcVal, dstVal, func(_ string, _, _ reflect.Value) {
@@ -299,6 +324,7 @@ func TestCodec_ThroughConverter(t *testing.T) {
 			Splits: []time.Duration{d1, d2},
 			Meta:   map[string]time.Duration{"k": d2},
 		}
+
 		var dst durProto
 		converter.Convert(src, &dst, converter.WithCodecs(durpb.New()))
 
@@ -321,6 +347,7 @@ func TestCodec_ThroughConverter(t *testing.T) {
 			Splits: []*durationpb.Duration{durationpb.New(d1), durationpb.New(d2)},
 			Meta:   map[string]*durationpb.Duration{"k": durationpb.New(d2)},
 		}
+
 		var dst durDomain
 		converter.Convert(src, &dst, converter.WithCodecs(durpb.New()))
 

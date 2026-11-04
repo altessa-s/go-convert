@@ -35,6 +35,7 @@ func (w *walker) isMergeableStruct(t reflect.Type) bool {
 	if reflectutils.IndirectType(t).Kind() != reflect.Struct {
 		return false
 	}
+
 	return len(w.types.Get(t).ByName) > 0
 }
 
@@ -47,6 +48,7 @@ func (w *walker) canConvertType(src, dst reflect.Type) bool {
 	if w.canConvertTypeStructural(src, dst) {
 		return true
 	}
+
 	return w.cfg.Codecs.HasCodecs() || w.cfg.Codecs.HasErrorCodecs()
 }
 
@@ -54,10 +56,12 @@ func (w *walker) canConvertType(src, dst reflect.Type) bool {
 // structural conversions.
 func (w *walker) canConvertTypeStructural(src, dst reflect.Type) bool {
 	src = reflectutils.IndirectType(src)
+
 	dst = reflectutils.IndirectType(dst)
 	if src.AssignableTo(dst) || src.ConvertibleTo(dst) {
 		return true
 	}
+
 	switch {
 	case src.Kind() == reflect.Struct && dst.Kind() == reflect.Struct:
 		return true
@@ -78,18 +82,22 @@ func (w *walker) canConvertTypeStructural(src, dst reflect.Type) bool {
 // fields below any combination of pointers, slices, arrays and maps.
 var typeMergeableCache typeinfo.Bounded[bool]
 
+// typeHasMergeableStruct reports whether t reaches a struct with exported fields through pointers, containers or interfaces.
 func typeHasMergeableStruct(t reflect.Type) bool {
 	t = reflectutils.IndirectType(t)
+
 	return typeMergeableCache.Get(t, func() bool {
 		return typeHasMergeableStructSeen(t, make(map[reflect.Type]bool))
 	})
 }
 
+// typeHasMergeableStructSeen is typeHasMergeableStruct with a guard against recursive types.
 func typeHasMergeableStructSeen(t reflect.Type, seen map[reflect.Type]bool) bool {
 	t = reflectutils.IndirectType(t)
 	if seen[t] {
 		return false
 	}
+
 	seen[t] = true
 	switch t.Kind() {
 	case reflect.Interface:
@@ -103,12 +111,14 @@ func typeHasMergeableStructSeen(t reflect.Type, seen map[reflect.Type]bool) bool
 	}
 }
 
+// typeHasExportedFields reports whether the struct type t has an exported field.
 func typeHasExportedFields(t reflect.Type) bool {
 	for field := range t.Fields() {
 		if field.IsExported() {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -119,6 +129,7 @@ func isStructZero(v reflect.Value) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -139,9 +150,11 @@ func isSparseStructEmpty(v reflect.Value) bool {
 			}
 		}
 	}
+
 	return true
 }
 
+// joinPath joins two dotted path segments, skipping empty ones.
 func joinPath(parent, field string) string {
 	switch {
 	case parent == "":
@@ -157,18 +170,22 @@ func joinPath(parent, field string) string {
 // pointers, exported struct fields, arrays, slices or map values.
 var typeSliceCache typeinfo.Bounded[bool]
 
+// typeCanContainSlice reports whether values of t can hold a slice that WithCopySlices must clone.
 func typeCanContainSlice(t reflect.Type) bool {
 	t = reflectutils.IndirectType(t)
+
 	return typeSliceCache.Get(t, func() bool {
 		return typeCanContainSliceSeen(t, make(map[reflect.Type]bool))
 	})
 }
 
+// typeCanContainSliceSeen is typeCanContainSlice with a guard against recursive types.
 func typeCanContainSliceSeen(t reflect.Type, seen map[reflect.Type]bool) bool {
 	t = reflectutils.IndirectType(t)
 	if seen[t] {
 		return false
 	}
+
 	seen[t] = true
 	switch t.Kind() {
 	case reflect.Slice:
@@ -184,6 +201,7 @@ func typeCanContainSliceSeen(t reflect.Type, seen map[reflect.Type]bool) bool {
 	default:
 		return false
 	}
+
 	return false
 }
 
@@ -196,6 +214,7 @@ func cloneSlicesInPlace(v reflect.Value) {
 	if !v.IsValid() || !v.CanSet() {
 		return
 	}
+
 	switch v.Kind() {
 	case reflect.Slice:
 		v.Set(cloneSlice(v))
@@ -222,6 +241,7 @@ func cloneElementSlices(v reflect.Value) {
 	if !typeCanContainSlice(v.Type().Elem()) {
 		return
 	}
+
 	for i := range v.Len() {
 		cloneSlicesInPlace(v.Index(i))
 	}
@@ -233,7 +253,9 @@ func cloneMapValueSlices(v reflect.Value) {
 	if v.IsNil() || !typeCanContainSlice(v.Type().Elem()) {
 		return
 	}
+
 	out := reflect.MakeMapWithSize(v.Type(), v.Len())
+
 	iter := v.MapRange()
 	for iter.Next() {
 		value := reflect.New(iter.Value().Type()).Elem()
@@ -241,6 +263,7 @@ func cloneMapValueSlices(v reflect.Value) {
 		cloneSlicesInPlace(value)
 		out.SetMapIndex(iter.Key(), value)
 	}
+
 	v.Set(out)
 }
 
@@ -250,8 +273,10 @@ func cloneSlice(src reflect.Value) reflect.Value {
 	if src.IsNil() {
 		return reflect.Zero(src.Type())
 	}
+
 	dst := reflect.MakeSlice(src.Type(), src.Len(), src.Len())
 	reflect.Copy(dst, src)
+
 	return dst
 }
 
@@ -263,11 +288,13 @@ func makeFieldName(n ...string) string {
 	case 1:
 		return n[0]
 	}
+
 	parts := make([]string, 0, len(n))
 	for _, part := range n {
 		if part != "" {
 			parts = append(parts, part)
 		}
 	}
+
 	return strings.Join(parts, ".")
 }

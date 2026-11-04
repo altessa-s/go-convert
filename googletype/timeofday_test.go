@@ -99,6 +99,7 @@ func TestNewTimeOfDay_Errors(t *testing.T) {
 			d := time.Duration(-1)
 			requireKind(t, run(codec, tt.src, &d), tt.kind)
 			require.Equal(t, time.Duration(-1), d)
+
 			var s string
 			requireKind(t, run(codec, tt.src, &s), tt.kind)
 		})
@@ -141,13 +142,16 @@ func TestNewTimeOfDay_NilZeroAndDelegation(t *testing.T) {
 
 	codec := googletype.NewTimeOfDay()
 
+	cleared := time.Minute
+	require.NoError(t, run(codec, reflect.ValueOf((*timeofday.TimeOfDay)(nil)), &cleared))
+	require.Zero(t, cleared)
+
 	d := time.Minute
-	require.NoError(t, run(codec, reflect.ValueOf((*timeofday.TimeOfDay)(nil)), &d))
-	require.Equal(t, time.Minute, d)
 
 	ignoreZero := googletype.NewTimeOfDay(googletype.WithIgnoreZero())
 	require.NoError(t, run(ignoreZero, timeOfDayValue(hmsn{}), &d))
 	require.Equal(t, time.Minute, d)
+
 	var tod *timeofday.TimeOfDay
 	require.NoError(t, run(ignoreZero, reflect.ValueOf(time.Duration(0)), &tod))
 	require.Nil(t, tod)

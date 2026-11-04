@@ -18,8 +18,8 @@ does not depend on genproto or protobuf.
 | `New`          | All of the above in one codec                                              |
 
 Every constructor returns a `convcodec.CodecE`. Pointer and non-pointer
-variants are supported on both sides, and a nil source message leaves the
-destination unchanged.
+variants are supported on both sides. A nil source zeroes the destination;
+with `WithIgnoreZero` it leaves the destination unchanged.
 
 ## Options
 
@@ -29,7 +29,7 @@ destination unchanged.
 | `WithScale`             | Minor-unit digits (0-9) for currencies without their own scale; 2 by default |
 | `WithCurrencyScales`    | Minor-unit digits per currency, such as `{"JPY": 0, "KWD": 3}`              |
 | `WithMoneyStruct`       | Convert Money to and from structs with the named amount and currency fields |
-| `WithAllowPartialDates` | Accept dates with a zero year, month or day                                 |
+| `WithAllowPartialDates` | Accept dates with a zero year, month or day; they are still not written as strings |
 | `WithIgnoreZero`        | Skip conversion when the source is zero                                     |
 
 ## Errors
@@ -45,7 +45,7 @@ Invalid input fails the conversion with a `googletype.Error`, which
 | `ErrCurrencyMismatch` | Money currency differs from `WithCurrency` when it would be dropped |
 | `ErrNanosSign`        | Money units and nanos have opposite signs                          |
 | `ErrInvalidScale`     | Scale outside 0-9                                                  |
-| `ErrPartialDate`      | Date with a zero part, without `WithAllowPartialDates`             |
+| `ErrPartialDate`      | Date with a zero part, without `WithAllowPartialDates` or written as a string |
 | `ErrOutOfRange`       | Month, day, hour, minute, second, nanos, latitude or longitude out of range |
 | `ErrSyntax`           | Malformed decimal, date or time-of-day string                      |
 

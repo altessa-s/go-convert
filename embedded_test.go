@@ -51,10 +51,12 @@ func TestHandleEmbeddedStructsCopiesSiblingFields(t *testing.T) {
 	type Base struct {
 		ID int
 	}
+
 	type SrcObj struct {
 		Base
 		Val string
 	}
+
 	type DstObj struct {
 		Base
 		Val string
@@ -74,10 +76,12 @@ func TestEmbeddedNilPointerDestinationAllocation(t *testing.T) {
 	t.Parallel()
 
 	type flat struct{ ID, Name string }
+
 	type nested struct {
 		*IDBase
 		Name string
 	}
+
 	tests := []struct {
 		name     string
 		src      flat
@@ -108,10 +112,12 @@ func TestEmbeddedValueIntoNilPointerField(t *testing.T) {
 		IDBase
 		Name string
 	}
+
 	type to struct {
 		*IDBase
 		Name string
 	}
+
 	var dst to
 	converter.Convert(from{ID: "x", Name: "n"}, &dst)
 	require.Equal(t, &IDBase{ID: "x"}, dst.IDBase)
@@ -125,6 +131,7 @@ func TestIgnorePathsEmbeddedSourceKeepsDestination(t *testing.T) {
 		IDBase
 		Name string
 	}
+
 	src := item{ID: "new", Name: "new"}
 	dst := item{ID: "old", Name: "old"}
 	converter.Convert(src, &dst, converter.WithIgnorePaths("idbase"))
@@ -146,7 +153,9 @@ type embeddedDest struct {
 
 func TestIgnorePathsEmbeddedDestination(t *testing.T) {
 	t.Parallel()
+
 	src := embeddedSource{Password: "secret"}
+
 	var dst embeddedDest
 	converter.Convert(src, &dst, converter.WithHandleEmbeddedStructs(true), converter.WithIgnorePaths("password"))
 	require.Empty(t, dst.Password)
@@ -165,7 +174,9 @@ type embeddedDestSide struct {
 
 func TestIgnorePathsEmbeddedSourceSubtree(t *testing.T) {
 	t.Parallel()
+
 	src := embeddedSourceSide{Password: "secret", Name: "n"}
+
 	var dst embeddedDestSide
 	converter.Convert(src, &dst, converter.WithHandleEmbeddedStructs(true), converter.WithIgnorePaths("embeddedbase"))
 	require.Empty(t, dst.Password)
@@ -188,7 +199,9 @@ type promotedDest struct {
 
 func TestIgnorePathsPromotedField(t *testing.T) {
 	t.Parallel()
+
 	src := promotedSource{Password: "secret", Name: "n"}
+
 	var dst promotedDest
 	converter.Convert(src, &dst, converter.WithHandleEmbeddedStructs(true), converter.WithIgnorePaths("password"))
 	require.Empty(t, dst.Password)
@@ -211,7 +224,9 @@ type embedPtrDest struct {
 
 func TestIgnorePathsEmbeddedPointerStaysNil(t *testing.T) {
 	t.Parallel()
+
 	src := embedPtrSource{embedPtrBase: &embedPtrBase{Password: "secret"}, Name: "n"}
+
 	var dst embedPtrDest
 	converter.Convert(src, &dst, converter.WithHandleEmbeddedStructs(true), converter.WithIgnorePaths("embedptrbase"))
 	require.Nil(t, dst.embedPtrBase)

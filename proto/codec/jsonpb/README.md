@@ -23,19 +23,25 @@ _, err := converter.ConvertE(src, &dst, converter.WithErrorCodecs(jsonpb.NewE())
 and unsigned integers, `float32` and named types of these kinds. A `structpb.Struct` or `structpb.ListValue` also converts into
 an `any` field, and an `any` field converts into a `structpb.Value`, `structpb.ListValue` or `structpb.Struct` by its dynamic value.
 
-A nil source sets the destination to its zero value. `NullValue` converts to `nil`, and `nil` inside a list or map converts to
-`NullValue`.
+A nil source sets the destination to its zero value. A `json.RawMessage` that is empty or holds JSON `null` is a nil source too,
+so it converts to a nil `*structpb.Struct`; `{}` converts to an empty `Struct`. `NullValue` converts to `nil`, and `nil` inside a
+list or map converts to `NullValue`.
+
+Both codecs parse and render JSON text with `encoding/json/v2`, like the root `jsoncodec`: duplicate object names and invalid
+UTF-8 are rejected, and object members are written in sorted order.
 
 Conversion fails with:
 
-- `ValueError` for non-finite numbers (in either direction), strings that are not valid UTF-8 and unsupported Go types;
-  its `Path` locates the value inside nested lists (`tags[2]`) and maps (`meta.key`).
-- `Error` when a `json.RawMessage` does not hold a JSON object.
+- `ValueError` for non-finite numbers (in either direction), strings that are not valid UTF-8, unsupported Go types, lists and
+  maps nested deeper than `WithMaxDepth` levels (10000 by default) and lists or maps that contain themselves; its `Path` locates
+  the value inside nested lists (`tags[2]`) and maps (`meta.key`).
+- `Error` when a `json.RawMessage` is not valid JSON or holds a JSON value other than an object or `null`.
 
 ## Options
 
-| Option          | Description                                                     |
-|-----------------|-----------------------------------------------------------------|
-| `WithIgnoreNil` | Skip conversion when the source is nil, leaving the destination |
+| Option            | Description                                                          |
+|-------------------|----------------------------------------------------------------------|
+| `WithIgnoreNil`   | Skip conversion when the source is nil, leaving the destination      |
+| `WithMaxDepth(n)` | Nesting limit of lists and maps for `NewE` (`DefaultMaxDepth`, 10000) |
 
 Both pointer and non-pointer variants are supported.

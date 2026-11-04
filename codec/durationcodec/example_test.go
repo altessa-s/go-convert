@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	converter "github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/codec/durationcodec"
+
+	converter "github.com/altessa-s/go-convert"
 )
 
 func ExampleNew() {
@@ -17,10 +18,12 @@ func ExampleNew() {
 		Timeout time.Duration
 		Backoff time.Duration
 	}
+
 	type ConfigDTO struct {
 		Timeout string
 		Backoff int64
 	}
+
 	opt := converter.WithErrorCodecs(durationcodec.New(durationcodec.WithUnit(time.Millisecond)))
 
 	dto, err := converter.ConvertE(Config{Timeout: 90 * time.Minute, Backoff: 1500 * time.Millisecond}, &ConfigDTO{}, opt)
