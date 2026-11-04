@@ -164,3 +164,19 @@ func TestTimestampToProto(t *testing.T) {
 	require.True(t, googletype.TimestampToProto(now).AsTime().Equal(now))
 	require.NotNil(t, googletype.TimestampToProto(time.Unix(0, 0)), "the Unix epoch is not the zero time")
 }
+
+func TestTimestampToProtoE(t *testing.T) {
+	t.Parallel()
+
+	ts, err := googletype.TimestampToProtoE(time.Time{})
+	require.NoError(t, err)
+	require.Nil(t, ts)
+
+	now := time.Date(2026, 10, 18, 12, 30, 0, 5, time.UTC)
+	ts, err = googletype.TimestampToProtoE(now)
+	require.NoError(t, err)
+	require.True(t, ts.AsTime().Equal(now))
+
+	_, err = googletype.TimestampToProtoE(time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC))
+	require.ErrorIs(t, err, googletype.ErrOutOfRange)
+}

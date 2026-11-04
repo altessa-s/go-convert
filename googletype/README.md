@@ -81,7 +81,7 @@ For single values outside `converter.ConvertE`, the package also offers plain fu
 | `DateFromProto`, `DateToProto`, `DateFromProtoAt`         | `google.type.Date` ↔ go-atlas-core `civil.Date`                  |
 | `WeekdayFromProto`, `WeekdaysFromProto`, `WeekdayToProto`, `WeekdaysToProto`, `WeekdaysFromProtoAt` | `google.type.DayOfWeek` ↔ `time.Weekday` |
 | `DurationFromProto`, `DurationToProto`, `DurationFromProtoAt` | `google.protobuf.Duration` ↔ `time.Duration`                  |
-| `TimestampToProto`                                        | `time.Time` → `google.protobuf.Timestamp`                        |
+| `TimestampToProto`, `TimestampToProtoE`                   | `time.Time` → `google.protobuf.Timestamp`; `E` rejects years outside 1–9999 |
 
 Bad input wraps `ErrImpossibleDate`, `ErrUnknownWeekday` or `ErrInvalidDuration` (match with `errors.Is`); the `...At` variants return a
 go-atlas-core `FieldError` on the given API field path. Money conversion to a domain type lives with that type (go-atlas

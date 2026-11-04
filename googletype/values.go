@@ -118,10 +118,26 @@ func DurationToProto(d time.Duration) *durationpb.Duration {
 	return durationpb.New(d)
 }
 
-// TimestampToProto converts a time; the zero time is nil (absent).
+// TimestampToProto converts a time; the zero time is nil (absent). A time
+// outside the google.protobuf.Timestamp range (years 1 to 9999) yields a
+// message that fails CheckValid; use [TimestampToProtoE] to get an error
+// instead.
 func TimestampToProto(t time.Time) *timestamppb.Timestamp {
 	if t.IsZero() {
 		return nil
 	}
 	return timestamppb.New(t)
+}
+
+// TimestampToProtoE is [TimestampToProto] that rejects a time outside the
+// google.protobuf.Timestamp range with an error wrapping [ErrOutOfRange].
+func TimestampToProtoE(t time.Time) (*timestamppb.Timestamp, error) {
+	ts := TimestampToProto(t)
+	if ts == nil {
+		return nil, nil
+	}
+	if err := ts.CheckValid(); err != nil {
+		return nil, newError("", ErrOutOfRange, "timestamp %s: %v", t.Format(time.RFC3339Nano), err)
+	}
+	return ts, nil
 }
