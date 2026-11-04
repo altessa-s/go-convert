@@ -34,6 +34,16 @@ const (
 	ErrOutOfRange
 	// ErrSyntax reports a string that does not match the expected format.
 	ErrSyntax
+	// ErrImpossibleDate reports a complete google.type.Date that is not a
+	// calendar date, such as February 30.
+	ErrImpossibleDate
+	// ErrUnknownWeekday reports a DayOfWeek that is unspecified or out of
+	// range.
+	ErrUnknownWeekday
+	// ErrInvalidDuration reports an invalid google.protobuf.Duration, such as
+	// seconds and nanos of opposite signs. A valid duration beyond the
+	// time.Duration range is not an error: it saturates.
+	ErrInvalidDuration
 )
 
 // Error returns the description of the kind.
@@ -57,6 +67,12 @@ func (k ErrorKind) Error() string {
 		return "value out of range"
 	case ErrSyntax:
 		return "invalid syntax"
+	case ErrImpossibleDate:
+		return "impossible date"
+	case ErrUnknownWeekday:
+		return "unknown or unspecified day of the week"
+	case ErrInvalidDuration:
+		return "invalid duration"
 	default:
 		return fmt.Sprintf("googletype error kind %d", int(k))
 	}

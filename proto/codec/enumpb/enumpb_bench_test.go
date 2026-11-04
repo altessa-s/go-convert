@@ -89,3 +89,13 @@ func BenchmarkNewMapping_GoToEnum(b *testing.B) {
 		_ = codec("Cardinality", src, dstVal, noopNext)
 	}
 }
+
+func BenchmarkTable_ToGo(b *testing.B) {
+	table := enumpb.MustNewTable(cardinalities)
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		_, _ = table.ToGo("cardinality", typepb.Field_CARDINALITY_REQUIRED)
+	}
+}

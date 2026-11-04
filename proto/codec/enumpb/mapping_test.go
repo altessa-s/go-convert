@@ -5,6 +5,7 @@
 package enumpb_test
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -90,6 +91,22 @@ func TestNewMapping_TableTakesPrecedence(t *testing.T) {
 	var enum typepb.Field_Cardinality
 	require.NoError(t, codec("f", reflect.ValueOf(cardinalityNone), reflect.ValueOf(&enum).Elem(), failNext(t)))
 	require.Equal(t, typepb.Field_CARDINALITY_OPTIONAL, enum)
+}
+
+func TestNewMapping_ZeroPairNeedsBothZerosUnlisted(t *testing.T) {
+	t.Parallel()
+
+	table := map[typepb.Field_Cardinality]cardinality{
+		typepb.Field_CARDINALITY_UNKNOWN: cardinalityMissing,
+	}
+	codec := enumpb.MustNewMapping(table, enumpb.WithUnspecifiedAsEmpty())
+
+	// The zero enum number is listed, so the zero Go value has no counterpart.
+	var enum typepb.Field_Cardinality
+
+	err := codec("f", reflect.ValueOf(cardinalityNone), reflect.ValueOf(&enum).Elem(), failNext(t))
+	_, ok := errors.AsType[enumpb.UnknownValueError](err)
+	require.True(t, ok, "error %v is not an UnknownValueError", err)
 }
 
 func TestNewMapping_UnknownValues(t *testing.T) {

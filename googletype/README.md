@@ -71,3 +71,19 @@ if errors.Is(err, googletype.ErrOverflow) {
 	// ...
 }
 ```
+
+## Direct conversion
+
+For single values outside `converter.ConvertE`, the package also offers plain functions (moved from go-atlas `mapping/googletype`):
+
+| Function                                                  | Converts                                                         |
+|-----------------------------------------------------------|------------------------------------------------------------------|
+| `DateFromProto`, `DateToProto`, `DateFromProtoAt`         | `google.type.Date` ↔ go-atlas-core `civil.Date`                  |
+| `WeekdayFromProto`, `WeekdaysFromProto`, `WeekdayToProto`, `WeekdaysToProto`, `WeekdaysFromProtoAt` | `google.type.DayOfWeek` ↔ `time.Weekday` |
+| `DurationFromProto`, `DurationToProto`, `DurationFromProtoAt` | `google.protobuf.Duration` ↔ `time.Duration`                  |
+| `TimestampToProto`, `TimestampToProtoE`                   | `time.Time` → `google.protobuf.Timestamp`; `E` rejects years outside 1–9999 |
+
+Bad input wraps `ErrImpossibleDate`, `ErrUnknownWeekday` or `ErrInvalidDuration` (match with `errors.Is`); `DateToProto` also
+rejects a year outside 1–9999 with `ErrOutOfRange` instead of narrowing it; the `...At` variants return a
+go-atlas-core `FieldError` on the given API field path. Money conversion to a domain type lives with that type (go-atlas
+`domain/money/moneypb`).
