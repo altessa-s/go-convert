@@ -21,8 +21,8 @@ type Table[P Enum, G comparable] struct {
 
 // NewTable creates the Table of table. The table, the options and the
 // [ConfigError] are those of [NewMapping]: with [WithUnspecifiedAsEmpty] the
-// zero enum number and the zero Go value map to each other unless the table
-// lists them.
+// zero enum number and the zero Go value map to each other when the table
+// lists neither of them, so ToGo and ToEnum invert each other.
 //
 // Example:
 //
@@ -62,7 +62,7 @@ func (t *Table[P, G]) ToGo(path string, enum P) (G, error) {
 	}
 
 	var zero G
-	if enum == 0 && t.c.opts.unspecifiedAsEmpty {
+	if enum == 0 && t.c.zeroPair {
 		return zero, nil
 	}
 
@@ -76,7 +76,7 @@ func (t *Table[P, G]) ToEnum(path string, value G) (P, error) {
 		return enum, nil
 	}
 
-	if value == t.c.zeroGo && t.c.opts.unspecifiedAsEmpty {
+	if value == t.c.zeroGo && t.c.zeroPair {
 		return 0, nil
 	}
 

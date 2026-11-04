@@ -36,8 +36,8 @@ Without `WithCase`, names are parsed case-sensitively. `New` and `NewMapping` re
 value other than `CaseKeep`, `CaseLower` and `CaseUpper`; `MustNew` and `MustNewMapping` panic with it instead. Only the transformed names are accepted: with a trimmed prefix,
 `STATUS_ACTIVE` is unknown and `ACTIVE` is not. Aliases parse to their number; the first declared alias is written.
 
-`NewMapping` ignores the name options. Its table takes precedence over `WithUnspecifiedAsEmpty`, which only covers the zero
-number and the zero Go value when the table does not list them. `NewMapping` returns a `ConfigError` when two enum values map to the
+`NewMapping` ignores the name options. `WithUnspecifiedAsEmpty` pairs the zero number with the zero Go value only when the table
+lists neither of them, so both directions stay inverse to each other; a table that lists one of them keeps its own entry. `NewMapping` returns a `ConfigError` when two enum values map to the
 same Go value.
 
 ## Direct conversion

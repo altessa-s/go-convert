@@ -32,6 +32,10 @@ type mappingCodec[P Enum, G comparable] struct {
 	toEnum   map[G]P
 	goValues map[P]G
 	zeroGo   G
+	// zeroPair maps the zero enum number and the zero Go value to each other:
+	// [WithUnspecifiedAsEmpty] is set and the table lists neither of them, so
+	// the pair cannot break the one-to-one table.
+	zeroPair bool
 }
 
 // NewMapping creates an error codec for conversion between the protobuf enum
@@ -41,8 +45,9 @@ type mappingCodec[P Enum, G comparable] struct {
 // The table must be one-to-one; NewMapping returns a [ConfigError] when two
 // enum values map to the same Go value. A value missing from the table fails
 // with [UnknownValueError]. With [WithUnspecifiedAsEmpty], the zero enum
-// number and the zero (or nil) Go value map to each other unless the table
-// lists them; the name options do not apply, but an invalid [Case] is still a
+// number and the zero (or nil) Go value map to each other when the table
+// lists neither of them, so the pair never breaks the one-to-one table; the
+// name options do not apply, but an invalid [Case] is still a
 // [ConfigError]. A nil source pointer sets the destination to its zero value.
 // Register the codec with convert.WithErrorCodecs.
 //
@@ -97,6 +102,10 @@ func newMappingCodec[P Enum, G comparable](caller string, table map[P]G, opts []
 		c.goValues[enum] = value
 	}
 
+	_, zeroEnumListed := c.toGo[0]
+	_, zeroGoListed := c.toEnum[c.zeroGo]
+	c.zeroPair = o.unspecifiedAsEmpty && !zeroEnumListed && !zeroGoListed
+
 	return c, nil
 }
 
@@ -127,7 +136,7 @@ func (c *mappingCodec[P, G]) toGoValue(path string, src, dst reflect.Value) erro
 
 	mapped, ok := c.toGo[enum]
 	if !ok {
-		if enum == 0 && c.opts.unspecifiedAsEmpty {
+		if enum == 0 && c.zeroPair {
 			dst.Set(reflect.Zero(dst.Type()))
 			return nil
 		}
@@ -154,7 +163,7 @@ func (c *mappingCodec[P, G]) toEnumValue(path string, src, dst reflect.Value) er
 
 	enum, ok := c.toEnum[goValue]
 	if !ok {
-		if goValue == c.zeroGo && c.opts.unspecifiedAsEmpty {
+		if goValue == c.zeroGo && c.zeroPair {
 			dst.Set(reflect.Zero(dst.Type()))
 			return nil
 		}

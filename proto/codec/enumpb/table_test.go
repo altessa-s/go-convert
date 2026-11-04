@@ -67,6 +67,28 @@ func TestTable_UnspecifiedAsEmpty(t *testing.T) {
 	require.Error(t, err, "a non-zero value missing from the table still fails")
 }
 
+func TestTable_UnspecifiedAsEmptyYieldsToListedZero(t *testing.T) {
+	t.Parallel()
+
+	// The table lists the zero Go value, so the zero pair would break the
+	// inverse: the zero enum number stays unknown.
+	table := enumpb.MustNewTable(map[typepb.Field_Cardinality]cardinality{
+		typepb.Field_CARDINALITY_OPTIONAL: cardinalityNone,
+	}, enumpb.WithUnspecifiedAsEmpty())
+
+	_, err := table.ToGo("cardinality", typepb.Field_CARDINALITY_UNKNOWN)
+	_, ok := errors.AsType[enumpb.UnknownValueError](err)
+	require.True(t, ok, "error %v is not an UnknownValueError", err)
+
+	enum, err := table.ToEnum("cardinality", cardinalityNone)
+	require.NoError(t, err)
+	require.Equal(t, typepb.Field_CARDINALITY_OPTIONAL, enum)
+
+	value, err := table.ToGo("cardinality", enum)
+	require.NoError(t, err)
+	require.Equal(t, cardinalityNone, value)
+}
+
 func TestTable_Codec(t *testing.T) {
 	t.Parallel()
 
