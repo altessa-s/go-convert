@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Release checks
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Release
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Check the nested module releases
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          commit=$(git rev-parse "refs/tags/$TAG^{commit}")
+          for module in codec/optionalcodec proto; do
+            for version in $(go mod edit -json "$module/go.mod" | jq -r '.Require[] | select(.Path | startswith("github.com/altessa-s/go-convert")) | .Version'); do
+              if [ "$version" != "$TAG" ]; then
+                echo "$module/go.mod requires go-convert $version, want $TAG"
+                exit 1
+              fi
+            done
+            if [ "$(git rev-parse -q --verify "refs/tags/$module/$TAG^{commit}" || true)" != "$commit" ]; then
+              echo "$module/$TAG must point at $TAG; use make release"
+              exit 1
+            fi
+          done
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          version: v2.19.0
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

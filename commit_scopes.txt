@@ -1,0 +1,32 @@
+# Commit Scopes for go-convert
+# Use these scopes in conventional commits: type(scope): description
+# The scope is optional: omit it for repository-wide changes. Never use `root`.
+# Only the first word of a non-comment line is a scope.
+# Example: feat(proto): convert oneof fields
+
+# Repository scopes
+deps                        # Dependency updates (Dependabot writes build(deps): bump ...)
+README                      # Root README
+docs                        # Documentation
+
+# Packages
+convert                     # Root package: converter facade, options and errors
+codec                       # Codec contract and registry
+codec/mapslice              # Map and slice codecs
+codec/unixtime              # Unix time codecs
+codec/optionalcodec         # optional value codecs
+converttest                 # Test helpers for consumers
+internal/engine             # Conversion engine
+internal/primitive          # Primitive kind conversions
+internal/typeinfo           # Type metadata cache
+internal/reflect            # Reflection helpers
+proto                       # Protobuf conversion helpers, nested module
+proto/codec/jsonpb          # Protobuf JSON codecs
+proto/codec/tspb            # Timestamp codecs
+proto/codec/durpb           # Duration codecs
+proto/codec/pbwrap          # Wrapper type codecs
+proto/codec/oneof           # Oneof codecs
+
+# Tooling
+devtools                    # Development tool dependencies
+ci                          # GitHub Actions workflows and scripts
