@@ -84,6 +84,18 @@ func ConvertValue(v reflect.Value, t reflect.Type) (reflect.Value, bool) {
 		}
 	}
 
+	if t.Kind() == reflect.Float32 {
+		// reflect converts integers to float32 through float64, which rounds
+		// twice; a Go conversion rounds once.
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return reflect.ValueOf(float32(v.Int())).Convert(t), true
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+			return reflect.ValueOf(float32(v.Uint())).Convert(t), true
+		default:
+		}
+	}
+
 	if !v.CanConvert(t) {
 		return reflect.Value{}, false
 	}

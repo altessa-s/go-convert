@@ -60,7 +60,8 @@ func isScalarPair(src, dst reflect.Kind) bool {
 
 // setScalar stores src converted to the type of dst in dst, producing the
 // same value as dst.Set(src.Convert(dst.Type())) without allocating the
-// intermediate value. The kinds must satisfy [isScalarPair], src must be
+// intermediate value, except that integers round to float32 once, like a Go
+// conversion, instead of through float64. The kinds must satisfy [isScalarPair], src must be
 // exported and dst settable. Each case mirrors the conversion function
 // reflect selects for the kind pair (cvtInt, cvtUint, cvtIntFloat,
 // cvtUintFloat, cvtFloatInt, cvtFloatUint, cvtFloat and cvtDirect).
@@ -69,9 +70,19 @@ func setScalar(src, dst reflect.Value) {
 
 	switch scalarClassOf(src.Kind()) {
 	case scalarInt:
-		setNumber(dst, dstClass, src.Int(), uint64(src.Int()), float64(src.Int()))
+		f := float64(src.Int())
+		if dst.Kind() == reflect.Float32 {
+			f = float64(float32(src.Int()))
+		}
+
+		setNumber(dst, dstClass, src.Int(), uint64(src.Int()), f)
 	case scalarUint:
-		setNumber(dst, dstClass, int64(src.Uint()), src.Uint(), float64(src.Uint()))
+		f := float64(src.Uint())
+		if dst.Kind() == reflect.Float32 {
+			f = float64(float32(src.Uint()))
+		}
+
+		setNumber(dst, dstClass, int64(src.Uint()), src.Uint(), f)
 	case scalarFloat:
 		setNumber(dst, dstClass, int64(src.Float()), uint64(src.Float()), src.Float())
 	case scalarBool:

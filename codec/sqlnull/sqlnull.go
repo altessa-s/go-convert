@@ -142,7 +142,7 @@ func toNull(path string, src, dst reflect.Value, next convcodec.CodecHandlerE, o
 		}
 
 		setValid(dst, src.Elem())
-	case (srcType.Kind() == reflect.Pointer || srcType.Kind() == reflect.Interface) && src.IsNil():
+	case isNilSource(src):
 		dst.SetZero()
 	default:
 		value := reflect.New(inner).Elem()
@@ -176,4 +176,18 @@ func setNullable(dst, value reflect.Value, o *options) {
 func setValid(dst, value reflect.Value) {
 	dst.Field(valueField).Set(value)
 	dst.Field(validField).SetBool(true)
+}
+
+// isNilSource reports whether src is a nil pointer or interface, or an
+// interface holding a nil pointer.
+func isNilSource(src reflect.Value) bool {
+	for src.Kind() == reflect.Interface {
+		if src.IsNil() {
+			return true
+		}
+
+		src = src.Elem()
+	}
+
+	return src.Kind() == reflect.Pointer && src.IsNil()
 }

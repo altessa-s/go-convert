@@ -158,3 +158,19 @@ func TestConvertValue(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertValueRoundsIntegersToFloat32Once(t *testing.T) {
+	t.Parallel()
+
+	for _, v := range []any{int64(1<<62 + 1<<38 + 1), uint64(1<<62 + 1<<38 + 1)} {
+		got, ok := reflectutils.ConvertValue(reflect.ValueOf(v), reflect.TypeFor[float32]())
+		if !ok {
+			t.Fatalf("%T not converted", v)
+		}
+
+		want := float32(int64(1<<62 + 1<<38 + 1))
+		if got.Interface() != want {
+			t.Fatalf("%T: got %v, want %v", v, got.Interface(), want)
+		}
+	}
+}

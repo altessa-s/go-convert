@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 type (
@@ -49,7 +51,9 @@ func TestSetScalarMatchesConvert(t *testing.T) {
 			got := reflect.New(dstType).Elem()
 			setScalar(src, got)
 
-			want := src.Convert(dstType)
+			want, ok := reflectutils.ConvertValue(src, dstType)
+			require.True(t, ok, "%T -> %s", sample, dstType)
+
 			if want.Kind() == reflect.Float32 || want.Kind() == reflect.Float64 {
 				if math.IsNaN(want.Float()) {
 					require.True(t, math.IsNaN(got.Float()), "%T -> %s", sample, dstType)
@@ -109,8 +113,8 @@ func TestPlannedPrimitiveKeepsPathSemantics(t *testing.T) {
 	require.NoError(t, e.Convert(wide{V: x}, &byValue))
 	require.NoError(t, e.Convert(&wide{V: x}, &byPointer))
 
-	require.Equal(t, float32(float64(x)), byValue.V, "an unaddressable source converts like reflect.Value.Convert")
-	require.Equal(t, float32(x), byPointer.V, "an addressable source converts directly")
+	require.Equal(t, float32(x), byValue.V, "an unaddressable source rounds once")
+	require.Equal(t, float32(x), byPointer.V, "an addressable source rounds once")
 }
 
 func TestPrimitiveSliceElements(t *testing.T) {

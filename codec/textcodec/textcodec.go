@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
 	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
@@ -19,10 +20,18 @@ var (
 	unmarshalerType = reflect.TypeFor[encoding.TextUnmarshaler]()
 )
 
-// claims caches the claim decision of every source and destination type
-// pair, so the Implements checks run once per pair rather than per field:
-// typePair -> *claim.
-var claims sync.Map
+// maxClaims bounds the number of cached type pairs. Pairs beyond the bound,
+// as produced by programs that synthesize types at run time, are decided on
+// every call instead of being cached.
+const maxClaims = 4096
+
+// claims caches the claim decision of up to [maxClaims] source and
+// destination type pairs, so the Implements checks run once per pair rather
+// than per field: typePair -> *claim.
+var (
+	claims     sync.Map
+	claimCount atomic.Int64
+)
 
 // typePair is a source and destination type, the key of [claims].
 type typePair struct{ src, dst reflect.Type }
@@ -167,9 +176,29 @@ func claimOf(src, dst reflect.Type) *claim {
 			c.dstUnmarshaler && isText(c.srcType)
 	}
 
-	claims.Store(key, c)
+	if reserveClaim() {
+		if _, loaded := claims.LoadOrStore(key, c); loaded {
+			claimCount.Add(-1)
+		}
+	}
 
 	return c
+}
+
+// reserveClaim takes one of the [maxClaims] cache slots, reporting false when
+// none is left. The compare-and-swap keeps concurrent callers within the
+// bound.
+func reserveClaim() bool {
+	for {
+		n := claimCount.Load()
+		if n >= maxClaims {
+			return false
+		}
+
+		if claimCount.CompareAndSwap(n, n+1) {
+			return true
+		}
+	}
 }
 
 // isMarshaler reports whether t or *t implements encoding.TextMarshaler.

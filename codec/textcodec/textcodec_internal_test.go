@@ -8,6 +8,8 @@ import (
 	"errors"
 	"net/netip"
 	"reflect"
+	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,4 +41,26 @@ func TestClaimIsCachedPerTypePair(t *testing.T) {
 	declined := claimOf(reflect.TypeFor[int](), reflect.TypeFor[string]())
 	require.False(t, declined.handled)
 	require.Same(t, declined, claimOf(reflect.TypeFor[int](), reflect.TypeFor[string]()), "declined pairs are cached too")
+}
+
+func TestClaimCacheIsBounded(t *testing.T) {
+	var wg sync.WaitGroup
+	for i := range maxClaims + 64 {
+		wg.Go(func() {
+			src := reflect.StructOf([]reflect.StructField{{
+				Name: "V",
+				Type: reflect.TypeFor[int](),
+				Tag:  reflect.StructTag(`n:"` + strconv.Itoa(i) + `"`),
+			}})
+			claimOf(src, reflect.TypeFor[string]())
+		})
+	}
+
+	wg.Wait()
+
+	require.LessOrEqual(t, claimCount.Load(), int64(maxClaims))
+
+	// Leave room for the other tests of the package-level cache.
+	claims.Clear()
+	claimCount.Store(0)
 }

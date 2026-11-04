@@ -188,6 +188,14 @@ func TestNilInterfaceSourceIsNull(t *testing.T) {
 		return nil
 	}))
 	require.Equal(t, sql.NullString{}, dst)
+
+	src.V = (*int)(nil)
+	stale := sql.NullInt64{Int64: 7, Valid: true}
+	require.NoError(t, sqlnull.New()("Field", reflect.ValueOf(&src).Elem().Field(0), reflect.ValueOf(&stale).Elem(), func(string, reflect.Value, reflect.Value) error {
+		require.Fail(t, "next should not be called")
+		return nil
+	}))
+	require.Equal(t, sql.NullInt64{}, stale, "an interface holding a nil pointer is NULL")
 }
 
 type counter struct{ Hits int }
