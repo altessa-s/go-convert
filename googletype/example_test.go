@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/altessa-s/go-convert"
-	"github.com/altessa-s/go-convert/googletype"
-
 	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/genproto/googleapis/type/money"
+
+	"github.com/altessa-s/go-convert"
+	"github.com/altessa-s/go-convert/googletype"
 )
 
 func Example() {

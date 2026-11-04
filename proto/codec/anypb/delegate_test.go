@@ -12,13 +12,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/proto/codec/anypb"
-	"github.com/altessa-s/go-convert/proto/codec/tspb"
-
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/altessa-s/go-convert/proto/codec/anypb"
+	"github.com/altessa-s/go-convert/proto/codec/tspb"
 
 	converter "github.com/altessa-s/go-convert"
 	convcodec "github.com/altessa-s/go-convert/codec"

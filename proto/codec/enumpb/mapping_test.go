@@ -10,10 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/proto/codec/enumpb"
-
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/typepb"
+
+	"github.com/altessa-s/go-convert/proto/codec/enumpb"
 
 	converter "github.com/altessa-s/go-convert"
 )

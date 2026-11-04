@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/googletype"
-
 	"google.golang.org/genproto/googleapis/type/timeofday"
+
+	"github.com/altessa-s/go-convert/googletype"
 )
 
 // hmsn is the comparable content of a timeofday.TimeOfDay.

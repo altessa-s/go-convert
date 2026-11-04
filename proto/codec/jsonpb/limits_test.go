@@ -10,9 +10,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/proto/codec/jsonpb"
-
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/altessa-s/go-convert/proto/codec/jsonpb"
 )
 
 func TestNewE_RawNull(t *testing.T) {

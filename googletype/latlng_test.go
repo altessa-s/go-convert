@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/googletype"
-
 	"google.golang.org/genproto/googleapis/type/latlng"
+
+	"github.com/altessa-s/go-convert/googletype"
 )
 
 func TestNewLatLng(t *testing.T) {

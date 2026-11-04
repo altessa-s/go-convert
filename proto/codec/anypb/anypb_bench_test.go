@@ -8,9 +8,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/altessa-s/go-convert/proto/codec/anypb"
-
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/altessa-s/go-convert/proto/codec/anypb"
 
 	pbany "google.golang.org/protobuf/types/known/anypb"
 )

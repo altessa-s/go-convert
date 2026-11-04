@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/altessa-s/go-convert/proto/codec/tspb"
-
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/altessa-s/go-convert/proto/codec/tspb"
 )
 
 func BenchmarkNew_TimestampToTime(b *testing.B) {

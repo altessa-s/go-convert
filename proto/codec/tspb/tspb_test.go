@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/proto/codec/tspb"
-
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/altessa-s/go-convert/proto/codec/tspb"
 
 	converter "github.com/altessa-s/go-convert"
 )

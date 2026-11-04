@@ -9,29 +9,34 @@ changelog:
   use: github
   format: "{{ .Message }}"
   groups:
+    # Subjects are anchored at the start so a type named later in the
+    # subject (docs: explain feat!: syntax) does not decide the group; an
+    # entry lands in the first group whose regexp matches.
     - title: Breaking Changes
-      regexp: '^.*?[a-z]+(\([[:word:]/-]+\))?!:.+$'
+      regexp: '^[a-z]+(\([^)]+\))?!:'
       order: 0
     - title: Features
-      regexp: '^.*?feat(\([[:word:]/-]+\))??!?:.+$'
+      regexp: '^feat(\([^)]+\))?:'
       order: 1
     - title: Bug Fixes
-      regexp: '^.*?fix(\([[:word:]/-]+\))??!?:.+$'
+      regexp: '^fix(\([^)]+\))?:'
       order: 2
     - title: Performance
-      regexp: '^.*?perf(\([[:word:]/-]+\))??!?:.+$'
+      regexp: '^perf(\([^)]+\))?:'
       order: 3
     - title: Refactoring
-      regexp: '^.*?refactor(\([[:word:]/-]+\))??!?:.+$'
+      regexp: '^refactor(\([^)]+\))?:'
       order: 4
     - title: Documentation
-      regexp: '^.*?docs(\([[:word:]/-]+\))??!?:.+$'
+      regexp: '^docs(\([^)]+\))?:'
       order: 5
     - title: Other
       order: 999
   filters:
     exclude:
-      - '^(ci|chore|test)(\([^)]*\))?!?:'
+      # Non-breaking ci, chore and test commits only; a breaking one (chore!:)
+      # stays in the notes under Breaking Changes.
+      - '^(ci|chore|test)(\([^)]*\))?:'
       - Merge pull request
       - Merge branch
 

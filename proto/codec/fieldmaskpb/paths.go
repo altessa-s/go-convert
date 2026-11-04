@@ -11,10 +11,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/altessa-s/go-convert/reflectx"
-
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/altessa-s/go-convert/reflectx"
 
 	fmpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 )

@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/proto/codec/durpb"
-
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"github.com/altessa-s/go-convert/proto/codec/durpb"
 
 	converter "github.com/altessa-s/go-convert"
 )

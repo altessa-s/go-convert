@@ -8,9 +8,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/altessa-s/go-convert/proto/codec/fieldmaskpb"
-
 	"google.golang.org/protobuf/types/known/typepb"
+
+	"github.com/altessa-s/go-convert/proto/codec/fieldmaskpb"
 
 	fmpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 )

@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/googletype"
-
 	"google.golang.org/genproto/googleapis/type/money"
+
+	"github.com/altessa-s/go-convert/googletype"
 )
 
 // amount is the comparable content of a money.Money.

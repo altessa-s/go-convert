@@ -7,10 +7,10 @@ package enumpb_test
 import (
 	"fmt"
 
+	"google.golang.org/protobuf/types/known/typepb"
+
 	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/proto/codec/enumpb"
-
-	"google.golang.org/protobuf/types/known/typepb"
 )
 
 func Example() {

@@ -10,9 +10,9 @@ import (
 	"encoding/json/v2"
 	"reflect"
 
-	"github.com/altessa-s/go-convert/reflectx"
-
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/altessa-s/go-convert/reflectx"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
 )

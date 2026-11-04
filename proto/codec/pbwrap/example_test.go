@@ -7,10 +7,10 @@ package pbwrap_test
 import (
 	"fmt"
 
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
 	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/proto/codec/pbwrap"
-
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func ExampleNew() {

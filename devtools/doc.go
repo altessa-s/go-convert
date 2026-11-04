@@ -9,25 +9,19 @@
 // # Pinned tools
 //
 // tools.go (build tag tools) blank-imports the commands the Makefile runs:
-// golangci-lint, gci, optgen, gosec, govulncheck,
-// dupl, benchstat and the copyright checker.
+// golangci-lint, optgen, gosec, govulncheck, dupl, benchstat and the copyright
+// checker.
 // Their versions are the ones this module's go.mod requires.
 //
 // # Usage
 //
-// Make targets build or install a tool from this module before running it.
-// make generate builds optgen, gci and golangci-lint into bin/, and make fmt
-// builds golangci-lint there; both run them from bin/, so a different version
-// on PATH never takes part. make fmt formats with golangci-lint fmt, whose gci
-// knows the standard library of the running toolchain; the standalone gci
-// only serves as the optgen formatter:
+// Every pinned tool is built from this module and run from the built binary,
+// so a different version on PATH never takes part. The make targets build
+// theirs into bin/; bench-compare builds benchstat into a temporary directory.
+// For example, what make golangci does:
 //
 //	go -C devtools build -o "$PWD/bin/golangci-lint" github.com/golangci/golangci-lint/v2/cmd/golangci-lint
-//
-// The other targets install their tool from this module:
-//
-//	go -C devtools install github.com/golangci/golangci-lint/v2/cmd/golangci-lint
-//	golangci-lint run ./...
+//	bin/golangci-lint run ./...
 //
 // Upgrade a tool with go get in this directory, then go mod tidy.
 package devtools

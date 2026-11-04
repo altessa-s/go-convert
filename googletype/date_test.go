@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/googletype"
-
 	"google.golang.org/genproto/googleapis/type/date"
+
+	"github.com/altessa-s/go-convert/googletype"
 )
 
 // ymd is the comparable content of a date.Date.

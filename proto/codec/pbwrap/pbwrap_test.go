@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/proto/codec/pbwrap"
-
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/altessa-s/go-convert/proto/codec/pbwrap"
 )
 
 func TestNew_StringToWrapper(t *testing.T) {

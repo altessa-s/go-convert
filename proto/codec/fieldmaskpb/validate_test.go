@@ -10,10 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/proto/codec/fieldmaskpb"
-
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/typepb"
+
+	"github.com/altessa-s/go-convert/proto/codec/fieldmaskpb"
 
 	converter "github.com/altessa-s/go-convert"
 	fmpb "google.golang.org/protobuf/types/known/fieldmaskpb"

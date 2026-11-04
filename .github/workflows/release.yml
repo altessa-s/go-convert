@@ -38,7 +38,7 @@ jobs:
           commit=$(git rev-parse "refs/tags/$TAG^{commit}")
           modules=$(make --no-print-directory print-nested-modules)
           for module in $modules; do
-            for version in $(go mod edit -json "$module/go.mod" | jq -r '.Require[] | select(.Path | startswith("github.com/altessa-s/go-convert")) | .Version'); do
+            for version in $(go mod edit -json "$module/go.mod" | jq -r '.Require[] | select(.Path == "github.com/altessa-s/go-convert" or (.Path | startswith("github.com/altessa-s/go-convert/"))) | .Version'); do
               if [ "$version" != "$TAG" ]; then
                 echo "$module/go.mod requires go-convert $version, want $TAG"
                 exit 1
@@ -49,8 +49,10 @@ jobs:
               exit 1
             fi
           done
+          # Sub-modules that are never released (test-only modules).
+          unreleased=""
           for module in $(find . -name go.mod -not -path ./go.mod -not -path './devtools/*' | xargs -n1 dirname | sed 's|^\./||'); do
-            if ! grep -qx "$module" <<< "$modules"; then
+            if ! grep -qx "$module" <<< "$modules" && ! printf '%s\n' $unreleased | grep -qx "$module"; then
               echo "$module has a go.mod but is missing from NESTED_MODULES in the Makefile"
               exit 1
             fi

@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/proto/codec/durpb"
-
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"github.com/altessa-s/go-convert/proto/codec/durpb"
 )
 
 // The codec declines destinations reflect does not allow to write, so its

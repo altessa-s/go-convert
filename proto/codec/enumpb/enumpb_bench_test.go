@@ -8,9 +8,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/altessa-s/go-convert/proto/codec/enumpb"
-
 	"google.golang.org/protobuf/types/known/typepb"
+
+	"github.com/altessa-s/go-convert/proto/codec/enumpb"
 )
 
 func noopNext(string, reflect.Value, reflect.Value) error { return nil }

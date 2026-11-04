@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/altessa-s/go-convert/reflectx"
-
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/altessa-s/go-convert/reflectx"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
 )

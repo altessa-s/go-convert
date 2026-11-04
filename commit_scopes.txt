@@ -22,10 +22,10 @@ codec/durationcodec         # Duration string and number codecs
 codec/b64codec              # Base64 byte slice codecs
 codec/jsoncodec             # JSON value codecs
 converttest                 # Test helpers for consumers
+reflectx                    # Reflection helpers shared with the codecs
 internal/engine             # Conversion engine
 internal/primitive          # Primitive kind conversions
 internal/typeinfo           # Type metadata cache
-reflectx                    # Reflection helpers shared with the codecs
 proto                       # Protobuf conversion helpers, nested module
 proto/codec/jsonpb          # Protobuf JSON codecs
 proto/codec/tspb            # Timestamp codecs

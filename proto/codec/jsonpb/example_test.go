@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"math"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/proto/codec/jsonpb"
-
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func ExampleNewE() {

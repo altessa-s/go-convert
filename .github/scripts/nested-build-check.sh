@@ -1,6 +1,8 @@
 #!/bin/bash
-# Build every nested module against the root module without replace
-# directives, the way a consumer's module graph combines them.
+# Build every sub-module of the Makefile's NESTED_CHECK_MODULES (the nested
+# modules released with the root and the sub-modules released on their own)
+# against the root module without replace directives, the way a consumer's
+# module graph combines them. Below, "nested module" means one of these.
 #
 # Usage: nested-build-check.sh
 #
@@ -14,11 +16,13 @@
 #      through a local file:// GOPROXY at one pseudo-version derived from the
 #      tree contents, with every go-convert requirement rewritten to it and the
 #      replace directives dropped.
-#   2. Vets (and thereby builds, tests included) each nested module from its
-#      served zip against the served root.
-#   3. Builds the latest released tag of each nested module (<dir>/v*) against
-#      the served root, so a root change breaking a released nested module
-#      fails here. A nested module without a release is skipped.
+#   2. Vets each nested module from its served zip against the served root:
+#      go vet compiles every package together with its test files, but no
+#      test runs here (the module's own test targets run them).
+#   3. Builds (go build, no tests) the latest released tag of each nested
+#      module (<dir>/v*) against the served root, so a root change breaking a
+#      released nested module fails here. A nested module without a release
+#      is skipped.
 #
 # Environment:
 #   NESTED_BUILD_ACCEPT  space-separated <tag>@<commit> entries naming released
@@ -36,7 +40,7 @@ module=github.com/altessa-s/go-convert
 repo_dir=$(git rev-parse --show-toplevel)
 cd "$repo_dir"
 
-read -r -a nested <<<"$(make --no-print-directory -s print-nested-modules | tr '\n' ' ')"
+read -r -a nested <<<"$(make --no-print-directory -s print-nested-check-modules | tr '\n' ' ')"
 if [[ ${#nested[@]} -eq 0 ]]; then
     echo "no nested modules"
     exit 0

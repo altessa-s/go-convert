@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/altessa-s/go-convert/reflectx"
-
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoregistry"
+
+	"github.com/altessa-s/go-convert/reflectx"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
 	pbany "google.golang.org/protobuf/types/known/anypb"

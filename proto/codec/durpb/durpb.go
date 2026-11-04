@@ -9,9 +9,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/altessa-s/go-convert/reflectx"
-
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"github.com/altessa-s/go-convert/reflectx"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
 )

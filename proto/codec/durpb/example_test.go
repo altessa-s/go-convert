@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"time"
 
+	"google.golang.org/protobuf/types/known/durationpb"
+
 	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/proto/codec/durpb"
-
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 func ExampleNew() {

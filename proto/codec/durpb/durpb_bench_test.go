@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/altessa-s/go-convert/proto/codec/durpb"
-
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"github.com/altessa-s/go-convert/proto/codec/durpb"
 )
 
 func BenchmarkNew_DurationToGo(b *testing.B) {

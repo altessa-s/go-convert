@@ -7,11 +7,11 @@ package fieldmaskpb_test
 import (
 	"fmt"
 
-	"github.com/altessa-s/go-convert"
-	"github.com/altessa-s/go-convert/proto/codec/fieldmaskpb"
-
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/typepb"
+
+	"github.com/altessa-s/go-convert"
+	"github.com/altessa-s/go-convert/proto/codec/fieldmaskpb"
 
 	fmpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 )

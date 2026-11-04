@@ -10,14 +10,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/altessa-s/go-atlas-core/types/optional"
 
 	"github.com/altessa-s/go-convert/codec/optionalcodec"
 	"github.com/altessa-s/go-convert/proto/codec/durpb"
 	"github.com/altessa-s/go-convert/proto/codec/tspb"
-
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	converter "github.com/altessa-s/go-convert"
 )

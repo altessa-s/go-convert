@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/altessa-s/go-convert/reflectx"
-
 	"google.golang.org/genproto/googleapis/type/money"
+
+	"github.com/altessa-s/go-convert/reflectx"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
 )

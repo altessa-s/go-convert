@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/altessa-s/go-convert/proto/codec/tspb"
-
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/altessa-s/go-convert/proto/codec/tspb"
 )
 
 func TestMillisecondsBeforeEpoch(t *testing.T) {

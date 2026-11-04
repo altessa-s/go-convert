@@ -35,14 +35,27 @@ body:
         - codec/mapslice
         - codec/unixtime
         - codec/optionalcodec
+        - codec/textcodec
+        - codec/enumcodec
+        - codec/sqlnull
+        - codec/durationcodec
+        - codec/b64codec
+        - codec/jsoncodec
         - converttest
         - reflectx
+        - internal/engine
+        - internal/primitive
+        - internal/typeinfo
         - proto
         - proto/codec/jsonpb
         - proto/codec/tspb
         - proto/codec/durpb
         - proto/codec/pbwrap
         - proto/codec/oneof
+        - proto/codec/enumpb
+        - proto/codec/fieldmaskpb
+        - proto/codec/anypb
+        - googletype
         - devtools
         - ci
         - new package

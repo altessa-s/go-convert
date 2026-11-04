@@ -8,9 +8,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/altessa-s/go-convert/proto/codec/pbwrap"
-
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/altessa-s/go-convert/proto/codec/pbwrap"
 )
 
 func BenchmarkNew_WrapString(b *testing.B) {
