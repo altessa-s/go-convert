@@ -263,7 +263,7 @@ func TestConverter_DomainToProto(t *testing.T) {
 	in := durDomain{Name: "n", TTL: 5 * time.Minute, Grace: &grace}
 
 	out := converter.Convert(in, &durProto{},
-		converter.WithIgnoreZeroValues(),
+		converter.WithValueMode(converter.IgnoreZeroValues),
 		converter.WithCodecs(durpb.New(durpb.WithIgnoreZero())),
 	)
 
@@ -280,7 +280,7 @@ func TestConverter_DomainToProto_ZeroStaysNil(t *testing.T) {
 	in := durDomain{Name: "n"} // TTL zero, Grace nil
 
 	out := converter.Convert(in, &durProto{},
-		converter.WithIgnoreZeroValues(),
+		converter.WithValueMode(converter.IgnoreZeroValues),
 		converter.WithCodecs(durpb.New(durpb.WithIgnoreZero())),
 	)
 

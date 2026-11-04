@@ -12,8 +12,9 @@ import (
 
 	"github.com/altessa-s/go-atlas-core/text/strings/intern"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 // fieldMetadata holds cached field information for a struct type.
@@ -187,7 +188,7 @@ const (
 type FieldConverter func(src reflect.Value) (reflect.Value, error)
 
 // NewForField creates a Codec that handles oneof conversion for a specific field.
-// This is the recommended way to use the oneof codec with converter.WithCodecs().
+// This is the recommended way to use the oneof codec with convert.WithCodecs().
 //
 // The codec only activates when processing the specified field name, making it efficient
 // and avoiding unnecessary checks for other fields.
@@ -198,8 +199,8 @@ type FieldConverter func(src reflect.Value) (reflect.Value, error)
 //
 // Example:
 //
-//	invitationProto := converter.Convert(invitation, &profilespb.Invitation{},
-//	    converter.WithCodecs(
+//	invitationProto := convert.Convert(invitation, &profilespb.Invitation{},
+//	    convert.WithCodecs(
 //	        oneof.NewForField("Payload",
 //	            oneof.WithWrapperRegistry(map[string]any{
 //	                "Contractor": &profilespb.Invitation_Contractor{},
@@ -227,7 +228,7 @@ func NewForField(targetFieldName string, opt ...Option) convcodec.Codec {
 // representations and protobuf oneof interface types. It automatically detects field mappings
 // based on naming conventions and supports both conversion directions.
 //
-// Note: When using with converter.WithCodecs(), prefer NewForField() to apply the codec
+// Note: When using with convert.WithCodecs(), prefer NewForField() to apply the codec
 // only to specific fields instead of all fields.
 //
 // Conversion directions:
@@ -289,7 +290,7 @@ func tryStructToOneof(_ string, src, dst reflect.Value, opts *options) bool {
 	// Pre-compute all type and value information once at the beginning.
 	// A zero source (or a nil pointer, which Indirect turns into one) or a
 	// zero destination is not a oneof conversion: leave it to next.
-	srcValue := reflectutils.IndirectValue(src)
+	srcValue := reflectx.IndirectValue(src)
 	if !srcValue.IsValid() || !dst.IsValid() {
 		return false
 	}
@@ -298,7 +299,7 @@ func tryStructToOneof(_ string, src, dst reflect.Value, opts *options) bool {
 	// The destination may be reached through any number of pointers
 	// (**OneofInterface); they are allocated only once the conversion
 	// is certain, so a rejected value leaves dst untouched.
-	dstType := reflectutils.IndirectType(dst.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
 	// Fast path rejections using pre-computed values
 	if srcType.Kind() != reflect.Struct ||
@@ -411,7 +412,7 @@ func settableTarget(dst reflect.Value) (reflect.Value, bool) {
 // Optimized with pre-computed type values to avoid repeated reflect calls (10-15% speedup).
 func tryOneofToStruct(_ string, src, dst reflect.Value, opts *options) bool {
 	// Pre-compute source value and type
-	srcValue := reflectutils.IndirectValue(src)
+	srcValue := reflectx.IndirectValue(src)
 	if !srcValue.IsValid() || !dst.IsValid() {
 		return false
 	}
@@ -433,7 +434,7 @@ func tryOneofToStruct(_ string, src, dst reflect.Value, opts *options) bool {
 			return opts.ignoreNilFields
 		}
 
-		srcValue = reflectutils.IndirectValue(srcValue.Elem())
+		srcValue = reflectx.IndirectValue(srcValue.Elem())
 		if !srcValue.IsValid() {
 			return false
 		}
@@ -452,14 +453,14 @@ func tryOneofToStruct(_ string, src, dst reflect.Value, opts *options) bool {
 
 	// Pre-compute destination type after all pointer layers.
 	dstValue := dst
-	dstType := reflectutils.IndirectType(dstValue.Type())
+	dstType := reflectx.IndirectType(dstValue.Type())
 
 	if dstType.Kind() != reflect.Struct {
 		return false
 	}
 
 	// Ensure destination is addressable
-	reflectutils.MakeDst(&dstValue, dstType)
+	reflectx.MakeDst(&dstValue, dstType)
 	// Update dst reference after MakeDst potentially modified it
 	dst = dstValue
 
@@ -650,7 +651,7 @@ func convertPrimitiveSlice(src, dst reflect.Value) bool {
 	// Both element kinds are primitive, so ConvertValue never refuses here.
 	if srcType.ConvertibleTo(dstType) {
 		for i := range srcLen {
-			converted, _ := reflectutils.ConvertValue(src.Index(i), dstType)
+			converted, _ := reflectx.ConvertValue(src.Index(i), dstType)
 			dst.Index(i).Set(converted)
 		}
 
@@ -668,7 +669,7 @@ func convertField(src, dst reflect.Value) {
 		return
 	}
 
-	srcValue := reflectutils.IndirectValue(src)
+	srcValue := reflectx.IndirectValue(src)
 	if !srcValue.IsValid() {
 		return
 	}
@@ -682,7 +683,7 @@ func convertField(src, dst reflect.Value) {
 		dstElemKind := dstType.Elem().Kind()
 
 		// Use batch conversion for primitive slices
-		if reflectutils.IsPrimitive(srcElemKind) && reflectutils.IsPrimitive(dstElemKind) {
+		if reflectx.IsPrimitive(srcElemKind) && reflectx.IsPrimitive(dstElemKind) {
 			if convertPrimitiveSlice(srcValue, dst) {
 				return
 			}
@@ -713,7 +714,7 @@ func convertField(src, dst reflect.Value) {
 	}
 
 	// Try converting if the value is convertible
-	if converted, ok := reflectutils.ConvertValue(srcValue, dstType); ok {
+	if converted, ok := reflectx.ConvertValue(srcValue, dstType); ok {
 		dst.Set(converted)
 		return
 	}

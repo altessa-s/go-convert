@@ -21,8 +21,8 @@
 // Example:
 //
 //	registry := anypb.NewRegistry().
-//	    Register(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]())
-//	_, err := converter.ConvertE(src, &dst,
-//	    converter.WithErrorCodecs(anypb.New(anypb.WithRegistry(registry))),
-//	    converter.WithCodecs(tspb.New()))
+//	    MustRegister(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]())
+//	_, err := convert.ConvertE(src, &dst,
+//	    convert.WithErrorCodecs(anypb.New(anypb.WithRegistry(registry))),
+//	    convert.WithCodecs(tspb.New()))
 package anypb

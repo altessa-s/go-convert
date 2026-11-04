@@ -253,35 +253,3 @@ func TestConverterReturnsErrorUnchanged(t *testing.T) {
 	require.Equal(t, jsoncodec.OpUnmarshal, codecErr.Op)
 	require.IsType(t, jsoncodec.Error{}, err, "the codec error is returned as is")
 }
-
-func ExampleNew() {
-	type Order struct {
-		ID    int
-		Items stdjson.RawMessage
-	}
-
-	type Item struct {
-		SKU string `json:"sku"`
-		Qty int    `json:"qty"`
-	}
-
-	type OrderModel struct {
-		ID    int
-		Items []Item
-	}
-
-	codec := jsoncodec.New()
-
-	model, err := converter.ConvertE(Order{ID: 7, Items: stdjson.RawMessage(`[{"sku":"A1","qty":2}]`)}, &OrderModel{}, converter.WithErrorCodecs(codec))
-	fmt.Println(model.Items, err)
-
-	order, err := converter.ConvertE(*model, &Order{}, converter.WithErrorCodecs(codec))
-	fmt.Println(string(order.Items), err)
-
-	_, err = converter.ConvertE(Order{Items: stdjson.RawMessage(`{"sku":"A1"}`)}, &OrderModel{}, converter.WithErrorCodecs(codec))
-	fmt.Println(err != nil)
-	// Output:
-	// [{A1 2}] <nil>
-	// [{"sku":"A1","qty":2}] <nil>
-	// true
-}

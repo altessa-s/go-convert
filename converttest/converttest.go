@@ -7,14 +7,14 @@ package converttest
 import (
 	"testing"
 
-	converter "github.com/altessa-s/go-convert"
+	"github.com/altessa-s/go-convert"
 )
 
 // RequireConvert converts src into dst and fails the test if conversion returns an error.
-func RequireConvert[T, U any](t testing.TB, src T, dst U, opts ...converter.Option) U {
+func RequireConvert[T, U any](t testing.TB, src T, dst U, opts ...convert.Option) U {
 	t.Helper()
 
-	out, err := converter.ConvertE(src, dst, opts...)
+	out, err := convert.ConvertE(src, dst, opts...)
 	if err != nil {
 		t.Fatalf("convert value: %v", err)
 	}

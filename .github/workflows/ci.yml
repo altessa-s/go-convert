@@ -99,6 +99,29 @@ jobs:
       - name: Run integration tests
         run: make test-integration
 
+  nested-modules:
+    name: Nested modules without replace
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The check also builds the latest released tag of every nested
+          # module against the working tree, so it needs the tags.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: "**/go.sum"
+
+      - name: Build nested modules against the root without replace
+        run: make nested-build-check
+
   cross-compile:
     name: Cross-compile (${{ matrix.goos }})
     runs-on: ubuntu-latest

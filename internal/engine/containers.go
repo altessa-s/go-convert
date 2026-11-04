@@ -10,20 +10,19 @@ import (
 	"strconv"
 
 	"github.com/altessa-s/go-convert/internal/primitive"
-
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
+	"github.com/altessa-s/go-convert/reflectx"
 )
 
 // convertSlices converts source slice to destination slice with element type conversion.
 func (w *walker) convertSlices(path, fieldName string, srcValue reflect.Value, dstValue reflect.Value) {
-	srcValue = reflectutils.IndirectValue(srcValue)
+	srcValue = reflectx.IndirectValue(srcValue)
 	if !srcValue.IsValid() {
 		return
 	}
 
-	reflectutils.MakeDst(&dstValue, reflectutils.IndirectType(dstValue.Type()))
+	reflectx.MakeDst(&dstValue, reflectx.IndirectType(dstValue.Type()))
 
-	dstValue = reflectutils.IndirectValue(dstValue)
+	dstValue = reflectx.IndirectValue(dstValue)
 	if srcValue.IsNil() {
 		dstValue.Set(reflect.Zero(dstValue.Type()))
 		return
@@ -67,7 +66,7 @@ func (w *walker) convertSlices(path, fieldName string, srcValue reflect.Value, d
 // with a table entry and no codecs. It returns nil otherwise.
 func (w *walker) primitiveElemFunc(src, dst reflect.Type) primitive.Func {
 	if w.cfg.Codecs.HasCodecs() || w.cfg.Codecs.HasErrorCodecs() ||
-		!reflectutils.IsPrimitive(src.Kind()) || w.isTypeCachedAssignable(src, dst) {
+		!reflectx.IsPrimitive(src.Kind()) || w.isTypeCachedAssignable(src, dst) {
 		return nil
 	}
 
@@ -103,15 +102,15 @@ func (w *walker) structElemPlan(src, dst reflect.Type) (*structPlan, reflect.Typ
 		return nil, nil
 	}
 
-	dstType := reflectutils.IndirectType(dst)
+	dstType := reflectx.IndirectType(dst)
 
-	return w.planFor(reflectutils.IndirectType(src), dstType), dstType
+	return w.planFor(reflectx.IndirectType(src), dstType), dstType
 }
 
 // overflows reports whether writing the primitive src into the primitive dst
 // loses data.
 func (w *walker) overflows(src, dst reflect.Value) bool {
-	return reflectutils.IsPrimitive(src.Kind()) && reflectutils.IsPrimitive(dst.Kind()) && primitive.WouldOverflow(src, dst)
+	return reflectx.IsPrimitive(src.Kind()) && reflectx.IsPrimitive(dst.Kind()) && primitive.WouldOverflow(src, dst)
 }
 
 // elementName returns the codec-visible name of element i. Names are only
@@ -138,13 +137,13 @@ func (w *walker) entryName(fieldName string, key reflect.Value) string {
 // The destination length bounds the loop so a malformed descriptor cannot
 // write past it; for same-type arrays the lengths are equal.
 func (w *walker) convertArrays(path, fieldName string, srcValue reflect.Value, dstValue reflect.Value) {
-	srcValue = reflectutils.IndirectValue(srcValue)
+	srcValue = reflectx.IndirectValue(srcValue)
 	if !srcValue.IsValid() {
 		return
 	}
 
-	reflectutils.MakeDst(&dstValue, reflectutils.IndirectType(dstValue.Type()))
-	dstValue = reflectutils.IndirectValue(dstValue)
+	reflectx.MakeDst(&dstValue, reflectx.IndirectType(dstValue.Type()))
+	dstValue = reflectx.IndirectValue(dstValue)
 
 	n := min(srcValue.Len(), dstValue.Len())
 	for i := range n {
@@ -154,14 +153,14 @@ func (w *walker) convertArrays(path, fieldName string, srcValue reflect.Value, d
 
 // convertMaps converts source map to destination map with key/value type conversion.
 func (w *walker) convertMaps(path, fieldName string, srcValue reflect.Value, dstValue reflect.Value) {
-	srcValue = reflectutils.IndirectValue(srcValue)
+	srcValue = reflectx.IndirectValue(srcValue)
 	if !srcValue.IsValid() {
 		return
 	}
 
-	reflectutils.MakeDst(&dstValue, reflectutils.IndirectType(dstValue.Type()))
+	reflectx.MakeDst(&dstValue, reflectx.IndirectType(dstValue.Type()))
 
-	dstValue = reflectutils.IndirectValue(dstValue)
+	dstValue = reflectx.IndirectValue(dstValue)
 	if srcValue.IsNil() {
 		dstValue.Set(reflect.Zero(dstValue.Type()))
 		return
@@ -284,12 +283,12 @@ func (w *walker) mapElems(src, dst reflect.Type) mapElems {
 	return elems
 }
 
-// convertKnown is [reflectutils.ConvertValue] for a value whose type is known
+// convertKnown is [reflectx.ConvertValue] for a value whose type is known
 // to convert to t, so the convertibility is not checked again unless the
 // result depends on the value.
 func convertKnown(v reflect.Value, t reflect.Type) (reflect.Value, bool) {
 	if t.Kind() == reflect.String || v.Kind() == reflect.Slice {
-		return reflectutils.ConvertValue(v, t)
+		return reflectx.ConvertValue(v, t)
 	}
 
 	return v.Convert(t), true
@@ -297,7 +296,7 @@ func convertKnown(v reflect.Value, t reflect.Type) (reflect.Value, bool) {
 
 // convertMapKey converts a map key that is not assignable to dstKeyType.
 func (w *walker) convertMapKey(fieldName string, key reflect.Value, dstKeyType reflect.Type) reflect.Value {
-	if converted, ok := reflectutils.ConvertValue(key, dstKeyType); ok {
+	if converted, ok := reflectx.ConvertValue(key, dstKeyType); ok {
 		if w.cfg.OverflowCheck && w.overflows(key, converted) {
 			panic(OverflowError{Field: makeFieldName(fieldName, "key"), From: key.Kind(), To: converted.Kind(), Value: key.Interface()})
 		}
@@ -316,6 +315,14 @@ func (w *walker) convertMapKey(fieldName string, key reflect.Value, dstKeyType r
 // convertMapValue converts map value handling both struct and primitive types.
 func (w *walker) convertMapValue(path, fieldName string, key reflect.Value, srcMapValue reflect.Value, elems *mapElems) reflect.Value {
 	valueFieldName := w.entryName(fieldName, key)
+
+	// Codecs see every map value, assignable ones included.
+	if w.cfg.Codecs.HasCodecs() {
+		dstMapValue := reflect.New(elems.dstType).Elem()
+		w.convertValueAt(path, valueFieldName, srcMapValue, dstMapValue)
+
+		return dstMapValue
+	}
 
 	// Preserve the original zero-cost alias for default map conversion.
 	if len(w.cfg.IgnorePaths) == 0 && !w.cfg.CopySlices && !w.cfg.Codecs.HasErrorCodecs() && !w.cfg.OverflowCheck {
@@ -339,7 +346,7 @@ func (w *walker) convertMapValue(path, fieldName string, key reflect.Value, srcM
 
 	// Composite values are walked so ignore paths and copy options apply
 	// inside nested slices, arrays and maps; scalars keep the primitive path.
-	switch reflectutils.IndirectType(elems.dstType).Kind() {
+	switch reflectx.IndirectType(elems.dstType).Kind() {
 	case reflect.Struct, reflect.Slice, reflect.Array, reflect.Map:
 		return w.convertStructMapValue(path, valueFieldName, srcMapValue, elems)
 	default:

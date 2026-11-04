@@ -10,12 +10,13 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 // UnknownValueError reports an enum value, string or integer that has no
-// entry in the codec's table. It is returned unchanged by converter.ConvertE.
+// entry in the codec's table. It is returned unchanged by convert.ConvertE.
 type UnknownValueError struct {
 	// Path is the full source field path.
 	Path string
@@ -47,6 +48,20 @@ func (e RangeError) Error() string {
 	return fmt.Sprintf("enumcodec: field %q: value %d overflows %s", e.Path, e.Value, e.Kind)
 }
 
+// ConfigError reports a table or option set that cannot build a codec, such
+// as two enum values sharing a spelling.
+type ConfigError struct {
+	// Enum is the enum type of the codec.
+	Enum reflect.Type
+	// Reason describes the problem.
+	Reason string
+}
+
+// Error reports the enum type and the problem.
+func (e ConfigError) Error() string {
+	return fmt.Sprintf("enumcodec: %s: %s", e.Enum, e.Reason)
+}
+
 // New returns an error codec that converts the enum type E to and from
 // strings using names, which maps every known enum value to its spelling.
 //
@@ -59,30 +74,44 @@ func (e RangeError) Error() string {
 // [UnknownValueError] unless [WithUnspecified] or [WithUnknownAsZero] applies.
 // A nil pointer source zeroes the destination.
 //
-// New panics when two enum values share a spelling (compared case-insensitively
-// with [WithCaseInsensitive]), because parsing would be ambiguous.
+// New returns a [ConfigError] when two enum values share a spelling
+// (compared case-insensitively with [WithCaseInsensitive]), because parsing
+// would be ambiguous.
 //
 // Example:
 //
-//	codec := enumcodec.New(map[Color]string{Red: "red", Green: "green"}, enumcodec.WithUnspecified())
-//	converter.ConvertE(src, &dst, converter.WithErrorCodecs(codec))
-func New[E comparable](names map[E]string, opts ...Option) convcodec.CodecE {
+//	codec, err := enumcodec.New(map[Color]string{Red: "red", Green: "green"}, enumcodec.WithUnspecified())
+//	if err != nil {
+//	    return err
+//	}
+//	_, err = convert.ConvertE(src, &dst, convert.WithErrorCodecs(codec))
+func New[E comparable](names map[E]string, opts ...Option) (convcodec.CodecE, error) {
 	o := newOptions(opts...)
 
-	c := newTable(names, o, isStringKind, readString, writeString)
+	c, err := newTable(names, o, isStringKind, readString, writeString)
+	if err != nil {
+		return nil, err
+	}
+
 	if o.caseInsensitive {
 		c.folded = make(map[string]E, len(names))
 		for e, name := range names {
 			key := strings.ToLower(name)
 			if _, dup := c.folded[key]; dup {
-				panic(fmt.Sprintf("enumcodec: %s names %q collide ignoring case", c.enumType, name))
+				return nil, ConfigError{Enum: c.enumType, Reason: fmt.Sprintf("names %q collide ignoring case", name)}
 			}
 
 			c.folded[key] = e
 		}
 	}
 
-	return c.codec
+	return c.codec, nil
+}
+
+// MustNew is [New] for tables known to be valid, such as package-level
+// literals; it panics with the [ConfigError] instead of returning it.
+func MustNew[E comparable](names map[E]string, opts ...Option) convcodec.CodecE {
+	return must(New(names, opts...))
 }
 
 // NewInt returns an error codec that converts the enum type E to and from
@@ -96,19 +125,39 @@ func New[E comparable](names map[E]string, opts ...Option) convcodec.CodecE {
 // [WithUnknownAsZero] applies; a table integer that does not fit the
 // destination is a [RangeError]. A nil pointer source zeroes the destination.
 //
-// NewInt panics when two enum values share a number, and when
-// [WithCaseInsensitive] is given, because integers have no case.
+// NewInt returns a [ConfigError] when two enum values share a number, and
+// when [WithCaseInsensitive] is given, because integers have no case.
 //
 // Example:
 //
-//	codec := enumcodec.NewInt(map[Color]int64{Red: 1, Green: 2})
-func NewInt[E comparable](values map[E]int64, opts ...Option) convcodec.CodecE {
+//	codec, err := enumcodec.NewInt(map[Color]int64{Red: 1, Green: 2})
+func NewInt[E comparable](values map[E]int64, opts ...Option) (convcodec.CodecE, error) {
 	o := newOptions(opts...)
 	if o.caseInsensitive {
-		panic(fmt.Sprintf("enumcodec: WithCaseInsensitive does not apply to the integer codec of %s", reflect.TypeFor[E]()))
+		return nil, ConfigError{Enum: reflect.TypeFor[E](), Reason: "WithCaseInsensitive does not apply to the integer codec"}
 	}
 
-	return newTable(values, o, isIntegerKind, readInteger, writeInteger).codec
+	t, err := newTable(values, o, isIntegerKind, readInteger, writeInteger)
+	if err != nil {
+		return nil, err
+	}
+
+	return t.codec, nil
+}
+
+// MustNewInt is [NewInt] for tables known to be valid, such as package-level
+// literals; it panics with the [ConfigError] instead of returning it.
+func MustNewInt[E comparable](values map[E]int64, opts ...Option) convcodec.CodecE {
+	return must(NewInt(values, opts...))
+}
+
+// must returns codec, panicking with err when it is not nil.
+func must(codec convcodec.CodecE, err error) convcodec.CodecE {
+	if err != nil {
+		panic(err)
+	}
+
+	return codec
 }
 
 // table holds both directions of an enum mapping onto wire values of type W
@@ -127,13 +176,13 @@ type table[E, W comparable] struct {
 	write func(path string, dst reflect.Value, w W) error
 }
 
-// newTable builds the forward and reverse lookups, panicking on duplicates.
+// newTable builds the forward and reverse lookups, failing on duplicates.
 func newTable[E, W comparable](
 	forward map[E]W, opts *options,
 	isWire func(reflect.Kind) bool,
 	read func(reflect.Value) (W, bool),
 	write func(string, reflect.Value, W) error,
-) *table[E, W] {
+) (*table[E, W], error) {
 	t := &table[E, W]{
 		enumType: reflect.TypeFor[E](),
 		forward:  make(map[E]W, len(forward)),
@@ -145,14 +194,14 @@ func newTable[E, W comparable](
 	}
 	for e, w := range forward {
 		if _, dup := t.reverse[w]; dup {
-			panic(fmt.Sprintf("enumcodec: %s wire value %v is mapped more than once", t.enumType, w))
+			return nil, ConfigError{Enum: t.enumType, Reason: fmt.Sprintf("wire value %v is mapped more than once", w)}
 		}
 
 		t.forward[e] = w
 		t.reverse[w] = e
 	}
 
-	return t
+	return t, nil
 }
 
 // codec is the [convcodec.CodecE] of the table.
@@ -209,7 +258,7 @@ func (t *table[E, W]) format(path string, src, dst reflect.Value) error {
 		}
 	}
 
-	reflectutils.MakeDst(&dst, dst.Type())
+	reflectx.MakeDst(&dst, dst.Type())
 
 	return t.write(path, dst, w)
 }
@@ -230,7 +279,7 @@ func (t *table[E, W]) parse(path string, src, dst reflect.Value) error {
 		return UnknownValueError{Path: path, Enum: t.enumType, Value: src.Interface()}
 	}
 
-	reflectutils.MakeDst(&dst, dst.Type())
+	reflectx.MakeDst(&dst, dst.Type())
 
 	if dst.CanAddr() {
 		if p, isEnum := reflect.TypeAssert[*E](dst.Addr()); isEnum {

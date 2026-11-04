@@ -13,7 +13,13 @@ type Option func(o *options)
 // WithCodecs appends to the codecs option.
 //
 // codecs are conversion middleware run in registration order for every
-// field; the built-in conversion ends the chain.
+// field, slice or array element and map value the converter visits,
+// including values whose type is assignable to the destination; the
+// built-in conversion ends the chain. A value assigned by the built-in
+// conversion is not walked further, so the codecs see an assignable
+// struct, slice or map as a whole. Map keys reach the codecs only when
+// Go can neither assign nor convert them. Without codecs, assignable
+// values keep the direct assignment fast path.
 func WithCodecs(v ...convcodec.Codec) Option {
 	return func(o *options) {
 		if len(v) == 0 {
@@ -31,6 +37,16 @@ func WithCopySlices() Option {
 	return func(o *options) {
 		value := true
 		o.copySlices = value
+	}
+}
+
+// WithEmbeddedStructs sets the embeddedStructs option.
+//
+// embeddedStructs selects how embedded destination structs are filled;
+// see [EmbeddedStructs].
+func WithEmbeddedStructs(v EmbeddedStructs) Option {
+	return func(o *options) {
+		o.embeddedStructs = v
 	}
 }
 
@@ -123,6 +139,16 @@ func WithOverflowCheck() Option {
 	return func(o *options) {
 		value := true
 		o.overflowCheck = value
+	}
+}
+
+// WithValueMode sets the valueMode option.
+//
+// valueMode selects which source values are applied; see [ValueMode].
+// The modes exclude each other, so the last one set wins.
+func WithValueMode(v ValueMode) Option {
+	return func(o *options) {
+		o.valueMode = v
 	}
 }
 

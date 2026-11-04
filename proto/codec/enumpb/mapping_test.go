@@ -67,7 +67,7 @@ func TestNewMapping_Conversions(t *testing.T) {
 			t.Parallel()
 
 			dst := reflect.ValueOf(tt.dst).Elem()
-			err := enumpb.NewMapping(cardinalities, tt.opts...)("f", reflect.ValueOf(tt.src), dst, failNext(t))
+			err := enumpb.MustNewMapping(cardinalities, tt.opts...)("f", reflect.ValueOf(tt.src), dst, failNext(t))
 			require.NoError(t, err)
 			require.Equal(t, tt.want, dst.Interface())
 		})
@@ -81,7 +81,7 @@ func TestNewMapping_TableTakesPrecedence(t *testing.T) {
 		typepb.Field_CARDINALITY_UNKNOWN:  cardinalityMissing,
 		typepb.Field_CARDINALITY_OPTIONAL: cardinalityNone,
 	}
-	codec := enumpb.NewMapping(table, enumpb.WithUnspecifiedAsEmpty())
+	codec := enumpb.MustNewMapping(table, enumpb.WithUnspecifiedAsEmpty())
 
 	var goValue cardinality
 	require.NoError(t, codec("f", reflect.ValueOf(typepb.Field_CARDINALITY_UNKNOWN), reflect.ValueOf(&goValue).Elem(), failNext(t)))
@@ -114,7 +114,7 @@ func TestNewMapping_UnknownValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := enumpb.NewMapping(cardinalities)("x.y", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), failNext(t))
+			err := enumpb.MustNewMapping(cardinalities)("x.y", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), failNext(t))
 			require.Equal(t, error(tt.want), err)
 		})
 	}
@@ -137,7 +137,7 @@ func TestNewMapping_Delegates(t *testing.T) {
 			t.Parallel()
 
 			called := false
-			err := enumpb.NewMapping(cardinalities)("f", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), func(string, reflect.Value, reflect.Value) error {
+			err := enumpb.MustNewMapping(cardinalities)("f", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), func(string, reflect.Value, reflect.Value) error {
 				called = true
 				return nil
 			})
@@ -147,7 +147,7 @@ func TestNewMapping_Delegates(t *testing.T) {
 	}
 }
 
-func TestNewMapping_PanicsOnDuplicateGoValue(t *testing.T) {
+func TestNewMapping_RejectsDuplicateGoValue(t *testing.T) {
 	t.Parallel()
 
 	table := map[typepb.Field_Cardinality]cardinality{
@@ -155,7 +155,13 @@ func TestNewMapping_PanicsOnDuplicateGoValue(t *testing.T) {
 		typepb.Field_CARDINALITY_REQUIRED: cardinalityOptional,
 	}
 
-	require.Panics(t, func() { enumpb.NewMapping(table) })
+	codec, err := enumpb.NewMapping(table)
+	require.Nil(t, codec)
+
+	var cfg enumpb.ConfigError
+	require.ErrorAs(t, err, &cfg)
+	require.ErrorContains(t, err, "both map to")
+	require.Panics(t, func() { enumpb.MustNewMapping(table) })
 }
 
 type columnDTO struct {
@@ -166,7 +172,7 @@ type columnDTO struct {
 func TestConverter_Mapping(t *testing.T) {
 	t.Parallel()
 
-	opts := []converter.Option{converter.WithErrorCodecs(enumpb.NewMapping(cardinalities))}
+	opts := []converter.Option{converter.WithErrorCodecs(enumpb.MustNewMapping(cardinalities))}
 
 	var dto columnDTO
 

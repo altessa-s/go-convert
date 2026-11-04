@@ -11,11 +11,11 @@ Package `enumcodec` provides error codecs for bidirectional conversion between a
 | `New[E](names map[E]string, opts...)`    | `E` / `*E` <-> `string` / `*string`                                       |
 | `NewInt[E](values map[E]int64, opts...)` | `E` / `*E` <-> predeclared integer types (`int`, `int32`, ...) / pointers |
 
-Both return a `convcodec.CodecE`; register it with `converter.WithErrorCodecs`. Only pairs with exactly `E` or `*E` on one side and a predeclared
+Both return a `convcodec.CodecE`; register it with `convert.WithErrorCodecs`. Only pairs with exactly `E` or `*E` on one side and a predeclared
 type on the other are claimed; everything else, including a pair of two enum types, is delegated to the next codec. A value missing from the table
-is an `UnknownValueError`, and a table integer that does not fit the destination is a `RangeError`; `converter.ConvertE` returns both unchanged. A
-nil source zeroes the destination. The constructors panic when two enum values share a name or number, and `NewInt` panics when given
-`WithCaseInsensitive`.
+is an `UnknownValueError`, and a table integer that does not fit the destination is a `RangeError`; `convert.ConvertE` returns both unchanged. A
+nil source zeroes the destination. `New` and `NewInt` return a `ConfigError` when two enum values share a name or number, and `NewInt`
+also when given `WithCaseInsensitive`; `MustNew` and `MustNewInt` panic with it instead, for tables known to be valid.
 
 ## Options
 

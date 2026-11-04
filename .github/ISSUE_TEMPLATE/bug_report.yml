@@ -37,7 +37,7 @@ body:
         - codec/unixtime
         - codec/optionalcodec
         - converttest
-        - internal/reflect
+        - reflectx
         - proto
         - proto/codec/jsonpb
         - proto/codec/tspb

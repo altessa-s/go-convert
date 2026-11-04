@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/proto/codec/anypb"
 	"github.com/altessa-s/go-convert/proto/codec/tspb"
 
@@ -17,7 +18,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	converter "github.com/altessa-s/go-convert"
 	pbany "google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -34,22 +34,22 @@ func ExampleNew() {
 
 	// time.Time packs as a google.protobuf.Timestamp; tspb converts the
 	// message and the domain value for the codec.
-	registry := anypb.NewRegistry().Register(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]())
-	opts := []converter.Option{
-		converter.WithErrorCodecs(anypb.New(anypb.WithRegistry(registry))),
-		converter.WithCodecs(tspb.New()),
+	registry := anypb.NewRegistry().MustRegister(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]())
+	opts := []convert.Option{
+		convert.WithErrorCodecs(anypb.New(anypb.WithRegistry(registry))),
+		convert.WithCodecs(tspb.New()),
 	}
 
 	audit := Audit{At: time.Date(2026, time.March, 14, 9, 0, 0, 0, time.UTC), Detail: wrapperspb.String("login")}
-	msg, err := converter.ConvertE(audit, &AuditMessage{}, opts...)
+	msg, err := convert.ConvertE(audit, &AuditMessage{}, opts...)
 	fmt.Println(err, msg.At.GetTypeUrl(), msg.Detail.GetTypeUrl())
 
-	back, err := converter.ConvertE(msg, &Audit{}, opts...)
+	back, err := convert.ConvertE(msg, &Audit{}, opts...)
 	fmt.Println(err, back.At.UTC().Format(time.RFC3339), back.Detail.(*wrapperspb.StringValue).GetValue())
 
 	var into struct{ Detail *durationpb.Duration }
 
-	_, err = converter.ConvertE(msg, &into, opts...)
+	_, err = convert.ConvertE(msg, &into, opts...)
 
 	var mismatch anypb.TypeMismatchError
 	fmt.Println(errors.As(err, &mismatch), mismatch.Want)

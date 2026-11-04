@@ -7,6 +7,8 @@ package anypb
 import (
 	"fmt"
 	"reflect"
+
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // TypeMismatchError reports an Any whose type URL does not name the message
@@ -44,6 +46,25 @@ func (e UnknownTypeError) Error() string {
 	}
 
 	return fmt.Sprintf("anypb: %q: unknown message type %q", e.Path, e.TypeURL)
+}
+
+// RegistrationError reports a pair [Registry.Register] refuses.
+type RegistrationError struct {
+	// Message is the full name of the message type, when known.
+	Message protoreflect.FullName
+	// Domain is the domain type, when known.
+	Domain reflect.Type
+	// Reason describes the problem.
+	Reason string
+}
+
+// Error reports the pair and the problem.
+func (e RegistrationError) Error() string {
+	if e.Message == "" && e.Domain == nil {
+		return "anypb: register: " + e.Reason
+	}
+
+	return fmt.Sprintf("anypb: register %s as %v: %s", e.Message, e.Domain, e.Reason)
 }
 
 // Error reports a protobuf marshaling or unmarshaling failure.

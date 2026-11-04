@@ -61,7 +61,7 @@ func TestNew_EnumToString(t *testing.T) {
 			t.Parallel()
 
 			dst := "unchanged"
-			err := enumpb.New(tt.opts...)("Field.Kind", reflect.ValueOf(tt.src), reflect.ValueOf(&dst).Elem(), failNext(t))
+			err := enumpb.MustNew(tt.opts...)("Field.Kind", reflect.ValueOf(tt.src), reflect.ValueOf(&dst).Elem(), failNext(t))
 			require.NoError(t, err)
 			require.Equal(t, tt.want, dst)
 		})
@@ -91,7 +91,7 @@ func TestNew_StringToEnum(t *testing.T) {
 			t.Parallel()
 
 			dst := typepb.Field_CARDINALITY_REPEATED + 100
-			err := enumpb.New(tt.opts...)("Field.Cardinality", reflect.ValueOf(tt.src), reflect.ValueOf(&dst).Elem(), failNext(t))
+			err := enumpb.MustNew(tt.opts...)("Field.Cardinality", reflect.ValueOf(tt.src), reflect.ValueOf(&dst).Elem(), failNext(t))
 			require.NoError(t, err)
 			require.Equal(t, tt.want, dst)
 		})
@@ -101,7 +101,7 @@ func TestNew_StringToEnum(t *testing.T) {
 func TestNew_Pointers(t *testing.T) {
 	t.Parallel()
 
-	codec := enumpb.New(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower), enumpb.WithUnspecifiedAsEmpty())
+	codec := enumpb.MustNew(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower), enumpb.WithUnspecifiedAsEmpty())
 
 	t.Run("enum to string pointer", func(t *testing.T) {
 		t.Parallel()
@@ -138,7 +138,7 @@ func TestNew_Pointers(t *testing.T) {
 func TestNew_NilSourceZeroesDestination(t *testing.T) {
 	t.Parallel()
 
-	codec := enumpb.New(enumpb.WithUnspecifiedAsEmpty())
+	codec := enumpb.MustNew(enumpb.WithUnspecifiedAsEmpty())
 
 	var enumSrc *descriptorpb.FieldDescriptorProto_Type
 
@@ -161,19 +161,24 @@ func TestNew_NilSourceZeroesDestination(t *testing.T) {
 	require.Nil(t, enumPtrDst)
 }
 
-func TestNew_InvalidCasePanics(t *testing.T) {
+func TestNew_InvalidCase(t *testing.T) {
 	t.Parallel()
 
 	for _, c := range []enumpb.Case{enumpb.CaseUpper + 1, -1} {
-		require.PanicsWithValue(t, fmt.Sprintf("enumpb: New: invalid Case %d; use CaseKeep, CaseLower or CaseUpper", int(c)), func() {
-			enumpb.New(enumpb.WithCase(c))
-		})
-		require.Panics(t, func() {
-			enumpb.NewMapping(map[typepb.Field_Cardinality]string{}, enumpb.WithCase(c))
-		})
+		_, err := enumpb.New(enumpb.WithCase(c))
+		require.EqualError(t, err, fmt.Sprintf("enumpb: New: invalid Case %d; use CaseKeep, CaseLower or CaseUpper", int(c)))
+
+		var cfg enumpb.ConfigError
+
+		_, err = enumpb.NewMapping(map[typepb.Field_Cardinality]string{}, enumpb.WithCase(c))
+		require.ErrorAs(t, err, &cfg)
+		require.Equal(t, "NewMapping", cfg.Func)
+
+		require.Panics(t, func() { enumpb.MustNew(enumpb.WithCase(c)) })
 	}
 
-	require.NotPanics(t, func() { enumpb.New(enumpb.WithCase(enumpb.CaseKeep)) })
+	_, err := enumpb.New(enumpb.WithCase(enumpb.CaseKeep))
+	require.NoError(t, err)
 }
 
 func TestNew_UnknownValues(t *testing.T) {
@@ -231,7 +236,7 @@ func TestNew_UnknownValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := enumpb.New(tt.opts...)("a.b", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), failNext(t))
+			err := enumpb.MustNew(tt.opts...)("a.b", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), failNext(t))
 
 			var unknown enumpb.UnknownValueError
 			require.ErrorAs(t, err, &unknown)
@@ -263,7 +268,7 @@ func TestNew_Delegates(t *testing.T) {
 			t.Parallel()
 
 			called := false
-			err := enumpb.New()("f", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), func(string, reflect.Value, reflect.Value) error {
+			err := enumpb.MustNew()("f", reflect.ValueOf(tt.src), reflect.ValueOf(tt.dst).Elem(), func(string, reflect.Value, reflect.Value) error {
 				called = true
 				return nil
 			})
@@ -282,7 +287,7 @@ type fieldDTO struct {
 func TestConverter_BothDirections(t *testing.T) {
 	t.Parallel()
 
-	opts := []converter.Option{converter.WithErrorCodecs(enumpb.New(
+	opts := []converter.Option{converter.WithErrorCodecs(enumpb.MustNew(
 		enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower), enumpb.WithUnspecifiedAsEmpty(),
 	))}
 
@@ -310,7 +315,7 @@ func TestConverter_ErrorReturnedUnchanged(t *testing.T) {
 
 	var field typepb.Field
 
-	_, err := converter.ConvertE(&dto, &field, converter.WithErrorCodecs(enumpb.New(enumpb.WithCase(enumpb.CaseLower))))
+	_, err := converter.ConvertE(&dto, &field, converter.WithErrorCodecs(enumpb.MustNew(enumpb.WithCase(enumpb.CaseLower))))
 
 	var unknown enumpb.UnknownValueError
 	require.ErrorAs(t, err, &unknown)

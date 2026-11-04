@@ -11,9 +11,21 @@ DTOs and protobuf messages, and applying sparse updates to stored entities.
 go get github.com/altessa-s/go-convert
 ```
 
-Requires Go 1.27 or later. The root module depends only on the standard
-library. [`codec/optionalcodec`](./codec/optionalcodec) and
-[`proto`](./proto) are separate modules with their own dependencies.
+Requires Go 1.27 or later. The packages of the root module import only the
+standard library; its `go.mod` lists `testify`, which only its tests use. The
+codecs that need other dependencies live in nested modules, released together
+with the root module under the same version:
+
+| Module                                             | Contents                                      | Dependencies                                  |
+|----------------------------------------------------|-----------------------------------------------|-----------------------------------------------|
+| `github.com/altessa-s/go-convert`                  | Converter, codec contract, standard codecs    | standard library                              |
+| [`.../codec/optionalcodec`](./codec/optionalcodec) | `optional.Optional[T]` codecs                 | `go-atlas-core`                               |
+| [`.../proto`](./proto)                             | Protobuf codecs                               | `google.golang.org/protobuf`, `optionalcodec` |
+| [`.../googletype`](./googletype)                   | `google.type` Money, Date, LatLng, TimeOfDay  | `google.golang.org/genproto`                  |
+
+```sh
+go get github.com/altessa-s/go-convert/proto
+```
 
 ## Quick start
 
@@ -84,10 +96,8 @@ for id, dto := range convert.ConvertMapSeq[string, UserDTO](usersByID) {
 | `WithIgnoreFields(names...)`      | Skip fields by name at every nesting level                          |
 | `WithIgnorePaths(paths...)`       | Skip fields by dotted path from the root, e.g. `smtp.password`      |
 | `WithFieldMappings(map)`          | Rename source fields to destination fields                          |
-| `WithIgnoreZeroValues()`          | Skip zero-valued source fields                                      |
-| `WithIgnoreNilValues()`           | Skip nil pointers, slices and maps                                  |
-| `WithSparseMerge()`               | Apply the source as a partial update (JSON Merge Patch semantics)   |
-| `WithHandleEmbeddedStructs(init)` | Fill embedded destination structs from the whole source             |
+| `WithValueMode(mode)`             | Which source values to apply: `OverwriteValues` (default), `IgnoreZeroValues`, `IgnoreNilValues` or `SparseMerge` (a partial update) |
+| `WithEmbeddedStructs(mode)`       | `EmbeddedFill` or `EmbeddedFillAlways` fill embedded destination structs from the whole source |
 | `WithCopySlices()`                | Give assignable slices their own backing array                      |
 | `WithOverflowCheck()`             | Fail on lossy narrowing numeric conversions                         |
 | `WithMaxDepth(n)`                 | Limit nesting depth (default `DefaultMaxDepth`)                     |
@@ -148,15 +158,15 @@ convert.Convert(&src, &dst)
 // Name == "Bob", Age == 30, Address.Zip == nil, Tags == nil
 ```
 
-**`WithIgnoreZeroValues`** skips every zero source value, so a zero scalar can
+**`IgnoreZeroValues`** skips every zero source value, so a zero scalar can
 never be written. Non-nil empty slices and maps and non-nil pointers to zero
 values are not zero and still overwrite.
 
-**`WithIgnoreNilValues`** skips nil pointers, slices and maps. A pointer to a
+**`IgnoreNilValues`** skips nil pointers, slices and maps. A pointer to a
 zero value is written, so scalars can be cleared explicitly. Same-type nested
 structs are still assigned wholesale.
 
-**`WithSparseMerge`** applies the source as a patch, the Go-struct analogue of
+**`SparseMerge`** applies the source as a patch, the Go-struct analogue of
 [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7386), at every depth:
 
 | Source field                                    | Effect on destination          |
@@ -168,10 +178,10 @@ structs are still assigned wholesale.
 | non-nil slice                                   | replaces the destination slice |
 
 ```go
-convert.Convert(&src, &dst, convert.WithSparseMerge())
+convert.Convert(&src, &dst, convert.WithValueMode(convert.SparseMerge))
 // Name == "Bob", Age == 30, Address == {City: "Paris", Zip: "10115"}, Tags == ["vip"]
 
-convert.Convert(&User{Address: &Address{}}, &dst, convert.WithSparseMerge())
+convert.Convert(&User{Address: &Address{}}, &dst, convert.WithValueMode(convert.SparseMerge))
 // Address == nil
 ```
 
@@ -204,10 +214,15 @@ unchanged instead of panicking.
 
 ## Codecs
 
-A codec is middleware that handles a field or delegates to the next codec;
-the built-in conversion ends the chain. Error codecs (`WithErrorCodecs`) run
-first, receive the full dotted source path and stop the conversion with the
-first error, which `ConvertE` returns unchanged.
+A codec is middleware that handles a value or delegates to the next codec;
+the built-in conversion ends the chain. Codecs run for every field, slice or
+array element and map value the converter visits, including values whose type
+is assignable to the destination. A value the built-in conversion assigns is
+not walked further, so codecs see an assignable struct, slice or map as a
+whole; map keys reach the codecs only when Go can neither assign nor convert
+them. Without codecs, assignable values are assigned directly. Error codecs
+(`WithErrorCodecs`) run first, receive the full dotted source path and stop
+the conversion with the first error, which `ConvertE` returns unchanged.
 
 ```go
 upper := func(field string, src, dst reflect.Value, next convcodec.CodecHandler) {
@@ -250,12 +265,17 @@ convert (facade: Converter[T, U], options, errors)
   └── internal/engine     reflection walker, per-call state and depth guard
         ├── internal/typeinfo   bounded, lock-free struct metadata cache
         ├── internal/primitive  kind-indexed primitive conversions
-        └── internal/reflect    reflection helpers
+        └── reflectx            reflection helpers (public, shared with the codecs)
 codec                      codec contract, depended on by every adapter
-codec/*, proto/codec/*     adapters for specific types
+codec/*, proto/codec/*,    adapters for specific types
+googletype
 ```
 
 Dependencies point inward and are enforced by `architecture_test.go`. The
+nested modules import only exported root packages (`codec`, `reflectx`), never
+`internal/...`, so a nested module release keeps compiling against newer root
+releases; `make nested-build-check` builds each nested module against the root
+without `replace` directives. The
 engine is not generic, so `Converter[T, U]` instantiations share one
 implementation.
 

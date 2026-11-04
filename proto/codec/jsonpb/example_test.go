@@ -9,11 +9,10 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/proto/codec/jsonpb"
 
 	"google.golang.org/protobuf/types/known/structpb"
-
-	converter "github.com/altessa-s/go-convert"
 )
 
 func ExampleNewE() {
@@ -29,16 +28,16 @@ func ExampleNewE() {
 		Tags  *structpb.ListValue
 	}
 
-	codec := converter.WithErrorCodecs(jsonpb.NewE())
+	codec := convert.WithErrorCodecs(jsonpb.NewE())
 
 	event := Event{Name: "signup", Attrs: map[string]any{"plan": "pro", "seats": 3}, Tags: []any{"web", nil}}
-	msg, err := converter.ConvertE(event, &EventMessage{}, codec)
+	msg, err := convert.ConvertE(event, &EventMessage{}, codec)
 	fmt.Println(err, msg.Attrs.GetFields()["seats"].GetNumberValue(), msg.Tags.GetValues()[1].GetNullValue())
 
-	back, err := converter.ConvertE(msg, &Event{}, codec)
+	back, err := convert.ConvertE(msg, &Event{}, codec)
 	fmt.Println(err, back.Attrs["plan"], back.Attrs["seats"], back.Tags)
 
-	_, err = converter.ConvertE(Event{Attrs: map[string]any{"ratio": math.NaN()}}, &EventMessage{}, codec)
+	_, err = convert.ConvertE(Event{Attrs: map[string]any{"ratio": math.NaN()}}, &EventMessage{}, codec)
 
 	var valueErr jsonpb.ValueError
 	fmt.Println(errors.As(err, &valueErr), valueErr.Path)

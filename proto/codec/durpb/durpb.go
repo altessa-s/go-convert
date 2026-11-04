@@ -9,10 +9,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 var (
@@ -66,10 +67,17 @@ func New(opts ...Option) convcodec.Codec {
 // tryConvert attempts to convert between durationpb.Duration and time.Duration.
 // Returns true if conversion was handled (including skipped due to options), false otherwise.
 func tryConvert(src, dst reflect.Value, opts *options) bool {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
+	// A destination reflect does not allow to write (an unexported field, a
+	// value that is not addressable) is declined, so the unsafe writes below
+	// never bypass reflect's read-only protection.
+	if !reflectx.Writable(dst) {
+		return false
+	}
 
-	srcValue := reflectutils.IndirectValue(src)
+	srcType := reflectx.IndirectType(src.Type())
+	dstType := reflectx.IndirectType(dst.Type())
+
+	srcValue := reflectx.IndirectValue(src)
 
 	switch {
 	case srcType == durationType && dstType == goDurationType:
@@ -87,7 +95,7 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 func convertDurationToGo(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
 		if !opts.ignoreZero {
-			reflectutils.SetZero(dst)
+			reflectx.SetZero(dst)
 		}
 
 		return true
@@ -104,7 +112,7 @@ func convertDurationToGo(srcValue reflect.Value, dst reflect.Value, dstType refl
 
 	d := (&durationpb.Duration{Seconds: sec, Nanos: nanos}).AsDuration()
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	dst.SetInt(int64(d))
 
 	return true
@@ -114,7 +122,7 @@ func convertDurationToGo(srcValue reflect.Value, dst reflect.Value, dstType refl
 func convertGoToDuration(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
 		if !opts.ignoreZero {
-			reflectutils.SetZero(dst)
+			reflectx.SetZero(dst)
 		}
 
 		return true
@@ -131,7 +139,7 @@ func convertGoToDuration(srcValue reflect.Value, dst reflect.Value, dstType refl
 	sec := int64(d / time.Second)
 	nanos := int32(d % time.Second)
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	writeDuration(dst, sec, nanos)
 
 	return true
@@ -169,12 +177,12 @@ func readDuration(v reflect.Value) (seconds int64, nanos int32, ok bool) {
 
 // writeDuration writes Seconds and Nanos directly into a Duration reflect.Value
 // without allocating via durationpb.New() + reflect.ValueOf().
-// Uses unsafe pointer arithmetic when the value is addressable,
-// falls back to durationpb construction otherwise.
+// Uses unsafe pointer arithmetic when dst is a settable Duration and
+// reflect.Value.Set otherwise, which reports a read-only or mistyped dst.
 //
 // #nosec G103 -- intentional unsafe for zero-alloc Duration write with verified safety
 func writeDuration(dst reflect.Value, seconds int64, nanos int32) {
-	if dst.CanAddr() {
+	if dst.Type() == durationType && dst.CanSet() {
 		base := unsafe.Pointer(dst.UnsafeAddr())
 		*(*int64)(unsafe.Add(base, durSecondsOffset)) = seconds
 		*(*int32)(unsafe.Add(base, durNanosOffset)) = nanos

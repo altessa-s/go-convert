@@ -7,12 +7,12 @@ package fieldmaskpb_test
 import (
 	"fmt"
 
+	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/proto/codec/fieldmaskpb"
 
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/typepb"
 
-	converter "github.com/altessa-s/go-convert"
 	fmpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
@@ -41,7 +41,7 @@ func ExampleIgnorePaths() {
 
 	fmt.Println(paths)
 
-	if _, err := converter.ConvertE(update, &stored, converter.WithIgnorePaths(paths...)); err != nil {
+	if _, err := convert.ConvertE(update, &stored, convert.WithIgnorePaths(paths...)); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -66,7 +66,7 @@ func ExampleNew() {
 	}
 
 	codec := fieldmaskpb.New(fieldmaskpb.WithNormalize())
-	pb := converter.Convert(&Request{UpdateMask: []string{"title", "author", "author.name"}}, &RequestPB{}, converter.WithCodecs(codec))
+	pb := convert.Convert(&Request{UpdateMask: []string{"title", "author", "author.name"}}, &RequestPB{}, convert.WithCodecs(codec))
 	fmt.Println(pb.UpdateMask.GetPaths())
 	// Output:
 	// [author title]

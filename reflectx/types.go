@@ -2,7 +2,7 @@
 // Use of this source code is governed by the MIT license that can be found in
 // the LICENSE file.
 
-package reflect
+package reflectx
 
 import (
 	"reflect"
@@ -49,6 +49,19 @@ func MakeDst(dst *reflect.Value, t reflect.Type) {
 
 		*dst = dst.Elem()
 	}
+}
+
+// Writable reports whether [MakeDst] followed by a write through dst succeeds:
+// dst, after following its non-nil pointer layers, is settable. A nil pointer
+// layer must be settable itself, as MakeDst replaces it. It is false for an
+// invalid dst, a value that is not addressable and a value obtained through an
+// unexported struct field.
+func Writable(dst reflect.Value) bool {
+	for dst.IsValid() && dst.Kind() == reflect.Pointer && !dst.IsNil() {
+		dst = dst.Elem()
+	}
+
+	return dst.IsValid() && dst.CanSet()
 }
 
 // IsPrimitive checks if a kind represents a primitive type.

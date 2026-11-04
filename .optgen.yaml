@@ -10,7 +10,9 @@ defaults:
   # Default output file name
   output: options_gen.go
 
-  # Format generated files with gci (import sorting)
+  # Format generated files with gci (import sorting), using the sections of
+  # .golangci.yml. make generate then runs golangci-lint fmt over the
+  # generated files, which settles them exactly like make fmt.
   # Use {file} placeholder for the file path, or it will be appended automatically
   # The command runs without a shell: quotes group arguments, shell operators are rejected
   formatter: >-

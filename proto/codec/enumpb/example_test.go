@@ -7,11 +7,10 @@ package enumpb_test
 import (
 	"fmt"
 
+	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/proto/codec/enumpb"
 
 	"google.golang.org/protobuf/types/known/typepb"
-
-	converter "github.com/altessa-s/go-convert"
 )
 
 func Example() {
@@ -21,17 +20,17 @@ func Example() {
 		Cardinality string
 	}
 
-	opts := []converter.Option{converter.WithErrorCodecs(enumpb.New(
+	opts := []convert.Option{convert.WithErrorCodecs(enumpb.MustNew(
 		enumpb.WithTrimEnumPrefix(), // CARDINALITY_REPEATED -> REPEATED
 		enumpb.WithCase(enumpb.CaseLower),
 		enumpb.WithUnspecifiedAsEmpty(), // TYPE_UNKNOWN <-> ""
 	))}
 
 	field := &typepb.Field{Name: "tags", Cardinality: typepb.Field_CARDINALITY_REPEATED}
-	column, err := converter.ConvertE(field, &Column{}, opts...)
+	column, err := convert.ConvertE(field, &Column{}, opts...)
 	fmt.Printf("%+v %v\n", *column, err)
 
-	_, err = converter.ConvertE(&Column{Cardinality: "sometimes"}, &typepb.Field{}, opts...)
+	_, err = convert.ConvertE(&Column{Cardinality: "sometimes"}, &typepb.Field{}, opts...)
 	fmt.Println(err)
 	// Output:
 	// {Name:tags Kind: Cardinality:repeated} <nil>
@@ -51,12 +50,12 @@ func ExampleNewMapping() {
 		Cardinality Cardinality
 	}
 
-	codec := enumpb.NewMapping(map[typepb.Field_Cardinality]Cardinality{
+	codec := enumpb.MustNewMapping(map[typepb.Field_Cardinality]Cardinality{
 		typepb.Field_CARDINALITY_OPTIONAL: Optional,
 		typepb.Field_CARDINALITY_REPEATED: Repeated,
 	})
 
-	field, err := converter.ConvertE(&Column{Name: "tags", Cardinality: Repeated}, &typepb.Field{}, converter.WithErrorCodecs(codec))
+	field, err := convert.ConvertE(&Column{Name: "tags", Cardinality: Repeated}, &typepb.Field{}, convert.WithErrorCodecs(codec))
 	fmt.Println(field.GetCardinality(), err)
 	// Output:
 	// CARDINALITY_REPEATED <nil>

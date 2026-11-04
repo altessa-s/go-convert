@@ -2,13 +2,13 @@
 // Use of this source code is governed by the MIT license that can be found in
 // the LICENSE file.
 
-package reflect_test
+package reflectx_test
 
 import (
 	"reflect"
 	"testing"
 
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
+	"github.com/altessa-s/go-convert/reflectx"
 )
 
 func FuzzIsPrimitive(f *testing.F) {
@@ -20,6 +20,6 @@ func FuzzIsPrimitive(f *testing.F) {
 	f.Fuzz(func(t *testing.T, k uint8) {
 		kind := reflect.Kind(k)
 		// Should not panic for any kind value
-		_ = reflectutils.IsPrimitive(kind)
+		_ = reflectx.IsPrimitive(kind)
 	})
 }

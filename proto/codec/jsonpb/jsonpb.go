@@ -10,10 +10,11 @@ import (
 	"encoding/json/v2"
 	"reflect"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	"google.golang.org/protobuf/types/known/structpb"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 var (
@@ -53,10 +54,10 @@ func New(opts ...Option) convcodec.Codec {
 // tryConvert attempts to convert between json.RawMessage and structpb.Struct.
 // Returns true if conversion was handled, false otherwise.
 func tryConvert(src, dst reflect.Value, opts *options) bool {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
+	srcType := reflectx.IndirectType(src.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
-	srcValue := reflectutils.IndirectValue(src)
+	srcValue := reflectx.IndirectValue(src)
 
 	switch {
 	case srcType == rawMessageType && dstType == structpbType:
@@ -85,7 +86,7 @@ func convertRawMessageToStruct(srcValue, dst reflect.Value, dstType reflect.Type
 
 	if trimmed := bytes.TrimSpace(raw); len(trimmed) == 0 || string(trimmed) == "null" {
 		if !opts.ignoreNil {
-			reflectutils.SetZero(dst)
+			reflectx.SetZero(dst)
 		}
 
 		return true
@@ -101,7 +102,7 @@ func convertRawMessageToStruct(srcValue, dst reflect.Value, dstType reflect.Type
 		return false
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	dst.Set(reflect.ValueOf(pb).Elem())
 
 	return true
@@ -112,7 +113,7 @@ func convertStructToRawMessage(srcValue, dst reflect.Value, dstType reflect.Type
 	// A nil source zeroes the destination unless WithIgnoreNil keeps it.
 	if !srcValue.IsValid() {
 		if !opts.ignoreNil {
-			reflectutils.SetZero(dst)
+			reflectx.SetZero(dst)
 		}
 
 		return true
@@ -148,7 +149,7 @@ func convertStructToRawMessage(srcValue, dst reflect.Value, dstType reflect.Type
 
 	raw := jsontext.Value(data)
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	dst.Set(reflect.ValueOf(raw))
 
 	return true

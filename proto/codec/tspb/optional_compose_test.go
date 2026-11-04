@@ -32,7 +32,7 @@ func composeToProto() []converter.Option {
 			tspb.New(tspb.WithIgnoreZero()),
 			durpb.New(durpb.WithIgnoreZero()),
 		),
-		converter.WithIgnoreZeroValues(),
+		converter.WithValueMode(converter.IgnoreZeroValues),
 	}
 }
 
@@ -157,7 +157,7 @@ func TestCompose_WithoutDownstreamCodec_IsFootgun(t *testing.T) {
 	var pb composeProto
 	converter.Convert(&composeDomain{DeleteTime: optional.Some(now)}, &pb,
 		converter.WithCodecs(optionalcodec.Codec), // no tspb / durpb
-		converter.WithIgnoreZeroValues(),
+		converter.WithValueMode(converter.IgnoreZeroValues),
 	)
 
 	require.NotNil(t, pb.DeleteTime, "current behavior: field-by-field copy materializes a non-nil *Timestamp")
@@ -210,7 +210,7 @@ var benchComposeToProtoOpts = []converter.Option{
 		tspb.New(tspb.WithIgnoreZero()),
 		durpb.New(durpb.WithIgnoreZero()),
 	),
-	converter.WithIgnoreZeroValues(),
+	converter.WithValueMode(converter.IgnoreZeroValues),
 }
 
 var benchComposeFromProtoOpts = []converter.Option{

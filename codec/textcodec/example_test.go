@@ -10,9 +10,8 @@ import (
 	"net/netip"
 	"uuid"
 
+	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/codec/textcodec"
-
-	converter "github.com/altessa-s/go-convert"
 )
 
 func ExampleNew() {
@@ -26,15 +25,15 @@ func ExampleNew() {
 		Addr string
 	}
 
-	opt := converter.WithErrorCodecs(textcodec.New())
+	opt := convert.WithErrorCodecs(textcodec.New())
 
-	dto, err := converter.ConvertE(Device{
+	dto, err := convert.ConvertE(Device{
 		ID:   uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
 		Addr: netip.MustParseAddr("192.0.2.1"),
 	}, &DeviceDTO{}, opt)
 	fmt.Println(dto.ID, dto.Addr, err)
 
-	_, err = converter.ConvertE(DeviceDTO{Addr: "300.0.0.1"}, &Device{}, opt)
+	_, err = convert.ConvertE(DeviceDTO{Addr: "300.0.0.1"}, &Device{}, opt)
 
 	var textErr *textcodec.Error
 	fmt.Println(errors.As(err, &textErr), textErr.Type)

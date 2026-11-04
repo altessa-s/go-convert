@@ -10,10 +10,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 var enumInterface = reflect.TypeFor[protoreflect.Enum]()
@@ -40,6 +41,20 @@ func (e UnknownValueError) Error() string {
 	return fmt.Sprintf("enumpb: field %q: %s has no value for %s", e.Path, e.Enum, value)
 }
 
+// ConfigError reports options or a table that cannot build a codec, such as
+// an invalid [Case] or two enum values mapped to the same Go value.
+type ConfigError struct {
+	// Func is the constructor that failed, such as "NewMapping".
+	Func string
+	// Reason describes the problem.
+	Reason string
+}
+
+// Error reports the constructor and the problem.
+func (e ConfigError) Error() string {
+	return fmt.Sprintf("enumpb: %s: %s", e.Func, e.Reason)
+}
+
 // enumNames is the name table of one enum type under one option set.
 type enumNames struct {
 	name    protoreflect.FullName
@@ -60,24 +75,45 @@ type stringCodec struct {
 // An enum is written as its value name, transformed by [WithTrimPrefix],
 // [WithTrimEnumPrefix] and [WithCase]; a string is parsed with the same
 // transformation. A number or name without a value in the enum descriptor
-// fails with [UnknownValueError], which converter.ConvertE returns unchanged.
-// A nil source pointer sets the destination to its zero value. New panics
-// when [WithCase] is given a value other than [CaseKeep], [CaseLower] and
-// [CaseUpper]. Register the codec with converter.WithErrorCodecs.
+// fails with [UnknownValueError], which convert.ConvertE returns unchanged.
+// A nil source pointer sets the destination to its zero value. New returns a
+// [ConfigError] when [WithCase] is given a value other than [CaseKeep],
+// [CaseLower] and [CaseUpper]. Register the codec with convert.WithErrorCodecs.
 //
 // Example:
 //
-//	codec := enumpb.New(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower))
-//	err := converter.ConvertE(msg, &dto, converter.WithErrorCodecs(codec))
-func New(opts ...Option) convcodec.CodecE {
-	c := &stringCodec{opts: checkedOptions("New", opts)}
-	return c.convert
+//	codec := enumpb.MustNew(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower))
+//	_, err := convert.ConvertE(msg, &dto, convert.WithErrorCodecs(codec))
+func New(opts ...Option) (convcodec.CodecE, error) {
+	o, err := checkedOptions("New", opts)
+	if err != nil {
+		return nil, err
+	}
+
+	c := &stringCodec{opts: o}
+
+	return c.convert, nil
+}
+
+// MustNew is [New] for options known to be valid; it panics with the
+// [ConfigError] instead of returning it.
+func MustNew(opts ...Option) convcodec.CodecE {
+	return must(New(opts...))
+}
+
+// must returns codec, panicking with err when it is not nil.
+func must(codec convcodec.CodecE, err error) convcodec.CodecE {
+	if err != nil {
+		panic(err)
+	}
+
+	return codec
 }
 
 // convert handles enum and string pairs and delegates the rest to next.
 func (c *stringCodec) convert(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
+	srcType := reflectx.IndirectType(src.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
 	switch {
 	case dstType.Kind() == reflect.String:
@@ -96,7 +132,7 @@ func (c *stringCodec) convert(path string, src, dst reflect.Value, next convcode
 
 // toString writes the name of the source enum value into dst.
 func (c *stringCodec) toString(path string, table *enumNames, src, dst reflect.Value, dstType reflect.Type) error {
-	value := reflectutils.IndirectValue(src)
+	value := reflectx.IndirectValue(src)
 	if !value.IsValid() {
 		zeroDst(dst)
 		return nil
@@ -113,7 +149,7 @@ func (c *stringCodec) toString(path string, table *enumNames, src, dst reflect.V
 		return UnknownValueError{Enum: table.name, Path: path, Value: number}
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	dst.SetString(name)
 
 	return nil
@@ -121,7 +157,7 @@ func (c *stringCodec) toString(path string, table *enumNames, src, dst reflect.V
 
 // fromString parses the source string into the destination enum.
 func (c *stringCodec) fromString(path string, table *enumNames, src, dst reflect.Value, dstType reflect.Type) error {
-	value := reflectutils.IndirectValue(src)
+	value := reflectx.IndirectValue(src)
 	if !value.IsValid() {
 		zeroDst(dst)
 		return nil
@@ -138,21 +174,21 @@ func (c *stringCodec) fromString(path string, table *enumNames, src, dst reflect
 		return UnknownValueError{Enum: table.name, Path: path, Value: name}
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	dst.SetInt(int64(number))
 
 	return nil
 }
 
-// checkedOptions applies opts, panicking on an invalid [Case] in the name of
+// checkedOptions applies opts, failing on an invalid [Case] in the name of
 // the constructor fn.
-func checkedOptions(fn string, opts []Option) *options {
+func checkedOptions(fn string, opts []Option) (*options, error) {
 	o := newOptions(opts...)
 	if o.nameCase < CaseKeep || o.nameCase > CaseUpper {
-		panic(fmt.Sprintf("enumpb: %s: invalid Case %d; use CaseKeep, CaseLower or CaseUpper", fn, int(o.nameCase)))
+		return nil, ConfigError{Func: fn, Reason: fmt.Sprintf("invalid Case %d; use CaseKeep, CaseLower or CaseUpper", int(o.nameCase))}
 	}
 
-	return o
+	return o, nil
 }
 
 // zeroDst applies the nil-source rule: dst is set to its zero value, such as

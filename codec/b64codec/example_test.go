@@ -8,9 +8,8 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/codec/b64codec"
-
-	converter "github.com/altessa-s/go-convert"
 )
 
 func ExampleNew() {
@@ -22,15 +21,15 @@ func ExampleNew() {
 		Data string
 	}
 
-	opt := converter.WithErrorCodecs(b64codec.New(b64codec.WithEncoding(base64.URLEncoding)))
+	opt := convert.WithErrorCodecs(b64codec.New(b64codec.WithEncoding(base64.URLEncoding)))
 
-	dto, err := converter.ConvertE(Attachment{Data: []byte("hello?")}, &AttachmentDTO{}, opt)
+	dto, err := convert.ConvertE(Attachment{Data: []byte("hello?")}, &AttachmentDTO{}, opt)
 	fmt.Println(dto.Data, err)
 
-	att, err := converter.ConvertE(AttachmentDTO{Data: "aGVsbG8_"}, &Attachment{}, opt)
+	att, err := convert.ConvertE(AttachmentDTO{Data: "aGVsbG8_"}, &Attachment{}, opt)
 	fmt.Println(string(att.Data), err)
 
-	_, err = converter.ConvertE(AttachmentDTO{Data: "aGVsbG8/"}, &Attachment{}, opt)
+	_, err = convert.ConvertE(AttachmentDTO{Data: "aGVsbG8/"}, &Attachment{}, opt)
 	fmt.Println(err)
 	// Output:
 	// aGVsbG8_ <nil>

@@ -7,7 +7,9 @@ updates:
   - package-ecosystem: gomod
     directories:
       - /
+      - /codec/optionalcodec
       - /proto
+      - /googletype
       - /devtools
     target-branch: develop
     schedule:

@@ -16,10 +16,10 @@
 // default.
 //
 // Marshal and unmarshal failures are returned as an [Error] that wraps the
-// encoding/json/v2 error; converter.ConvertE returns it unchanged.
+// encoding/json/v2 error; convert.ConvertE returns it unchanged.
 //
 // Example:
 //
 //	codec := jsoncodec.New(jsoncodec.WithStrings())
-//	_, err := converter.ConvertE(src, &dst, converter.WithErrorCodecs(codec))
+//	_, err := convert.ConvertE(src, &dst, convert.WithErrorCodecs(codec))
 package jsoncodec

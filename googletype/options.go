@@ -28,10 +28,14 @@ type options struct {
 	// currencyScales ([WithCurrencyScales]) overrides the scale per ISO 4217
 	// code, for example {"JPY": 0, "KWD": 3}.
 	currencyScales map[string]int
-	amountField    string `optgen:"manual"`
-	currencyField  string `optgen:"manual"`
-	// moneyShapes caches [options.moneyShape] per struct type.
-	moneyShapes *sync.Map `optgen:"manual"`
+	// amountField and currencyField name the fields of a Money struct; they
+	// are set together by the hand-written [WithMoneyStruct], since one
+	// without the other has no meaning.
+	amountField   string `optgen:"manual"`
+	currencyField string `optgen:"manual"`
+	// moneyShapes caches [options.moneyShape] per struct type. It is state,
+	// not an option.
+	moneyShapes *sync.Map `opt:"-"`
 	// allowPartialDates ([WithAllowPartialDates]) accepts Date values whose
 	// year, month or day is 0. Date -> time.Time replaces a missing month or
 	// day with 1 and keeps a missing year as year 0; string -> Date reads the

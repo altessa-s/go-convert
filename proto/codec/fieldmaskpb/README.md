@@ -21,7 +21,7 @@ following the `IgnorePaths` rules below. `New` keeps passing paths through unche
 
 ```go
 codec := fieldmaskpb.NewE(fieldmaskpb.WithMessage(&userpb.User{}))
-_, err := converter.ConvertE(src, &dst, converter.WithErrorCodecs(codec))
+_, err := convert.ConvertE(src, &dst, convert.WithErrorCodecs(codec))
 ```
 
 | Option            | Description                                                         |
@@ -40,7 +40,7 @@ paths, err := fieldmaskpb.IgnorePaths(req.GetUpdateMask(), req.GetUser())
 if err != nil {
 	return status.Error(codes.InvalidArgument, err.Error())
 }
-_, err = converter.ConvertE(req.GetUser(), &user, converter.WithIgnorePaths(paths...))
+_, err = convert.ConvertE(req.GetUser(), &user, convert.WithIgnorePaths(paths...))
 ```
 
 A field mask lists the fields to update, while the converter excludes fields, so `IgnorePaths` returns the complement over
@@ -60,7 +60,7 @@ the message descriptor:
   with `PathError`. JSON names (`displayName`) are not accepted. A repeated or map field may end a path.
 - **Oneofs.** A oneof is one Go field: it is ignored unless a member is listed, and then converted whole.
 - **Clearing.** Masked fields are written even when zero, which clears them, so do not combine the paths with
-  `WithIgnoreZeroValues` or `WithSparseMerge`. The converter skips nil struct pointers, so an unset masked message field
+  the `IgnoreZeroValues` or `SparseMerge` value modes. The converter skips nil struct pointers, so an unset masked message field
   leaves the destination unchanged.
 
 `IgnorePaths` returns paths rather than `[]convert.Option` because protobuf codec packages may not import the root

@@ -99,7 +99,7 @@ func TestConvert(t *testing.T) {
 		zeroSrc := Source{Name: "", Age: 0}
 		dst := Dest{Name: "Keep", Age: 99}
 
-		converter.Convert(zeroSrc, &dst, converter.WithIgnoreZeroValues())
+		converter.Convert(zeroSrc, &dst, converter.WithValueMode(converter.IgnoreZeroValues))
 
 		require.Equal(t, "Keep", dst.Name)
 		require.Equal(t, 99, dst.Age)
@@ -110,7 +110,7 @@ func TestConvert(t *testing.T) {
 		existingVal := 10
 		dst := Dest{Ptr: &existingVal}
 
-		converter.Convert(nilSrc, &dst, converter.WithIgnoreNilValues())
+		converter.Convert(nilSrc, &dst, converter.WithValueMode(converter.IgnoreNilValues))
 
 		require.NotNil(t, dst.Ptr)
 		require.Equal(t, 10, *dst.Ptr)

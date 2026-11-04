@@ -9,8 +9,9 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 var (
@@ -45,17 +46,24 @@ func New(opts ...Option) convcodec.Codec {
 // tryConvert attempts to convert between time.Time and int64.
 // Returns true if conversion was handled (including skipped due to options), false otherwise.
 func tryConvert(src, dst reflect.Value, opts *options) bool {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
+	// A destination reflect does not allow to write (an unexported field, a
+	// value that is not addressable) is declined, so the unsafe writes below
+	// never bypass reflect's read-only protection.
+	if !reflectx.Writable(dst) {
+		return false
+	}
 
-	srcValue := reflectutils.IndirectValue(src)
+	srcType := reflectx.IndirectType(src.Type())
+	dstType := reflectx.IndirectType(dst.Type())
+
+	srcValue := reflectx.IndirectValue(src)
 
 	switch {
 	case srcType == timeType && dstType == int64Type:
 		// Handle nil pointer source
 		if !srcValue.IsValid() {
 			if !opts.ignoreZero {
-				reflectutils.SetZero(dst)
+				reflectx.SetZero(dst)
 			}
 
 			return true
@@ -77,7 +85,7 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 			unix = t.Unix()
 		}
 
-		reflectutils.MakeDst(&dst, dstType)
+		reflectx.MakeDst(&dst, dstType)
 		dst.SetInt(unix)
 
 		return true
@@ -86,7 +94,7 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 		// Handle nil pointer source
 		if !srcValue.IsValid() {
 			if !opts.ignoreZero {
-				reflectutils.SetZero(dst)
+				reflectx.SetZero(dst)
 			}
 
 			return true
@@ -105,7 +113,7 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 			t = time.Unix(v, 0)
 		}
 
-		reflectutils.MakeDst(&dst, dstType)
+		reflectx.MakeDst(&dst, dstType)
 		writeTime(dst, t)
 
 		return true
@@ -134,11 +142,12 @@ func readTime(v reflect.Value) (time.Time, bool) {
 }
 
 // writeTime sets a time.Time into a reflect.Value without heap-allocating
-// via reflect.ValueOf(). Falls back to reflect.ValueOf for non-addressable values.
+// via reflect.ValueOf() when dst is a settable time.Time; otherwise it uses
+// reflect.Value.Set, which reports a read-only or mistyped dst.
 //
 // #nosec G103 -- intentional unsafe for zero-alloc time.Time write with verified safety
 func writeTime(dst reflect.Value, t time.Time) {
-	if dst.CanAddr() {
+	if dst.Type() == timeType && dst.CanSet() {
 		*(*time.Time)(unsafe.Pointer(dst.UnsafeAddr())) = t
 		return
 	}

@@ -476,9 +476,9 @@ func TestIgnorePathsPreservesPrivateState(t *testing.T) {
 		state  int
 	}{
 		{"overwrite", nil, 7},
-		{"sparse", converter.WithSparseMerge(), 3},
-		{"zero", converter.WithIgnoreZeroValues(), 3},
-		{"nil", converter.WithIgnoreNilValues(), 3},
+		{"sparse", converter.WithValueMode(converter.SparseMerge), 3},
+		{"zero", converter.WithValueMode(converter.IgnoreZeroValues), 3},
+		{"nil", converter.WithValueMode(converter.IgnoreNilValues), 3},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

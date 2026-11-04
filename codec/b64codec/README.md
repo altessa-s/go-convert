@@ -6,7 +6,7 @@ import "github.com/altessa-s/go-convert/codec/b64codec"
 
 Package `b64codec` provides an error codec (`convcodec.CodecE`) for bidirectional conversion between `[]byte` and base64 strings.
 
-Register it with `converter.WithErrorCodecs(b64codec.New())`. Invalid base64 input is returned as `*b64codec.Error`, which `converter.ConvertE` returns unchanged.
+Register it with `convert.WithErrorCodecs(b64codec.New())`. Invalid base64 input is returned as `*b64codec.Error`, which `convert.ConvertE` returns unchanged.
 
 ## Options
 

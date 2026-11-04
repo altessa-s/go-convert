@@ -16,7 +16,7 @@
 //
 // Failures from MarshalText or UnmarshalText are returned as an [*Error], so
 // the codec is an error codec ([convcodec.CodecE]) registered with
-// converter.WithErrorCodecs; converter.ConvertE returns the error unchanged.
+// convert.WithErrorCodecs; convert.ConvertE returns the error unchanged.
 //
 // Empty text sets the destination to its zero value (a nil pointer for
 // pointer destinations) without calling UnmarshalText; [WithParseEmpty]
@@ -31,5 +31,5 @@
 //
 // Example:
 //
-//	converter.ConvertE(src, &dst, converter.WithErrorCodecs(textcodec.New()))
+//	convert.ConvertE(src, &dst, convert.WithErrorCodecs(textcodec.New()))
 package textcodec

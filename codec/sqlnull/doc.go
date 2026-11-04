@@ -16,5 +16,5 @@
 //
 // Example:
 //
-//	_, err := converter.ConvertE(row, &entity, converter.WithErrorCodecs(sqlnull.New()))
+//	_, err := convert.ConvertE(row, &entity, convert.WithErrorCodecs(sqlnull.New()))
 package sqlnull

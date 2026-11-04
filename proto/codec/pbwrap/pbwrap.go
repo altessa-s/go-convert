@@ -8,8 +8,9 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 const (
@@ -37,14 +38,14 @@ func NewRegistry() *Registry {
 // TryConvert attempts protobuf wrapper conversion.
 // Returns true if conversion was handled (including skipped due to options), false otherwise.
 func (r *Registry) TryConvert(src, dst reflect.Value, opts *options) bool {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
+	srcType := reflectx.IndirectType(src.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
 	srcValue := indirectSource(src)
 
 	// Check if this is a protobuf wrapper conversion scenario
-	if (!reflectutils.IsPrimitive(srcType.Kind()) || !isWrapper(dstType)) &&
-		(!reflectutils.IsPrimitive(dstType.Kind()) || !isWrapper(srcType)) {
+	if (!reflectx.IsPrimitive(srcType.Kind()) || !isWrapper(dstType)) &&
+		(!reflectx.IsPrimitive(dstType.Kind()) || !isWrapper(srcType)) {
 		return false
 	}
 
@@ -67,7 +68,7 @@ func (r *Registry) TryConvert(src, dst reflect.Value, opts *options) bool {
 			return false
 		}
 
-		convertedValue, ok := reflectutils.ConvertValue(unwrappedValue, dstType)
+		convertedValue, ok := reflectx.ConvertValue(unwrappedValue, dstType)
 		if !ok {
 			return false
 		}
@@ -102,7 +103,7 @@ func (r *Registry) TryConvert(src, dst reflect.Value, opts *options) bool {
 			return false
 		}
 
-		wrappedValue, ok := reflectutils.ConvertValue(srcValue, valueField.Type)
+		wrappedValue, ok := reflectx.ConvertValue(srcValue, valueField.Type)
 		if !ok {
 			return false
 		}
@@ -124,7 +125,7 @@ func (r *Registry) TryConvert(src, dst reflect.Value, opts *options) bool {
 // indirectSource dereferences all pointer layers, returning an invalid value
 // when any layer is nil.
 func indirectSource(src reflect.Value) reflect.Value {
-	return reflectutils.IndirectValue(src)
+	return reflectx.IndirectValue(src)
 }
 
 // indirectDestination allocates all pointer layers and returns the final

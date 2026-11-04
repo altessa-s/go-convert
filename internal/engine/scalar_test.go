@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
+	"github.com/altessa-s/go-convert/reflectx"
 )
 
 type (
@@ -51,7 +51,7 @@ func TestSetScalarMatchesConvert(t *testing.T) {
 			got := reflect.New(dstType).Elem()
 			setScalar(src, got)
 
-			want, ok := reflectutils.ConvertValue(src, dstType)
+			want, ok := reflectx.ConvertValue(src, dstType)
 			require.True(t, ok, "%T -> %s", sample, dstType)
 
 			if want.Kind() == reflect.Float32 || want.Kind() == reflect.Float64 {

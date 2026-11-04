@@ -9,10 +9,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 var (
@@ -65,10 +66,17 @@ func New(opts ...Option) convcodec.Codec {
 // tryConvert attempts to convert between timestamppb.Timestamp and time.Time or int64.
 // Returns true if conversion was handled (including skipped due to options), false otherwise.
 func tryConvert(src, dst reflect.Value, opts *options) bool {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
+	// A destination reflect does not allow to write (an unexported field, a
+	// value that is not addressable) is declined, so the unsafe writes below
+	// never bypass reflect's read-only protection.
+	if !reflectx.Writable(dst) {
+		return false
+	}
 
-	srcValue := reflectutils.IndirectValue(src)
+	srcType := reflectx.IndirectType(src.Type())
+	dstType := reflectx.IndirectType(dst.Type())
+
+	srcValue := reflectx.IndirectValue(src)
 
 	switch {
 	case srcType == timestampType && dstType == timeType:
@@ -92,7 +100,7 @@ func tryConvert(src, dst reflect.Value, opts *options) bool {
 func convertTimestampToTime(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
 		if !opts.ignoreZero {
-			reflectutils.SetZero(dst)
+			reflectx.SetZero(dst)
 		}
 
 		return true
@@ -109,7 +117,7 @@ func convertTimestampToTime(srcValue reflect.Value, dst reflect.Value, dstType r
 
 	t := time.Unix(sec, int64(nanos))
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	writeTime(dst, t)
 
 	return true
@@ -119,7 +127,7 @@ func convertTimestampToTime(srcValue reflect.Value, dst reflect.Value, dstType r
 func convertTimeToTimestamp(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
 		if !opts.ignoreZero {
-			reflectutils.SetZero(dst)
+			reflectx.SetZero(dst)
 		}
 
 		return true
@@ -134,7 +142,7 @@ func convertTimeToTimestamp(srcValue reflect.Value, dst reflect.Value, dstType r
 		return true
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	writeTimestamp(dst, t.Unix(), int32(t.Nanosecond()))
 
 	return true
@@ -144,7 +152,7 @@ func convertTimeToTimestamp(srcValue reflect.Value, dst reflect.Value, dstType r
 func convertTimestampToInt64(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
 		if !opts.ignoreZero {
-			reflectutils.SetZero(dst)
+			reflectx.SetZero(dst)
 		}
 
 		return true
@@ -166,7 +174,7 @@ func convertTimestampToInt64(srcValue reflect.Value, dst reflect.Value, dstType 
 		v = sec
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	dst.SetInt(v)
 
 	return true
@@ -176,7 +184,7 @@ func convertTimestampToInt64(srcValue reflect.Value, dst reflect.Value, dstType 
 func convertInt64ToTimestamp(srcValue reflect.Value, dst reflect.Value, dstType reflect.Type, opts *options) bool {
 	if !srcValue.IsValid() {
 		if !opts.ignoreZero {
-			reflectutils.SetZero(dst)
+			reflectx.SetZero(dst)
 		}
 
 		return true
@@ -201,7 +209,7 @@ func convertInt64ToTimestamp(srcValue reflect.Value, dst reflect.Value, dstType 
 		sec = v
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	writeTimestamp(dst, sec, nanos)
 
 	return true
@@ -238,12 +246,12 @@ func readTimestamp(v reflect.Value) (seconds int64, nanos int32, ok bool) {
 
 // writeTimestamp writes Seconds and Nanos directly into a Timestamp reflect.Value
 // without allocating via timestamppb.New() + reflect.ValueOf().
-// Uses unsafe pointer arithmetic when the value is addressable,
-// falls back to timestamppb.New() otherwise.
+// Uses unsafe pointer arithmetic when dst is a settable Timestamp and
+// reflect.Value.Set otherwise, which reports a read-only or mistyped dst.
 //
 // #nosec G103 -- intentional unsafe for zero-alloc Timestamp write with verified safety
 func writeTimestamp(dst reflect.Value, seconds int64, nanos int32) {
-	if dst.CanAddr() {
+	if dst.Type() == timestampType && dst.CanSet() {
 		base := unsafe.Pointer(dst.UnsafeAddr())
 		*(*int64)(unsafe.Add(base, tsSecondsOffset)) = seconds
 		*(*int32)(unsafe.Add(base, tsNanosOffset)) = nanos
@@ -274,11 +282,12 @@ func readTime(v reflect.Value) (time.Time, bool) {
 }
 
 // writeTime sets a time.Time into a reflect.Value without heap-allocating
-// via reflect.ValueOf(). Falls back to reflect.ValueOf for non-addressable values.
+// via reflect.ValueOf() when dst is a settable time.Time; otherwise it uses
+// reflect.Value.Set, which reports a read-only or mistyped dst.
 //
 // #nosec G103 -- intentional unsafe for zero-alloc time.Time write with verified safety
 func writeTime(dst reflect.Value, t time.Time) {
-	if dst.CanAddr() {
+	if dst.Type() == timeType && dst.CanSet() {
 		*(*time.Time)(unsafe.Pointer(dst.UnsafeAddr())) = t
 		return
 	}

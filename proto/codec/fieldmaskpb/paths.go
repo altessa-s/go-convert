@@ -11,10 +11,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 	fmpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
@@ -49,7 +50,7 @@ func (e PathError) Error() string {
 //	if err != nil {
 //		return err // invalid mask: report InvalidArgument
 //	}
-//	_, err = converter.ConvertE(req.GetUser(), &user, converter.WithIgnorePaths(paths...))
+//	_, err = convert.ConvertE(req.GetUser(), &user, convert.WithIgnorePaths(paths...))
 //
 // A field mask lists the fields to update, while the converter excludes
 // fields, so IgnorePaths returns the complement: every field of msg that
@@ -57,8 +58,8 @@ func (e PathError) Error() string {
 // listed message field selects its whole subtree; for a listed nested path
 // such as "address.city", the siblings of city are ignored inside address.
 // Masked fields are written even when they hold the zero value, which clears
-// them in the destination, so do not combine the result with
-// converter.WithIgnoreZeroValues or converter.WithSparseMerge. The converter
+// them in the destination, so do not combine the result with the
+// convert.IgnoreZeroValues or convert.SparseMerge value modes. The converter
 // skips nil struct pointers, so a masked message field left unset in msg does
 // not clear the destination; clear such fields explicitly if the API requires
 // it.
@@ -70,7 +71,7 @@ func (e PathError) Error() string {
 // protoc-gen-go naming rules as the fallback for dynamic messages. The
 // conversion source must therefore be msg itself or a struct whose fields are
 // named like it, and its paths must not be renamed with
-// converter.WithFieldMappings.
+// convert.WithFieldMappings.
 //
 // A oneof is a single Go field: it is ignored unless one of its members is
 // listed, and then converted whole. A path may end at a repeated or map
@@ -270,7 +271,7 @@ func goNamesOf(t reflect.Type) *goNames {
 		return &goNames{}
 	}
 
-	t = reflectutils.IndirectType(t)
+	t = reflectx.IndirectType(t)
 	if cached, ok := goNamesCache.Load(t); ok {
 		names, _ := cached.(*goNames)
 		return names
@@ -286,7 +287,7 @@ func goNamesOf(t reflect.Type) *goNames {
 			}
 
 			if name, ok := tagName(f.Tag.Get("protobuf")); ok {
-				typ := reflectutils.IndirectType(f.Type)
+				typ := reflectx.IndirectType(f.Type)
 				if typ.Kind() != reflect.Struct {
 					typ = nil
 				}

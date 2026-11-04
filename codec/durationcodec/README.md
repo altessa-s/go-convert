@@ -6,7 +6,7 @@ import "github.com/altessa-s/go-convert/codec/durationcodec"
 
 Package `durationcodec` provides an error codec (`convcodec.CodecE`) for bidirectional conversion between `time.Duration` and strings (`"1h30m0s"`, via `time.ParseDuration` and `Duration.String`) or numbers of a configurable unit (seconds by default).
 
-Register it with `converter.WithErrorCodecs(durationcodec.New())`. Parse errors, values that overflow the destination and non-finite floats are returned as `*durationcodec.Error`, which `converter.ConvertE` returns unchanged; overflow errors wrap `strconv.ErrRange`.
+Register it with `convert.WithErrorCodecs(durationcodec.New())`. Parse errors, values that overflow the destination and non-finite floats are returned as `*durationcodec.Error`, which `convert.ConvertE` returns unchanged; overflow errors wrap `strconv.ErrRange`.
 
 ## Options
 

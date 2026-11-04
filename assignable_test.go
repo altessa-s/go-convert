@@ -112,7 +112,7 @@ func TestAssignableFieldsWithAndWithoutCodecs(t *testing.T) {
 				keep := "keep"
 				src := root{item{nil, "new"}, time.Unix(123, 0)}
 				dst := root{item{&keep, "old"}, time.Unix(456, 0)}
-				converter.Convert(src, &dst, append(opts, converter.WithSparseMerge())...)
+				converter.Convert(src, &dst, append(opts, converter.WithValueMode(converter.SparseMerge))...)
 
 				if dst.Item != (item{&keep, "new"}) || !dst.Time.Equal(src.Time) {
 					t.Fatalf("sparse = %+v", dst)

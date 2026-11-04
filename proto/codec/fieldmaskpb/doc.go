@@ -18,7 +18,7 @@
 // field names (display_name) to the lower-cased Go field names the converter
 // matches (displayname), and validates every mask path. The package cannot
 // return converter options itself: protobuf codec packages may not import the
-// root converter package. Pass the result to converter.WithIgnorePaths.
+// root converter package. Pass the result to convert.WithIgnorePaths.
 //
 // Example:
 //
@@ -26,5 +26,5 @@
 //	if err != nil {
 //		return err
 //	}
-//	_, err = converter.ConvertE(req.GetUser(), &user, converter.WithIgnorePaths(paths...))
+//	_, err = convert.ConvertE(req.GetUser(), &user, convert.WithIgnorePaths(paths...))
 package fieldmaskpb

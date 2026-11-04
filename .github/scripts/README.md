@@ -55,3 +55,13 @@ statistically significant increase in `sec/op` or `allocs/op` above `BENCH_THRES
 benchmarks present on one side only never fail. `BENCH_REPORT` names a file that also receives the report. The defaults of these variables are set
 and documented in the script's header. The [`bench.yml`](../workflows/bench.yml) workflow runs it on pull requests against the base branch; locally
 use `make bench-compare BASE=<ref>`.
+
+## Nested modules
+
+`nested-build-check.sh` builds every nested module (the Makefile's `NESTED_MODULES`) the way a consumer's module graph combines it with the root
+module, without the `replace` directives of the nested `go.mod` files. It serves the root module and every nested module from the working tree
+through a local `file://` `GOPROXY` at one pseudo-version hashed from the served files, rewrites every go-convert requirement to it, then vets each
+nested module against the served root. It also builds the latest released tag of each nested module (`<dir>/v*`) against the served root, so a root
+change that breaks a released nested module fails the check. `NESTED_BUILD_ACCEPT` lists released tags whose breakage is accepted, pinned to the
+tagged commit as `<tag>@<commit>`. `TestArchitecture` complements it statically: nested modules may not import the root module's `internal`
+packages. The [`ci.yml`](../workflows/ci.yml) workflow runs it with the tags fetched; locally use `make nested-build-check`.

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"reflect"
 
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
+	"github.com/altessa-s/go-convert/reflectx"
 )
 
 // UnsupportedTypeError reports a source and destination combination the
@@ -48,7 +48,7 @@ func (e OverflowError) Error() string {
 
 // newOverflowError describes the overflow of src when written to dst.
 func newOverflowError(field string, src reflect.Value, dst reflect.Kind) OverflowError {
-	src = reflectutils.IndirectValue(src)
+	src = reflectx.IndirectValue(src)
 	return OverflowError{Field: field, From: src.Kind(), To: dst, Value: src.Interface()}
 }
 

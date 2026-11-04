@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoregistry"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 	pbany "google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -34,7 +35,7 @@ type codec struct {
 
 // New creates an error codec for conversion between google.protobuf.Any and
 // concrete protobuf messages or Go domain types. Register it with
-// converter.WithErrorCodecs.
+// convert.WithErrorCodecs.
 //
 // Supported conversions, all in both directions and for pointer and
 // non-pointer fields:
@@ -73,10 +74,10 @@ type codec struct {
 //
 // Example:
 //
-//	registry := anypb.NewRegistry().Register(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]())
-//	_, err := converter.ConvertE(src, &dst,
-//	    converter.WithErrorCodecs(anypb.New(anypb.WithRegistry(registry))),
-//	    converter.WithCodecs(tspb.New()))
+//	registry := anypb.NewRegistry().MustRegister(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]())
+//	_, err := convert.ConvertE(src, &dst,
+//	    convert.WithErrorCodecs(anypb.New(anypb.WithRegistry(registry))),
+//	    convert.WithCodecs(tspb.New()))
 func New(opts ...Option) convcodec.CodecE {
 	o := newOptions(opts...)
 	o.registry.freeze()
@@ -93,8 +94,8 @@ func New(opts ...Option) convcodec.CodecE {
 
 // convert is the CodecE entry point.
 func (c *codec) convert(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
+	srcType := reflectx.IndirectType(src.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
 	if srcType.Kind() == reflect.Interface && dstType != anyType && dstType.Kind() != reflect.Interface {
 		// An interface holding an Any unpacks like an Any field.
@@ -105,7 +106,7 @@ func (c *codec) convert(path string, src, dst reflect.Value, next convcodec.Code
 
 	switch {
 	case srcType == anyType && dstType != anyType && c.supports(dstType):
-		value := reflectutils.IndirectValue(src)
+		value := reflectx.IndirectValue(src)
 		if !value.IsValid() {
 			c.clear(dst)
 			return nil
@@ -319,13 +320,13 @@ func isMessage(t reflect.Type) bool {
 // sourceValue dereferences pointers and unwraps interfaces, returning an
 // invalid value when the source is nil.
 func sourceValue(src reflect.Value) reflect.Value {
-	value := reflectutils.IndirectValue(src)
+	value := reflectx.IndirectValue(src)
 	for value.IsValid() && value.Kind() == reflect.Interface {
 		if value.IsNil() {
 			return reflect.Value{}
 		}
 
-		value = reflectutils.IndirectValue(value.Elem())
+		value = reflectx.IndirectValue(value.Elem())
 	}
 
 	return value

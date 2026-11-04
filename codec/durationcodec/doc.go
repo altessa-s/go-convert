@@ -16,12 +16,12 @@
 //
 // Parse errors, values that overflow the destination and non-finite floats
 // are returned as an [*Error], so the codec is an error codec
-// ([convcodec.CodecE]) registered with converter.WithErrorCodecs;
-// converter.ConvertE returns the error unchanged. An empty string or a nil
+// ([convcodec.CodecE]) registered with convert.WithErrorCodecs;
+// convert.ConvertE returns the error unchanged. An empty string or a nil
 // source sets the destination to its zero value (nil for pointer
 // destinations). Both pointer and non-pointer variants are supported.
 //
 // Example:
 //
-//	converter.ConvertE(src, &dst, converter.WithErrorCodecs(durationcodec.New(durationcodec.WithUnit(time.Millisecond))))
+//	convert.ConvertE(src, &dst, convert.WithErrorCodecs(durationcodec.New(durationcodec.WithUnit(time.Millisecond))))
 package durationcodec

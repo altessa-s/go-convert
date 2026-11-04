@@ -8,8 +8,9 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 	fmpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
@@ -54,7 +55,7 @@ func New(opts ...Option) convcodec.Codec {
 // NewE creates an error codec for bidirectional conversion between
 // fieldmaskpb.FieldMask and a slice of any string kind holding its paths,
 // converting as [New] does but validating every path first. Register it with
-// converter.WithErrorCodecs.
+// convert.WithErrorCodecs.
 //
 // Without [WithMessage] a path must be one or more lower snake_case segments
 // separated by dots, such as "address.city"; "*" is accepted as the only
@@ -66,7 +67,7 @@ func New(opts ...Option) convcodec.Codec {
 // Example:
 //
 //	codec := fieldmaskpb.NewE(fieldmaskpb.WithMessage(&userpb.User{}))
-//	_, err := converter.ConvertE(src, &dst, converter.WithErrorCodecs(codec))
+//	_, err := convert.ConvertE(src, &dst, convert.WithErrorCodecs(codec))
 func NewE(opts ...Option) convcodec.CodecE {
 	o := newOptions(opts...)
 	check := validator(o.message)
@@ -85,14 +86,14 @@ func NewE(opts ...Option) convcodec.CodecE {
 // it. check, when not nil, validates the source paths before anything is
 // written.
 func tryConvert(src, dst reflect.Value, opts *options, check func([]string) error) (bool, error) {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
+	srcType := reflectx.IndirectType(src.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
 	switch {
 	case srcType == maskType && isStringSlice(dstType):
-		return convertMaskToPaths(reflectutils.IndirectValue(src), dst, dstType, opts, check)
+		return convertMaskToPaths(reflectx.IndirectValue(src), dst, dstType, opts, check)
 	case isStringSlice(srcType) && dstType == maskType:
-		return convertPathsToMask(reflectutils.IndirectValue(src), dst, dstType, opts, check)
+		return convertPathsToMask(reflectx.IndirectValue(src), dst, dstType, opts, check)
 	default:
 		return false, nil
 	}
@@ -127,7 +128,7 @@ func convertMaskToPaths(srcValue, dst reflect.Value, dstType reflect.Type, opts 
 		return true, nil
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 
 	if dstType.Elem() == stringType {
 		dst.Set(reflect.ValueOf(paths).Convert(dstType))
@@ -166,7 +167,7 @@ func convertPathsToMask(srcValue, dst reflect.Value, dstType reflect.Type, opts 
 		}
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	dst.Field(pathsIndex).Set(reflect.ValueOf(normalize(paths, opts)))
 
 	return true, nil

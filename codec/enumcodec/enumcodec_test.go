@@ -5,7 +5,6 @@
 package enumcodec_test
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -67,7 +66,7 @@ func TestNew_Format(t *testing.T) {
 
 			dst := "unchanged"
 
-			err := run(t, enumcodec.New(colorNames, tt.opts...), tt.src, &dst)
+			err := run(t, enumcodec.MustNew(colorNames, tt.opts...), tt.src, &dst)
 			if tt.err {
 				var unknown enumcodec.UnknownValueError
 				require.ErrorAs(t, err, &unknown)
@@ -109,7 +108,7 @@ func TestNew_Parse(t *testing.T) {
 
 			dst := colorBlue
 
-			err := run(t, enumcodec.New(colorNames, tt.opts...), tt.src, &dst)
+			err := run(t, enumcodec.MustNew(colorNames, tt.opts...), tt.src, &dst)
 			if tt.err {
 				var unknown enumcodec.UnknownValueError
 				require.ErrorAs(t, err, &unknown)
@@ -128,7 +127,7 @@ func TestNew_Parse(t *testing.T) {
 func TestNew_Pointers(t *testing.T) {
 	t.Parallel()
 
-	codec := enumcodec.New(colorNames)
+	codec := enumcodec.MustNew(colorNames)
 
 	var name *string
 	require.NoError(t, run(t, codec, colorRed, &name))
@@ -150,7 +149,7 @@ func TestNew_Pointers(t *testing.T) {
 func TestNewInt(t *testing.T) {
 	t.Parallel()
 
-	codec := enumcodec.NewInt(colorNumbers)
+	codec := enumcodec.MustNewInt(colorNumbers)
 
 	var i32 int32
 	require.NoError(t, run(t, codec, colorGreen, &i32))
@@ -179,7 +178,7 @@ func TestNewInt(t *testing.T) {
 	require.Equal(t, enumcodec.RangeError{Path: "Field", Value: 300, Kind: reflect.Uint8}, rangeErr)
 	require.Zero(t, u8)
 
-	unspecified := enumcodec.NewInt(colorNumbers, enumcodec.WithUnspecified())
+	unspecified := enumcodec.MustNewInt(colorNumbers, enumcodec.WithUnspecified())
 
 	var n int
 	require.NoError(t, run(t, unspecified, colorUnspecified, &n))
@@ -209,7 +208,7 @@ type canvasDTO struct {
 func TestNewInt_EnumPairDelegates(t *testing.T) {
 	t.Parallel()
 
-	codec := enumcodec.NewInt(map[paint]int64{1: 100, 2: 200})
+	codec := enumcodec.MustNewInt(map[paint]int64{1: 100, 2: 200})
 
 	called := false
 	err := codec("Field", reflect.ValueOf(paint(1)), reflect.ValueOf(new(shade)).Elem(), func(string, reflect.Value, reflect.Value) error {
@@ -224,15 +223,22 @@ func TestNewInt_EnumPairDelegates(t *testing.T) {
 	require.Equal(t, &canvasDTO{Paint: 2, Shade: new(paint(1))}, dto, "the engine converts enum pairs by value")
 }
 
-func TestNewInt_CaseInsensitivePanics(t *testing.T) {
+func TestNewInt_CaseInsensitive(t *testing.T) {
 	t.Parallel()
-	require.Panics(t, func() { enumcodec.NewInt(colorNumbers, enumcodec.WithCaseInsensitive()) })
+
+	codec, err := enumcodec.NewInt(colorNumbers, enumcodec.WithCaseInsensitive())
+	require.Nil(t, codec)
+
+	var cfg enumcodec.ConfigError
+	require.ErrorAs(t, err, &cfg)
+	require.Equal(t, reflect.TypeFor[color](), cfg.Enum)
+	require.Panics(t, func() { enumcodec.MustNewInt(colorNumbers, enumcodec.WithCaseInsensitive()) })
 }
 
 func TestNegativeIntoUnsigned(t *testing.T) {
 	t.Parallel()
 
-	codec := enumcodec.NewInt(map[color]int64{colorRed: -1})
+	codec := enumcodec.MustNewInt(map[color]int64{colorRed: -1})
 
 	var (
 		u        uint
@@ -246,7 +252,7 @@ func TestDelegates(t *testing.T) {
 
 	type other int
 
-	codec := enumcodec.New(colorNames)
+	codec := enumcodec.MustNew(colorNames)
 
 	tests := []struct {
 		name     string
@@ -282,7 +288,7 @@ func TestStringKindEnum(t *testing.T) {
 
 	type status string
 
-	codec := enumcodec.New(map[status]string{"ACTIVE": "active"})
+	codec := enumcodec.MustNew(map[status]string{"ACTIVE": "active"})
 
 	var dst string
 	require.NoError(t, run(t, codec, status("ACTIVE"), &dst))
@@ -300,14 +306,27 @@ func TestStringKindEnum(t *testing.T) {
 	require.True(t, called, "an E to E pair must be delegated")
 }
 
-func TestDuplicatesPanic(t *testing.T) {
+func TestDuplicates(t *testing.T) {
 	t.Parallel()
-	require.Panics(t, func() { enumcodec.New(map[color]string{colorRed: "x", colorBlue: "x"}) })
-	require.Panics(t, func() { enumcodec.NewInt(map[color]int64{colorRed: 1, colorBlue: 1}) })
-	require.Panics(t, func() {
-		enumcodec.New(map[color]string{colorRed: "x", colorBlue: "X"}, enumcodec.WithCaseInsensitive())
-	})
-	require.NotPanics(t, func() { enumcodec.New(map[color]string{colorRed: "x", colorBlue: "X"}) })
+
+	var cfg enumcodec.ConfigError
+
+	_, err := enumcodec.New(map[color]string{colorRed: "x", colorBlue: "x"})
+	require.ErrorAs(t, err, &cfg)
+	require.ErrorContains(t, err, "mapped more than once")
+
+	_, err = enumcodec.NewInt(map[color]int64{colorRed: 1, colorBlue: 1})
+	require.ErrorAs(t, err, &cfg)
+
+	_, err = enumcodec.New(map[color]string{colorRed: "x", colorBlue: "X"}, enumcodec.WithCaseInsensitive())
+	require.ErrorAs(t, err, &cfg)
+	require.ErrorContains(t, err, "collide ignoring case")
+
+	_, err = enumcodec.New(map[color]string{colorRed: "x", colorBlue: "X"})
+	require.NoError(t, err)
+
+	require.Panics(t, func() { enumcodec.MustNew(map[color]string{colorRed: "x", colorBlue: "x"}) })
+	require.Panics(t, func() { enumcodec.MustNewInt(map[color]int64{colorRed: 1, colorBlue: 1}) })
 }
 
 func TestErrorMessages(t *testing.T) {
@@ -338,8 +357,8 @@ func TestConverterRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	opts := []converter.Option{converter.WithErrorCodecs(
-		enumcodec.New(colorNames),
-		enumcodec.NewInt(colorNumbers),
+		enumcodec.MustNew(colorNames),
+		enumcodec.MustNewInt(colorNumbers),
 	)}
 	// Color and Shade are claimed by the string codec, Number by the integer one.
 	src := order{ID: 1, Color: colorGreen, Shade: new(colorBlue), Number: colorRed}
@@ -356,39 +375,10 @@ func TestConverterRoundTrip(t *testing.T) {
 func TestConverterReturnsErrorUnchanged(t *testing.T) {
 	t.Parallel()
 
-	_, err := converter.ConvertE(orderDTO{Color: "purple"}, &order{}, converter.WithErrorCodecs(enumcodec.New(colorNames)))
+	_, err := converter.ConvertE(orderDTO{Color: "purple"}, &order{}, converter.WithErrorCodecs(enumcodec.MustNew(colorNames)))
 	require.Equal(t, enumcodec.UnknownValueError{Path: "color", Enum: reflect.TypeFor[color](), Value: "purple"}, err)
 
-	_, err = converter.ConvertE(order{Color: colorRed, Number: color(7)}, &orderDTO{}, converter.WithErrorCodecs(enumcodec.NewInt(colorNumbers)))
+	_, err = converter.ConvertE(order{Color: colorRed, Number: color(7)}, &orderDTO{}, converter.WithErrorCodecs(enumcodec.MustNewInt(colorNumbers)))
 	require.Equal(t, enumcodec.UnknownValueError{Path: "number", Enum: reflect.TypeFor[color](), Value: color(7)}, err,
 		"Color pairs color with string, which NewInt does not claim")
-}
-
-func ExampleNew() {
-	type Status int
-
-	const (
-		Unknown Status = iota
-		Active
-		Suspended
-	)
-
-	type User struct{ Status Status }
-
-	type UserDTO struct{ Status string }
-
-	codec := enumcodec.New(map[Status]string{Active: "active", Suspended: "suspended"}, enumcodec.WithCaseInsensitive())
-
-	dto, err := converter.ConvertE(User{Status: Suspended}, &UserDTO{}, converter.WithErrorCodecs(codec))
-	fmt.Println(dto.Status, err)
-
-	user, err := converter.ConvertE(UserDTO{Status: "ACTIVE"}, &User{}, converter.WithErrorCodecs(codec))
-	fmt.Println(user.Status == Active, err)
-
-	_, err = converter.ConvertE(UserDTO{Status: "deleted"}, &User{}, converter.WithErrorCodecs(codec))
-	fmt.Println(err)
-	// Output:
-	// suspended <nil>
-	// true <nil>
-	// enumcodec: field "status": unknown enumcodec_test.Status value "deleted"
 }

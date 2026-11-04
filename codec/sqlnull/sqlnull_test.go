@@ -7,7 +7,6 @@ package sqlnull_test
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -365,30 +364,4 @@ func TestConverterReturnsErrorUnchanged(t *testing.T) {
 	}
 	_, err := converter.ConvertE(row{CreatedAt: sql.NullTime{Valid: true}}, &entity{}, converter.WithErrorCodecs(sqlnull.New(), failing))
 	require.Equal(t, errInner, err)
-}
-
-func ExampleNew() {
-	type Row struct {
-		Name  sql.NullString
-		Email sql.Null[string]
-		Age   sql.NullInt64
-	}
-
-	type User struct {
-		Name  string
-		Email *string
-		Age   *int64
-	}
-
-	user, err := converter.ConvertE(Row{
-		Name:  sql.NullString{String: "Ann", Valid: true},
-		Email: sql.Null[string]{V: "ann@example.com", Valid: true},
-	}, &User{}, converter.WithErrorCodecs(sqlnull.New()))
-	fmt.Println(user.Name, *user.Email, user.Age == nil, err)
-
-	row, err := converter.ConvertE(User{Name: "Bob"}, &Row{}, converter.WithErrorCodecs(sqlnull.New()))
-	fmt.Println(row.Name, row.Email.Valid, row.Age.Valid, err)
-	// Output:
-	// Ann ann@example.com true <nil>
-	// {Bob true} false false <nil>
 }

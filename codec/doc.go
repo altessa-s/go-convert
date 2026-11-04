@@ -2,26 +2,30 @@
 // Use of this source code is governed by the MIT license that can be found in
 // the LICENSE file.
 
-// Package convcodec provides core types for custom conversion codecs and a chain execution engine.
+// Package codec provides the codec contract and the chain execution engine
+// of the converter. The examples and the codec packages of this repository
+// import it as convcodec, which leaves the name codec free for variables
+// holding a codec:
 //
-// [CodecE] and [CodecHandlerE] add error-returning middleware with full field
-// paths. [Set.AddError] registers this chain; [Set.RunError] runs it before the
-// legacy Codec chain and terminal handler. [Set.Run] remains unchanged.
-// When registered with converter.WithErrorCodecs, CodecE errors propagate
-// unchanged through converter.ConvertE, preserving error identity.
+//	import convcodec "github.com/altessa-s/go-convert/codec"
 //
-// Individual codec implementations live in subpackages:
+// A [Codec] handles a value or delegates to the next codec of a [Set]; the
+// converter's built-in conversion ends the chain. [CodecE] and
+// [CodecHandlerE] add error-returning middleware that receives the full
+// source field path: [Set.AddError] registers it and [Set.RunError] runs it
+// before the [Codec] chain and the terminal handler. Registered with
+// convert.WithErrorCodecs, a CodecE error propagates unchanged through
+// convert.ConvertE, preserving its identity.
 //
-//   - [github.com/altessa-s/go-convert/proto/codec/pbwrap] — protobuf wrapper ↔ primitive conversion
-//   - [github.com/altessa-s/go-convert/proto/codec/oneof] — struct ↔ protobuf oneof conversion
-//   - [github.com/altessa-s/go-convert/codec/mapslice] — map keys/values → slice conversion
-//   - [github.com/altessa-s/go-convert/codec/unixtime] — time.Time ↔ int64 Unix timestamp conversion
-//   - [github.com/altessa-s/go-convert/proto/codec/jsonpb] — json.RawMessage ↔ structpb.Struct conversion
-//   - [github.com/altessa-s/go-convert/proto/codec/tspb] — timestamppb.Timestamp ↔ time.Time / int64 conversion
-//   - [github.com/altessa-s/go-convert/proto/codec/durpb] — durationpb.Duration ↔ time.Duration conversion
+// Codec implementations live in sub-packages, such as
+// [github.com/altessa-s/go-convert/codec/unixtime] and
+// [github.com/altessa-s/go-convert/codec/textcodec], and in the nested
+// modules github.com/altessa-s/go-convert/proto,
+// github.com/altessa-s/go-convert/googletype and
+// github.com/altessa-s/go-convert/codec/optionalcodec.
 //
-// Example usage:
+// Example:
 //
-//	codecSet := convcodec.NewCodecsSet(pbwrap.New(), unixtime.New())
+//	codecSet := convcodec.NewCodecsSet(unixtime.New())
 //	codecSet.Run("fieldName", srcVal, dstVal, defaultHandler)
-package convcodec
+package codec

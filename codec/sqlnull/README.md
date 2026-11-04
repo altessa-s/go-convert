@@ -5,7 +5,7 @@ import "github.com/altessa-s/go-convert/codec/sqlnull"
 ```
 
 Package `sqlnull` provides an error codec that bridges `database/sql` null types and their plain counterparts. `New` returns a `convcodec.CodecE`;
-register it with `converter.WithErrorCodecs`.
+register it with `convert.WithErrorCodecs`.
 
 It recognizes the generic `sql.Null[T]` and the legacy `sql.NullString`, `NullInt64`, `NullInt32`, `NullInt16`, `NullByte`, `NullFloat64`,
 `NullBool` and `NullTime` by reflection (`IsNullType`). Below, `N` is such a type with value type `T`.

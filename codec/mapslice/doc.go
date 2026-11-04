@@ -14,5 +14,5 @@
 //
 // Example:
 //
-//	converter.Convert(src, &dst, converter.WithCodecs(mapslice.Values))
+//	convert.Convert(src, &dst, convert.WithCodecs(mapslice.Values))
 package mapslice

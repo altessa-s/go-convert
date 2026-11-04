@@ -191,7 +191,7 @@ func TestCodec_IntegrationViaConverter_PointerToOptional(t *testing.T) {
 	}
 
 	conv := converter.New[model, *entity](
-		converter.WithHandleEmbeddedStructs(true),
+		converter.WithEmbeddedStructs(converter.EmbeddedFillAlways),
 		converter.WithCodecs(optionalcodec.Codec),
 	)
 
@@ -223,7 +223,7 @@ func TestCodec_IntegrationViaConverter_NilPointersBecomeNone(t *testing.T) {
 	}
 
 	conv := converter.New[model, *entity](
-		converter.WithHandleEmbeddedStructs(true),
+		converter.WithEmbeddedStructs(converter.EmbeddedFillAlways),
 		converter.WithCodecs(optionalcodec.Codec),
 	)
 
@@ -244,7 +244,7 @@ func TestCodec_IntegrationViaConverter_OptionalToPointer(t *testing.T) {
 	}
 
 	conv := converter.New[entity, *model](
-		converter.WithHandleEmbeddedStructs(true),
+		converter.WithEmbeddedStructs(converter.EmbeddedFillAlways),
 		converter.WithCodecs(optionalcodec.Codec),
 	)
 
@@ -269,7 +269,7 @@ func TestCodec_IntegrationViaConverter_NoneToNilPointer(t *testing.T) {
 	}
 
 	conv := converter.New[entity, *model](
-		converter.WithHandleEmbeddedStructs(true),
+		converter.WithEmbeddedStructs(converter.EmbeddedFillAlways),
 		converter.WithCodecs(optionalcodec.Codec),
 	)
 

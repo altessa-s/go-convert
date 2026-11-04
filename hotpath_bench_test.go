@@ -99,7 +99,7 @@ func BenchmarkConvert_OneOff_WithOptions(b *testing.B) {
 		converter.Convert(&src, &dst,
 			converter.WithIgnoreFields("Email"),
 			converter.WithOverflowCheck(),
-			converter.WithIgnoreNilValues(),
+			converter.WithValueMode(converter.IgnoreNilValues),
 		)
 	}
 }

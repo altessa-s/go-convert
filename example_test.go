@@ -13,7 +13,8 @@ import (
 	"strings"
 	"time"
 
-	converter "github.com/altessa-s/go-convert"
+	"github.com/altessa-s/go-convert"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
 )
 
@@ -50,14 +51,14 @@ func Example() {
 		Address:  &exampleAddress{City: "Berlin", Zip: "10115"},
 	}
 
-	dto := converter.Convert(user, &exampleUserDTO{})
+	dto := convert.Convert(user, &exampleUserDTO{})
 
 	fmt.Println(dto.ID, dto.Name, dto.Tags, dto.Address.City)
 	// Output: 7 Ann [admin ops] Berlin
 }
 
 func ExampleNew() {
-	toDTO := converter.New[*exampleUser, *exampleUserDTO](converter.WithIgnoreFields("tags"))
+	toDTO := convert.New[*exampleUser, *exampleUserDTO](convert.WithIgnoreFields("tags"))
 
 	for _, user := range []*exampleUser{
 		{ID: 1, Name: "Ann", Tags: []string{"admin"}},
@@ -76,7 +77,7 @@ func ExampleNew() {
 	// 2 Bob true
 }
 
-func ExampleWithSparseMerge() {
+func ExampleWithValueMode() {
 	type Address struct {
 		City *string
 		Zip  *string
@@ -99,11 +100,11 @@ func ExampleWithSparseMerge() {
 
 	// Only the set fields are applied; nested structs are merged.
 	patch := Profile{Name: ptr("Anna"), Address: &Address{City: ptr("Paris")}}
-	converter.Convert(&patch, &stored, converter.WithSparseMerge())
+	convert.Convert(&patch, &stored, convert.WithValueMode(convert.SparseMerge))
 	fmt.Println(*stored.Name, *stored.Age, *stored.Address.City, *stored.Address.Zip)
 
 	// A nested struct with no set fields clears the destination field.
-	converter.Convert(&Profile{Address: &Address{}}, &stored, converter.WithSparseMerge())
+	convert.Convert(&Profile{Address: &Address{}}, &stored, convert.WithValueMode(convert.SparseMerge))
 	fmt.Println(*stored.Name, stored.Address == nil)
 	// Output:
 	// Anna 30 Paris 10115
@@ -121,8 +122,8 @@ func ExampleWithFieldMappings() {
 		Email    string
 	}
 
-	dto := converter.Convert(Account{Login: "ann", Email: "ann@example.com"}, &AccountDTO{},
-		converter.WithFieldMappings(map[string]string{"Login": "Username"}))
+	dto := convert.Convert(Account{Login: "ann", Email: "ann@example.com"}, &AccountDTO{},
+		convert.WithFieldMappings(map[string]string{"Login": "Username"}))
 
 	fmt.Println(dto.Username, dto.Email)
 	// Output: ann ann@example.com
@@ -151,7 +152,7 @@ func ExampleWithCodecs() {
 	}
 
 	event := Event{Title: "launch", At: time.Date(2026, time.March, 14, 9, 0, 0, 0, time.UTC)}
-	dto := converter.Convert(event, &EventDTO{}, converter.WithCodecs(timeToString))
+	dto := convert.Convert(event, &EventDTO{}, convert.WithCodecs(timeToString))
 
 	fmt.Println(dto.Title, dto.At)
 	// Output: launch 2026-03-14
@@ -172,7 +173,7 @@ func ExampleWithErrorCodecs() {
 		return next(path, src, dst)
 	}
 
-	_, err := converter.ConvertE(Signup{Name: "Ann", Email: "nope"}, &Signup{}, converter.WithErrorCodecs(validate))
+	_, err := convert.ConvertE(Signup{Name: "Ann", Email: "nope"}, &Signup{}, convert.WithErrorCodecs(validate))
 
 	fmt.Println(err)
 	fmt.Println(errors.Is(err, errInvalidEmail))
@@ -187,7 +188,7 @@ func ExampleConvertSeq() {
 		{ID: 2, Name: "Bob"},
 	}
 
-	for dto := range converter.ConvertSeq[exampleUserDTO](users) {
+	for dto := range convert.ConvertSeq[exampleUserDTO](users) {
 		fmt.Println(dto.ID, dto.Name)
 	}
 	// Output:
@@ -202,7 +203,7 @@ func ExampleConvertMapSeq() {
 	}
 
 	// Keys are converted too; iteration order is unspecified, so collect and sort.
-	dtos := maps.Collect(converter.ConvertMapSeq[string, exampleUserDTO](usersByID))
+	dtos := maps.Collect(convert.ConvertMapSeq[string, exampleUserDTO](usersByID))
 	for _, key := range slices.Sorted(maps.Keys(dtos)) {
 		fmt.Printf("%q %s\n", key, dtos[key].Name)
 	}
@@ -227,9 +228,9 @@ func ExampleWithMaxDepth() {
 
 	// A distinct destination type makes the converter walk the cycle instead
 	// of assigning the pointer as a whole.
-	_, err := converter.ConvertE(ring, &NodeDTO{}, converter.WithMaxDepth(16))
+	_, err := convert.ConvertE(ring, &NodeDTO{}, convert.WithMaxDepth(16))
 
-	if depthErr, ok := errors.AsType[converter.DepthError](err); ok {
+	if depthErr, ok := errors.AsType[convert.DepthError](err); ok {
 		fmt.Println("depth limit:", depthErr.Limit)
 	}
 	// Output: depth limit: 16

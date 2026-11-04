@@ -9,12 +9,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/altessa-s/go-convert"
 	"github.com/altessa-s/go-convert/googletype"
 
 	"google.golang.org/genproto/googleapis/type/date"
 	"google.golang.org/genproto/googleapis/type/money"
-
-	converter "github.com/altessa-s/go-convert"
 )
 
 func Example() {
@@ -28,14 +27,14 @@ func Example() {
 		DueOn *date.Date
 	}
 
-	opts := []converter.Option{
-		converter.WithErrorCodecs(
+	opts := []convert.Option{
+		convert.WithErrorCodecs(
 			googletype.NewMoney(googletype.WithCurrency("EUR")),
 			googletype.NewDate(),
 		),
 	}
 
-	msg, err := converter.ConvertE(Invoice{Total: 19_990, DueOn: time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC)}, &InvoiceMessage{}, opts...)
+	msg, err := convert.ConvertE(Invoice{Total: 19_990, DueOn: time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC)}, &InvoiceMessage{}, opts...)
 	if err != nil {
 		panic(err)
 	}
@@ -43,7 +42,7 @@ func Example() {
 	fmt.Println(msg.Total.GetCurrencyCode(), msg.Total.GetUnits(), msg.Total.GetNanos())
 	fmt.Println(msg.DueOn.GetYear(), msg.DueOn.GetMonth(), msg.DueOn.GetDay())
 
-	_, err = converter.ConvertE(InvoiceMessage{Total: &money.Money{CurrencyCode: "EUR", Units: 1, Nanos: -5}}, &Invoice{}, opts...)
+	_, err = convert.ConvertE(InvoiceMessage{Total: &money.Money{CurrencyCode: "EUR", Units: 1, Nanos: -5}}, &Invoice{}, opts...)
 	fmt.Println(errors.Is(err, googletype.ErrNanosSign))
 	fmt.Println(err)
 

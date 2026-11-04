@@ -341,7 +341,7 @@ func TestDynamicIgnoreZeroPointer(t *testing.T) {
 
 	zero, old := 0, 7
 	src, dst := root{&zero}, root{&old}
-	converter.Convert(src, &dst, converter.WithIgnoreZeroValues(), converter.WithIgnorePaths("data.secret"))
+	converter.Convert(src, &dst, converter.WithValueMode(converter.IgnoreZeroValues), converter.WithIgnorePaths("data.secret"))
 	require.Equal(t, 0, *dst.Data.(*int))
 }
 
@@ -356,7 +356,7 @@ func TestDynamicSparseMergeEmptyPointer(t *testing.T) {
 	name := "old"
 	old := &object{Name: &name}
 	src, dst := root{&object{}}, root{old}
-	converter.Convert(src, &dst, converter.WithSparseMerge(), converter.WithIgnorePaths("data.secret"))
+	converter.Convert(src, &dst, converter.WithValueMode(converter.SparseMerge), converter.WithIgnorePaths("data.secret"))
 	got, ok := dst.Data.(*object)
 	require.True(t, ok, "interface must retain its pointer type")
 	require.Nil(t, got)

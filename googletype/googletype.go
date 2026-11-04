@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 var (
@@ -65,10 +66,10 @@ func newCodec(o *options, fns ...convertFunc) convcodec.CodecE {
 	return func(fieldPath string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
 		p := pair{
 			path:    fieldPath,
-			src:     reflectutils.IndirectValue(src),
+			src:     reflectx.IndirectValue(src),
 			dst:     dst,
-			srcType: reflectutils.IndirectType(src.Type()),
-			dstType: reflectutils.IndirectType(dst.Type()),
+			srcType: reflectx.IndirectType(src.Type()),
+			dstType: reflectx.IndirectType(dst.Type()),
 		}
 		for _, fn := range fns {
 			if handled, err := fn(p, o); handled {
@@ -84,7 +85,7 @@ func newCodec(o *options, fns ...convertFunc) convcodec.CodecE {
 // keeps it.
 func clearNil(p pair, o *options) {
 	if !o.ignoreZero {
-		reflectutils.SetZero(p.dst)
+		reflectx.SetZero(p.dst)
 	}
 }
 
@@ -107,7 +108,7 @@ func messagePtr[T any](v reflect.Value) *T {
 // messageDst allocates every nil pointer layer of dst and returns a pointer to
 // the destination message, which the caller fills field by field.
 func messageDst[T any](dst reflect.Value, dstType reflect.Type) *T {
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	msg, _ := reflect.TypeAssert[*T](dst.Addr())
 
 	return msg
@@ -121,7 +122,7 @@ func readValue[T any](v reflect.Value) T {
 
 // setValue allocates every nil pointer layer of dst and stores value in it.
 func setValue[T any](dst reflect.Value, dstType reflect.Type, value T) {
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 
 	if dst.CanAddr() {
 		if ptr, ok := reflect.TypeAssert[*T](dst.Addr()); ok {

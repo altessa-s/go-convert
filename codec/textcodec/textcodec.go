@@ -11,8 +11,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 var (
@@ -115,7 +116,7 @@ func tryConvert(fieldPath string, src, dst reflect.Value, opts *options) (bool, 
 	srcType, dstType := c.srcType, c.dstType
 	srcMarshaler, dstUnmarshaler := c.srcMarshaler, c.dstUnmarshaler
 
-	srcValue := reflectutils.IndirectValue(src)
+	srcValue := reflectx.IndirectValue(src)
 	if !srcValue.IsValid() {
 		dst.SetZero()
 		return true, nil
@@ -142,7 +143,7 @@ func tryConvert(fieldPath string, src, dst reflect.Value, opts *options) (bool, 
 	}
 
 	if !dstUnmarshaler {
-		reflectutils.MakeDst(&dst, dstType)
+		reflectx.MakeDst(&dst, dstType)
 		writeText(dst, text)
 
 		return true, nil
@@ -153,7 +154,7 @@ func tryConvert(fieldPath string, src, dst reflect.Value, opts *options) (bool, 
 		return true, &Error{Path: fieldPath, Type: dstType, Err: err}
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	dst.Set(value)
 
 	return true, nil
@@ -168,7 +169,7 @@ func claimOf(src, dst reflect.Type) *claim {
 		return c
 	}
 
-	c := &claim{srcType: reflectutils.IndirectType(src), dstType: reflectutils.IndirectType(dst)}
+	c := &claim{srcType: reflectx.IndirectType(src), dstType: reflectx.IndirectType(dst)}
 	if c.srcType != c.dstType && c.srcType.Kind() != reflect.Interface && c.dstType.Kind() != reflect.Interface {
 		c.dstUnmarshaler = reflect.PointerTo(c.dstType).Implements(unmarshalerType)
 		c.srcMarshaler = isMarshaler(c.srcType)

@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 // Error reports a string that is not valid base64 in the configured encoding.
@@ -71,24 +72,24 @@ func New(opts ...Option) convcodec.CodecE {
 // whether the conversion was handled; a nil source sets dst to its zero
 // value.
 func tryConvert(src, dst reflect.Value, enc *base64.Encoding) (bool, error) {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
+	srcType := reflectx.IndirectType(src.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
 	switch {
 	case isBytes(srcType) && dstType.Kind() == reflect.String:
-		srcValue := reflectutils.IndirectValue(src)
+		srcValue := reflectx.IndirectValue(src)
 		if !srcValue.IsValid() {
 			dst.SetZero()
 			return true, nil
 		}
 
-		reflectutils.MakeDst(&dst, dstType)
+		reflectx.MakeDst(&dst, dstType)
 		dst.SetString(enc.EncodeToString(srcValue.Bytes()))
 
 		return true, nil
 
 	case srcType.Kind() == reflect.String && isBytes(dstType):
-		srcValue := reflectutils.IndirectValue(src)
+		srcValue := reflectx.IndirectValue(src)
 		if !srcValue.IsValid() {
 			dst.SetZero()
 			return true, nil
@@ -100,7 +101,7 @@ func tryConvert(src, dst reflect.Value, enc *base64.Encoding) (bool, error) {
 			return true, err
 		}
 
-		reflectutils.MakeDst(&dst, dstType)
+		reflectx.MakeDst(&dst, dstType)
 		dst.SetBytes(decoded)
 
 		return true, nil

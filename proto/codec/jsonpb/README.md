@@ -13,10 +13,10 @@ Package `jsonpb` provides codecs for converting between the `structpb` messages 
 | `New`       | `convcodec.Codec`  | `json.RawMessage` and `structpb.Struct`; invalid JSON is passed to the next codec |
 | `NewE`      | `convcodec.CodecE` | `json.RawMessage` and `structpb.Struct`, `structpb.Value` and `any`, `structpb.ListValue` and `[]any`, `structpb.Struct` and `map[string]any` |
 
-Register `NewE` with `converter.WithErrorCodecs` and convert with `converter.ConvertE`:
+Register `NewE` with `convert.WithErrorCodecs` and convert with `convert.ConvertE`:
 
 ```go
-_, err := converter.ConvertE(src, &dst, converter.WithErrorCodecs(jsonpb.NewE()))
+_, err := convert.ConvertE(src, &dst, convert.WithErrorCodecs(jsonpb.NewE()))
 ```
 
 `NewE` maps JSON values to `nil`, `bool`, `float64`, `string`, `[]any` and `map[string]any`. On the way in it also accepts signed

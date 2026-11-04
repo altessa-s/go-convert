@@ -13,6 +13,12 @@ MODULE         			:= github.com/altessa-s/go-convert
 NESTED_MODULES 			:= codec/optionalcodec proto googletype
 # Directories holding a go.mod, root first. Every Go target runs in each one.
 MODULES        			:= . $(NESTED_MODULES)
+# Released nested module tags whose breakage against the current root is
+# accepted by nested-build-check, as <tag>@<commit>. proto/v0.1.0 predates the
+# public release and imports the root internal/reflect package, which became
+# the public reflectx package.
+NESTED_BUILD_ACCEPT 	?= proto/v0.1.0@686abdf8e085
+export NESTED_BUILD_ACCEPT
 
 # dupl configuration
 # - DUPL_THRESHOLD: token threshold (higher -> fewer matches)
@@ -46,24 +52,19 @@ export FUZZTIME FUZZPKG
 all: help
 
 .PHONY: fmt
-fmt: tidy  ## Run go fmt on all go files
-	@go -C devtools build -o $(CURDIR)/bin/gci github.com/daixiang0/gci
-	@# go list prints nothing when any package fails to load (a half-written
-	@# file is enough); stop there instead of running gci without paths.
-	@dirs=""; for m in $(MODULES); do \
-	  d=$$(cd $$m && go list -f '{{.Dir}}' ./...) || { echo "fmt: go list failed in $$m, see the errors above" >&2; exit 1; }; \
-	  dirs="$$dirs $$d"; \
-	done; \
-	if [ -z "$${dirs// /}" ]; then echo "fmt: go list found no packages" >&2; exit 1; fi; \
-	$(CURDIR)/bin/gci write \
-	    -s standard \
-	    -s default \
-	    -s "prefix(google.golang.org)" \
-	    -s "prefix(golang.org)" \
-	    -s "prefix(github.com/altessa-s/go-convert)" \
-	    -s "prefix(github.com/altessa-s)" \
-	    -s blank -s alias \
-	    $$dirs
+# golangci-lint fmt applies the formatters of .golangci.yml (gci with the
+# project's import sections). Its gci knows the standard library of the
+# running toolchain; the standalone gci v0.14.0 classified Go 1.27's uuid
+# package as a third-party import.
+fmt: tidy  ## Format every Go file of every module with golangci-lint fmt
+	@go -C devtools build -o $(CURDIR)/bin/golangci-lint github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	@$(CURDIR)/bin/golangci-lint fmt ./...
+
+.PHONY: fmt-check
+fmt-check: ## Fail when golangci-lint fmt would rewrite a file
+	@go -C devtools build -o $(CURDIR)/bin/golangci-lint github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+	@out=$$($(CURDIR)/bin/golangci-lint fmt --diff ./...) || { printf '%s\n' "$$out"; exit 1; }; \
+	if [ -n "$$out" ]; then printf '%s\n' "$$out"; echo "files are not formatted: run make fmt"; exit 1; fi
 
 .PHONY: lint
 lint: tidy fmt ## Tidy, format and run the linter in every module
@@ -79,10 +80,17 @@ tidy: ## Run go mod tidy in every module
 	@for m in $(MODULES); do (cd $$m && go mod tidy) || exit 1; done
 
 .PHONY: generate
-generate: ## Build the pinned optgen and gci into bin/ and run go generate in every module
+# optgen formats with the pinned gci (its formatter allowlist has no
+# golangci-lint); golangci-lint fmt then settles the generated files exactly as
+# make fmt does, as gci v0.14.0 does not know every standard library package
+# of Go 1.27 (uuid).
+generate: ## Build the pinned optgen, gci and golangci-lint into bin/ and run go generate in every module
 	@go -C devtools build -o $(CURDIR)/bin/optgen github.com/altessa-s/go-optgen/cmd/optgen
 	@go -C devtools build -o $(CURDIR)/bin/gci github.com/daixiang0/gci
+	@go -C devtools build -o $(CURDIR)/bin/golangci-lint github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	@for m in $(MODULES); do (cd $$m && PATH="$(CURDIR)/bin:$(PATH)" go generate ./...) || exit 1; done
+	@files=$$(git ls-files -co --exclude-standard -- '*_gen.go'); \
+	if [ -n "$$files" ]; then $(CURDIR)/bin/golangci-lint fmt $$files; fi
 
 .PHONY: generate-check
 generate-check: generate ## Fail when go generate changes tracked files
@@ -285,8 +293,12 @@ dupl-check: ## Fail if dupl finds duplicates (ignoring generated files)
 		exit 1; \
 	fi
 
+.PHONY: nested-build-check
+nested-build-check: ## Build every nested module against the root without replace directives (see .github/scripts/nested-build-check.sh)
+	@bash .github/scripts/nested-build-check.sh
+
 .PHONY: ci
-ci: lint test-all test-integration security-scan dupl-check ## Run full CI checks locally (lint, test, security, dupl)
+ci: lint test-all test-integration security-scan dupl-check nested-build-check ## Run full CI checks locally (lint, test, security, dupl, nested modules)
 
 .PHONY: clean
 clean: ## Remove generated artifacts (coverage.out, bench.txt)

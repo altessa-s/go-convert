@@ -12,5 +12,5 @@
 // Example:
 //
 //	codec := pbwrap.New(pbwrap.WithIgnoreZeroValues())
-//	converter.Convert(src, &dst, converter.WithCodecs(codec))
+//	convert.Convert(src, &dst, convert.WithCodecs(codec))
 package pbwrap

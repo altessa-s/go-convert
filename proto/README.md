@@ -31,8 +31,8 @@ var toProto = []convert.Option{
 		tspb.New(tspb.WithIgnoreZero()),
 		durpb.New(durpb.WithIgnoreZero()),
 	),
-	convert.WithHandleEmbeddedStructs(true),
-	convert.WithIgnoreZeroValues(),
+	convert.WithEmbeddedStructs(convert.EmbeddedFillAlways),
+	convert.WithValueMode(convert.IgnoreZeroValues),
 }
 
 msg := convert.Convert(user, &userv1.User{}, toProto...)

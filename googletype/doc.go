@@ -16,7 +16,7 @@
 // Every codec is a [convcodec.CodecE]: invalid input, such as an amount that
 // overflows int64, a malformed currency code, a Money whose units and nanos
 // have opposite signs, a partial date or a latitude out of range, fails the
-// conversion with an [Error] that converter.ConvertE returns unchanged. Match
+// conversion with an [Error] that convert.ConvertE returns unchanged. Match
 // it with errors.As, or its [ErrorKind] with errors.Is:
 //
 //	if errors.Is(err, googletype.ErrOverflow) { ... }
@@ -27,8 +27,8 @@
 //
 // # Registration order
 //
-// Register the codecs with converter.WithErrorCodecs. Error codecs always run
-// before the codecs registered with converter.WithCodecs, in registration
+// Register the codecs with convert.WithErrorCodecs. Error codecs always run
+// before the codecs registered with convert.WithCodecs, in registration
 // order, so:
 //
 //   - The googletype codecs are disjoint: each one handles only pairs with its
@@ -36,7 +36,7 @@
 //     matter.
 //   - Register them before any other error codec that claims values by kind
 //     (any struct, any string), or that codec converts the message first.
-//   - Codecs registered with converter.WithCodecs, such as
+//   - Codecs registered with convert.WithCodecs, such as
 //     optionalcodec.Codec, run after them and cannot unwrap a value for them:
 //     use pointer fields, not optional.Optional, around google.type values.
 //

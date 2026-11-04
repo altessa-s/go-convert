@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 var (
@@ -33,7 +34,7 @@ const (
 
 // Error reports a JSON marshal or unmarshal failure for a field. It wraps
 // the encoding/json/v2 error, such as a *json.SemanticError or a
-// *jsontext.SyntacticError, and is returned unchanged by converter.ConvertE.
+// *jsontext.SyntacticError, and is returned unchanged by convert.ConvertE.
 type Error struct {
 	// Path is the full source field path.
 	Path string
@@ -89,7 +90,7 @@ func (e SizeError) Error() string {
 // Example:
 //
 //	codec := jsoncodec.New(jsoncodec.WithJSONOptions(json.RejectUnknownMembers(true)))
-//	_, err := converter.ConvertE(src, &dst, converter.WithErrorCodecs(codec))
+//	_, err := convert.ConvertE(src, &dst, convert.WithErrorCodecs(codec))
 func New(opts ...Option) convcodec.CodecE {
 	c := &codec{options: *newOptions(opts...)}
 	return c.convert
@@ -101,9 +102,9 @@ type codec struct {
 
 // convert handles JSON text and value pairs and delegates the rest to next.
 func (c *codec) convert(path string, src, dst reflect.Value, next convcodec.CodecHandlerE) error {
-	srcType := reflectutils.IndirectType(src.Type())
+	srcType := reflectx.IndirectType(src.Type())
 
-	dstType := reflectutils.IndirectType(dst.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 	switch {
 	case c.isText(srcType) && isValue(dstType):
 		return c.unmarshal(path, src, dst, dstType)
@@ -136,7 +137,7 @@ func isValue(t reflect.Type) bool {
 
 // unmarshal decodes the JSON text src into a fresh value and assigns it to dst.
 func (c *codec) unmarshal(path string, src, dst reflect.Value, dstType reflect.Type) error {
-	src = reflectutils.IndirectValue(src)
+	src = reflectx.IndirectValue(src)
 
 	var text []byte
 
@@ -162,7 +163,7 @@ func (c *codec) unmarshal(path string, src, dst reflect.Value, dstType reflect.T
 		return Error{Path: path, Op: OpUnmarshal, Err: err}
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 	dst.Set(value.Elem())
 
 	return nil
@@ -170,7 +171,7 @@ func (c *codec) unmarshal(path string, src, dst reflect.Value, dstType reflect.T
 
 // marshal encodes src as JSON text into dst.
 func (c *codec) marshal(path string, src, dst reflect.Value, dstType reflect.Type) error {
-	src = reflectutils.IndirectValue(src)
+	src = reflectx.IndirectValue(src)
 	if !src.IsValid() || src.Kind() == reflect.Interface && src.IsNil() {
 		dst.SetZero()
 		return nil
@@ -188,7 +189,7 @@ func (c *codec) marshal(path string, src, dst reflect.Value, dstType reflect.Typ
 		return Error{Path: path, Op: OpMarshal, Err: err}
 	}
 
-	reflectutils.MakeDst(&dst, dstType)
+	reflectx.MakeDst(&dst, dstType)
 
 	if dst.Kind() == reflect.String {
 		dst.SetString(string(text))

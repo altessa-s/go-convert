@@ -7,8 +7,9 @@ package mapslice
 import (
 	"reflect"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 // optimizer provides optimized type checking for map-to-slice conversions.
@@ -47,7 +48,7 @@ func Values(fieldName string, src, dst reflect.Value, next convcodec.CodecHandle
 	}
 
 	srcType := sourceMap.Type()
-	dstType := reflectutils.IndirectType(dst.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
 	// Use optimized type checking
 	opt := newOptimizer(srcType, dstType)
@@ -96,7 +97,7 @@ func Keys(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler)
 	}
 
 	srcType := sourceMap.Type()
-	dstType := reflectutils.IndirectType(dst.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
 	// Use optimized type checking
 	opt := newOptimizer(srcType, dstType)
@@ -130,7 +131,7 @@ func Keys(fieldName string, src, dst reflect.Value, next convcodec.CodecHandler)
 // mapSource dereferences a non-nil pointer chain to a map. Nil pointers are
 // delegated to the next codec because they carry no map to extract.
 func mapSource(src reflect.Value) (reflect.Value, bool) {
-	src = reflectutils.IndirectValue(src)
+	src = reflectx.IndirectValue(src)
 	return src, src.IsValid() && src.Kind() == reflect.Map
 }
 
@@ -141,8 +142,8 @@ func sliceDestination(dst reflect.Value) (reflect.Value, bool) {
 		return reflect.Value{}, false
 	}
 
-	reflectutils.MakeDst(&dst, reflectutils.IndirectType(dst.Type()))
-	dst = reflectutils.IndirectValue(dst)
+	reflectx.MakeDst(&dst, reflectx.IndirectType(dst.Type()))
+	dst = reflectx.IndirectValue(dst)
 
 	return dst, dst.Kind() == reflect.Slice && dst.CanSet()
 }

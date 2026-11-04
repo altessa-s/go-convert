@@ -15,8 +15,7 @@ import (
 
 	"github.com/altessa-s/go-convert/internal/primitive"
 	"github.com/altessa-s/go-convert/internal/typeinfo"
-
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
+	"github.com/altessa-s/go-convert/reflectx"
 )
 
 // stepKind selects how a planned field is converted.
@@ -345,8 +344,8 @@ func (e *Engine) buildPlan(src, dst reflect.Type) *structPlan {
 		}
 
 		if step.kind == stepStruct {
-			step.dstType = reflectutils.IndirectType(dstType)
-			step.nested = &nestedPlan{src: reflectutils.IndirectType(srcType), dst: step.dstType}
+			step.dstType = reflectx.IndirectType(dstType)
+			step.nested = &nestedPlan{src: reflectx.IndirectType(srcType), dst: step.dstType}
 		}
 
 		steps = append(steps, step)
@@ -386,6 +385,11 @@ func (e *Engine) fieldStepKind(src, dst reflect.Type) (stepKind, primitive.Func)
 // staticStepKind is [Engine.fieldStepKind] for a field whose conversion
 // does not depend on its path.
 func (e *Engine) staticStepKind(src, dst reflect.Type) (stepKind, primitive.Func) {
+	// Codecs see every field, assignable ones included.
+	if e.cfg.Codecs.HasCodecs() {
+		return stepGeneric, nil
+	}
+
 	if e.types.Get(src).AssignableTo(src, dst) {
 		if e.cfg.SparseMerge && isMergeableStructType(e.types, src) {
 			return stepGeneric, nil
@@ -398,15 +402,11 @@ func (e *Engine) staticStepKind(src, dst reflect.Type) (stepKind, primitive.Func
 		return stepAssign, nil
 	}
 
-	if e.cfg.Codecs.HasCodecs() {
-		return stepGeneric, nil
-	}
-
 	if isStructPair(src, dst) {
 		return stepStruct, nil
 	}
 
-	if src.Kind() == reflect.Pointer || dst.Kind() == reflect.Pointer || !reflectutils.IsPrimitive(src.Kind()) {
+	if src.Kind() == reflect.Pointer || dst.Kind() == reflect.Pointer || !reflectx.IsPrimitive(src.Kind()) {
 		return stepGeneric, nil
 	}
 
@@ -420,7 +420,7 @@ func (e *Engine) staticStepKind(src, dst reflect.Type) (stepKind, primitive.Func
 // isStructPair reports whether src and dst are both structs or pointers to
 // structs.
 func isStructPair(src, dst reflect.Type) bool {
-	return reflectutils.IndirectType(src).Kind() == reflect.Struct && reflectutils.IndirectType(dst).Kind() == reflect.Struct
+	return reflectx.IndirectType(src).Kind() == reflect.Struct && reflectx.IndirectType(dst).Kind() == reflect.Struct
 }
 
 // mappedName applies the field mappings to a lower-cased source field name.
@@ -435,7 +435,7 @@ func (e *Engine) mappedName(name string) string {
 // isMergeableStructType reports whether t (after pointer indirection) is a
 // struct with at least one exported field.
 func isMergeableStructType(types *typeinfo.Cache, t reflect.Type) bool {
-	if reflectutils.IndirectType(t).Kind() != reflect.Struct {
+	if reflectx.IndirectType(t).Kind() != reflect.Struct {
 		return false
 	}
 

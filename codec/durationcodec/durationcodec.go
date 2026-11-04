@@ -11,8 +11,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 var durationType = reflect.TypeFor[time.Duration]()
@@ -83,8 +84,8 @@ func New(opts ...Option) convcodec.CodecE {
 // numbers. It reports whether the conversion was handled; a nil source sets
 // dst to its zero value.
 func tryConvert(src, dst reflect.Value, unit time.Duration) (bool, error) {
-	srcType := reflectutils.IndirectType(src.Type())
-	dstType := reflectutils.IndirectType(dst.Type())
+	srcType := reflectx.IndirectType(src.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
 	switch {
 	case srcType == durationType && dstType != durationType:
@@ -92,7 +93,7 @@ func tryConvert(src, dst reflect.Value, unit time.Duration) (bool, error) {
 			return false, nil
 		}
 
-		srcValue := reflectutils.IndirectValue(src)
+		srcValue := reflectx.IndirectValue(src)
 		if !srcValue.IsValid() {
 			dst.SetZero()
 			return true, nil
@@ -105,7 +106,7 @@ func tryConvert(src, dst reflect.Value, unit time.Duration) (bool, error) {
 			return false, nil
 		}
 
-		srcValue := reflectutils.IndirectValue(src)
+		srcValue := reflectx.IndirectValue(src)
 		if !srcValue.IsValid() || srcValue.Kind() == reflect.String && srcValue.Len() == 0 {
 			dst.SetZero()
 			return true, nil
@@ -116,7 +117,7 @@ func tryConvert(src, dst reflect.Value, unit time.Duration) (bool, error) {
 			return true, err
 		}
 
-		reflectutils.MakeDst(&dst, dstType)
+		reflectx.MakeDst(&dst, dstType)
 		dst.SetInt(int64(d))
 
 		return true, nil
@@ -129,7 +130,7 @@ func tryConvert(src, dst reflect.Value, unit time.Duration) (bool, error) {
 // fromDuration stores d into a string or numeric destination.
 func fromDuration(d time.Duration, dst reflect.Value, dstType reflect.Type, unit time.Duration) error {
 	if dstType.Kind() == reflect.String {
-		reflectutils.MakeDst(&dst, dstType)
+		reflectx.MakeDst(&dst, dstType)
 		dst.SetString(d.String())
 
 		return nil
@@ -143,17 +144,17 @@ func fromDuration(d time.Duration, dst reflect.Value, dstType reflect.Type, unit
 			return overflow(d, dstType)
 		}
 
-		reflectutils.MakeDst(&dst, dstType)
+		reflectx.MakeDst(&dst, dstType)
 		dst.SetInt(n)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		if n < 0 || reflect.Zero(dstType).OverflowUint(uint64(n)) {
 			return overflow(d, dstType)
 		}
 
-		reflectutils.MakeDst(&dst, dstType)
+		reflectx.MakeDst(&dst, dstType)
 		dst.SetUint(uint64(n))
 	default: // float kinds; a float32 holds every int64 magnitude
-		reflectutils.MakeDst(&dst, dstType)
+		reflectx.MakeDst(&dst, dstType)
 		dst.SetFloat(float64(d) / float64(unit))
 	}
 
@@ -193,7 +194,7 @@ func toDuration(v reflect.Value, unit time.Duration) (time.Duration, error) {
 // sourceValue returns the dereferenced source for an [Error], or nil when it
 // cannot be exposed.
 func sourceValue(src reflect.Value) any {
-	v := reflectutils.IndirectValue(src)
+	v := reflectx.IndirectValue(src)
 	if !v.IsValid() || !v.CanInterface() {
 		return nil
 	}

@@ -10,10 +10,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	"google.golang.org/genproto/googleapis/type/money"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 const (
@@ -266,7 +267,7 @@ func moneyToStruct(p pair, amountIdx, currencyIdx int, currency string, units in
 	}
 
 	dst := p.dst
-	reflectutils.MakeDst(&dst, p.dstType)
+	reflectx.MakeDst(&dst, p.dstType)
 	amount := dst.Field(amountIdx)
 
 	switch amountType.Kind() {

@@ -40,7 +40,7 @@ func TestEmbeddedStructFieldsAreCopied(t *testing.T) {
 
 	t.Run("With Handle Embedded", func(t *testing.T) {
 		var dst EmbeddedDst
-		converter.Convert(src, &dst, converter.WithHandleEmbeddedStructs(true))
+		converter.Convert(src, &dst, converter.WithEmbeddedStructs(converter.EmbeddedFillAlways))
 
 		require.Equal(t, 10, dst.A)
 		require.Equal(t, 20, dst.B)
@@ -65,7 +65,7 @@ func TestHandleEmbeddedStructsCopiesSiblingFields(t *testing.T) {
 	src := &SrcObj{ID: 1, Val: "test"}
 	dst := &DstObj{}
 
-	converter.Convert(src, dst, converter.WithHandleEmbeddedStructs(true))
+	converter.Convert(src, dst, converter.WithEmbeddedStructs(converter.EmbeddedFillAlways))
 
 	require.Equal(t, "test", dst.Val)
 }
@@ -85,20 +85,20 @@ func TestEmbeddedNilPointerDestinationAllocation(t *testing.T) {
 	tests := []struct {
 		name     string
 		src      flat
-		initEmb  bool
+		mode     converter.EmbeddedStructs
 		wantBase *IDBase
 	}{
-		{name: "lazy_non_zero", src: flat{ID: "x", Name: "n"}, wantBase: &IDBase{ID: "x"}},
-		{name: "lazy_zero", src: flat{Name: "n"}, wantBase: nil},
-		{name: "always_init_zero", src: flat{Name: "n"}, initEmb: true, wantBase: &IDBase{}},
-		{name: "always_init_non_zero", src: flat{ID: "x", Name: "n"}, initEmb: true, wantBase: &IDBase{ID: "x"}},
+		{name: "lazy_non_zero", src: flat{ID: "x", Name: "n"}, mode: converter.EmbeddedFill, wantBase: &IDBase{ID: "x"}},
+		{name: "lazy_zero", src: flat{Name: "n"}, mode: converter.EmbeddedFill, wantBase: nil},
+		{name: "always_init_zero", src: flat{Name: "n"}, mode: converter.EmbeddedFillAlways, wantBase: &IDBase{}},
+		{name: "always_init_non_zero", src: flat{ID: "x", Name: "n"}, mode: converter.EmbeddedFillAlways, wantBase: &IDBase{ID: "x"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			var dst nested
-			converter.Convert(tc.src, &dst, converter.WithHandleEmbeddedStructs(tc.initEmb))
+			converter.Convert(tc.src, &dst, converter.WithEmbeddedStructs(tc.mode))
 			require.Equal(t, tc.wantBase, dst.IDBase)
 			require.Equal(t, "n", dst.Name)
 		})
@@ -157,7 +157,7 @@ func TestIgnorePathsEmbeddedDestination(t *testing.T) {
 	src := embeddedSource{Password: "secret"}
 
 	var dst embeddedDest
-	converter.Convert(src, &dst, converter.WithHandleEmbeddedStructs(true), converter.WithIgnorePaths("password"))
+	converter.Convert(src, &dst, converter.WithEmbeddedStructs(converter.EmbeddedFillAlways), converter.WithIgnorePaths("password"))
 	require.Empty(t, dst.Password)
 	require.Empty(t, dst.embeddedBase.Password)
 }
@@ -178,7 +178,7 @@ func TestIgnorePathsEmbeddedSourceSubtree(t *testing.T) {
 	src := embeddedSourceSide{Password: "secret", Name: "n"}
 
 	var dst embeddedDestSide
-	converter.Convert(src, &dst, converter.WithHandleEmbeddedStructs(true), converter.WithIgnorePaths("embeddedbase"))
+	converter.Convert(src, &dst, converter.WithEmbeddedStructs(converter.EmbeddedFillAlways), converter.WithIgnorePaths("embeddedbase"))
 	require.Empty(t, dst.Password)
 	require.Equal(t, "n", dst.Name)
 }
@@ -203,7 +203,7 @@ func TestIgnorePathsPromotedField(t *testing.T) {
 	src := promotedSource{Password: "secret", Name: "n"}
 
 	var dst promotedDest
-	converter.Convert(src, &dst, converter.WithHandleEmbeddedStructs(true), converter.WithIgnorePaths("password"))
+	converter.Convert(src, &dst, converter.WithEmbeddedStructs(converter.EmbeddedFillAlways), converter.WithIgnorePaths("password"))
 	require.Empty(t, dst.Password)
 	require.Equal(t, "n", dst.Name)
 }
@@ -228,7 +228,7 @@ func TestIgnorePathsEmbeddedPointerStaysNil(t *testing.T) {
 	src := embedPtrSource{embedPtrBase: &embedPtrBase{Password: "secret"}, Name: "n"}
 
 	var dst embedPtrDest
-	converter.Convert(src, &dst, converter.WithHandleEmbeddedStructs(true), converter.WithIgnorePaths("embedptrbase"))
+	converter.Convert(src, &dst, converter.WithEmbeddedStructs(converter.EmbeddedFillAlways), converter.WithIgnorePaths("embedptrbase"))
 	require.Nil(t, dst.embedPtrBase)
 	require.Equal(t, "n", dst.Name)
 }

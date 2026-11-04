@@ -5,7 +5,7 @@ import "github.com/altessa-s/go-convert/codec/jsoncodec"
 ```
 
 Package `jsoncodec` provides an error codec for bidirectional conversion between JSON text and Go values using `encoding/json/v2`. `New` returns a
-`convcodec.CodecE`; register it with `converter.WithErrorCodecs`.
+`convcodec.CodecE`; register it with `convert.WithErrorCodecs`.
 
 | JSON text                                    | Go value                                             |
 |----------------------------------------------|------------------------------------------------------|
@@ -18,7 +18,7 @@ text and a nil source zero the destination. Value to text marshals the value; a 
 slices follow the JSON options. Any other pair is delegated to the next codec.
 
 Failures are returned as an `Error` with the field path and operation, wrapping the `encoding/json/v2` error (`errors.As` reaches
-`*json.SemanticError` and `*jsontext.SyntacticError`); `converter.ConvertE` returns it unchanged. Text longer than the `WithMaxBytes` limit is
+`*json.SemanticError` and `*jsontext.SyntacticError`); `convert.ConvertE` returns it unchanged. Text longer than the `WithMaxBytes` limit is
 rejected before decoding with an `Error` wrapping `SizeError`.
 
 ## Options

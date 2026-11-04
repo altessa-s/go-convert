@@ -14,7 +14,7 @@ import (
 func nopNext(string, reflect.Value, reflect.Value) error { return nil }
 
 func BenchmarkNew_Format(b *testing.B) {
-	codec := enumcodec.New(colorNames)
+	codec := enumcodec.MustNew(colorNames)
 	src := reflect.ValueOf(colorGreen)
 	dst := reflect.New(reflect.TypeFor[string]()).Elem()
 
@@ -26,7 +26,7 @@ func BenchmarkNew_Format(b *testing.B) {
 }
 
 func BenchmarkNew_Parse(b *testing.B) {
-	codec := enumcodec.New(colorNames, enumcodec.WithCaseInsensitive())
+	codec := enumcodec.MustNew(colorNames, enumcodec.WithCaseInsensitive())
 	src := reflect.ValueOf("Green")
 	dst := reflect.New(reflect.TypeFor[color]()).Elem()
 
@@ -38,7 +38,7 @@ func BenchmarkNew_Parse(b *testing.B) {
 }
 
 func BenchmarkNewInt_Parse(b *testing.B) {
-	codec := enumcodec.NewInt(colorNumbers)
+	codec := enumcodec.MustNewInt(colorNumbers)
 	src := reflect.ValueOf(int32(20))
 	dst := reflect.New(reflect.TypeFor[color]()).Elem()
 
@@ -50,7 +50,7 @@ func BenchmarkNewInt_Parse(b *testing.B) {
 }
 
 func BenchmarkNew_PassThrough(b *testing.B) {
-	codec := enumcodec.New(colorNames)
+	codec := enumcodec.MustNew(colorNames)
 	src := reflect.ValueOf("hello")
 	dst := reflect.New(reflect.TypeFor[string]()).Elem()
 

@@ -14,10 +14,11 @@ import (
 	"strconv"
 	"unicode/utf8"
 
+	"github.com/altessa-s/go-convert/reflectx"
+
 	"google.golang.org/protobuf/types/known/structpb"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 var (
@@ -118,7 +119,7 @@ func keyOf(v reflect.Value) visitKey {
 
 // NewE creates an error codec for bidirectional conversion between the
 // structpb messages and their plain Go counterparts. Register it with
-// converter.WithErrorCodecs.
+// convert.WithErrorCodecs.
 //
 // Supported conversions, all in both directions and for pointer and
 // non-pointer fields:
@@ -157,7 +158,7 @@ func keyOf(v reflect.Value) visitKey {
 // Example:
 //
 //	codec := jsonpb.NewE()
-//	converter.ConvertE(src, &dst, converter.WithErrorCodecs(codec))
+//	convert.ConvertE(src, &dst, convert.WithErrorCodecs(codec))
 func NewE(opts ...Option) convcodec.CodecE {
 	o := newOptions(opts...)
 	if o.maxDepth <= 0 {
@@ -195,8 +196,8 @@ func NewE(opts ...Option) convcodec.CodecE {
 // selectConverter returns the converter for the source and destination
 // types, or nil when the pair is not handled by [NewE].
 func selectConverter(srcType, dstType reflect.Type) converter {
-	srcType = reflectutils.IndirectType(srcType)
-	dstType = reflectutils.IndirectType(dstType)
+	srcType = reflectx.IndirectType(srcType)
+	dstType = reflectx.IndirectType(dstType)
 
 	switch {
 	case srcType == rawMessageType && dstType == structpbType:
@@ -237,7 +238,7 @@ func acceptsValue(t reflect.Type) bool {
 // sourceValue dereferences pointers and unwraps an interface, returning an
 // invalid value when the source is nil.
 func sourceValue(src reflect.Value) reflect.Value {
-	value := reflectutils.IndirectValue(src)
+	value := reflectx.IndirectValue(src)
 	if value.IsValid() && value.Kind() == reflect.Interface {
 		if value.IsNil() {
 			return reflect.Value{}

@@ -20,8 +20,10 @@
 // Fields are skipped by name with [WithIgnoreFields] or by dotted path with
 // [WithIgnorePaths], and renamed with [WithFieldMappings]. Source values are
 // applied according to one of three mutually exclusive modes:
-// [WithIgnoreZeroValues], [WithIgnoreNilValues] and [WithSparseMerge], the
-// last of which treats the source as a partial update. Custom conversions are
+// [IgnoreZeroValues], [IgnoreNilValues] and [SparseMerge], the last of which
+// treats the source as a partial update, selected with [WithValueMode].
+// [WithEmbeddedStructs] fills embedded destination structs from the whole
+// source. Custom conversions are
 // plugged in as codecs with [WithCodecs] and [WithErrorCodecs]; see the codec
 // sub-packages and the separate github.com/altessa-s/go-convert/proto module.
 //

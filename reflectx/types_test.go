@@ -2,7 +2,7 @@
 // Use of this source code is governed by the MIT license that can be found in
 // the LICENSE file.
 
-package reflect_test
+package reflectx_test
 
 import (
 	"reflect"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
+	"github.com/altessa-s/go-convert/reflectx"
 )
 
 type testStruct struct{}
@@ -32,7 +32,7 @@ func TestIndirectType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := reflectutils.IndirectType(tt.typ)
+			got := reflectx.IndirectType(tt.typ)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -43,18 +43,18 @@ func TestIndirectValueAndMakeDstPointerDepth(t *testing.T) {
 
 	value := 7
 	valuePtr := &value
-	got := reflectutils.IndirectValue(reflect.ValueOf(&valuePtr))
+	got := reflectx.IndirectValue(reflect.ValueOf(&valuePtr))
 	require.Equal(t, int64(7), got.Int())
 
 	var nilInner *int
 
-	got = reflectutils.IndirectValue(reflect.ValueOf(&nilInner))
+	got = reflectx.IndirectValue(reflect.ValueOf(&nilInner))
 	require.False(t, got.IsValid())
 
 	var destination **int
 
 	dst := reflect.ValueOf(&destination).Elem()
-	reflectutils.MakeDst(&dst, reflect.TypeFor[int]())
+	reflectx.MakeDst(&dst, reflect.TypeFor[int]())
 	require.NotNil(t, destination)
 	require.NotNil(t, *destination)
 	require.Equal(t, 0, **destination)
@@ -66,7 +66,7 @@ func TestMakeDst_Pointer(t *testing.T) {
 	v := reflect.ValueOf(&dst).Elem()
 	typ := reflect.TypeFor[testStruct]()
 
-	reflectutils.MakeDst(&v, typ)
+	reflectx.MakeDst(&v, typ)
 
 	require.Equal(t, reflect.Struct, v.Kind())
 }
@@ -77,7 +77,7 @@ func TestMakeDst_NonPointer(t *testing.T) {
 	v := reflect.ValueOf(&dst).Elem()
 	typ := reflect.TypeFor[testStruct]()
 
-	reflectutils.MakeDst(&v, typ)
+	reflectx.MakeDst(&v, typ)
 
 	require.Equal(t, reflect.Struct, v.Kind())
 }
@@ -114,7 +114,7 @@ func TestIsPrimitive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := reflectutils.IsPrimitive(tt.kind)
+			got := reflectx.IsPrimitive(tt.kind)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -149,7 +149,7 @@ func TestConvertValue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := reflectutils.ConvertValue(reflect.ValueOf(tc.src), tc.dst)
+			got, ok := reflectx.ConvertValue(reflect.ValueOf(tc.src), tc.dst)
 			require.Equal(t, tc.wantOK, ok)
 
 			if tc.wantOK {
@@ -163,7 +163,7 @@ func TestConvertValueRoundsIntegersToFloat32Once(t *testing.T) {
 	t.Parallel()
 
 	for _, v := range []any{int64(1<<62 + 1<<38 + 1), uint64(1<<62 + 1<<38 + 1)} {
-		got, ok := reflectutils.ConvertValue(reflect.ValueOf(v), reflect.TypeFor[float32]())
+		got, ok := reflectx.ConvertValue(reflect.ValueOf(v), reflect.TypeFor[float32]())
 		if !ok {
 			t.Fatalf("%T not converted", v)
 		}
@@ -172,5 +172,40 @@ func TestConvertValueRoundsIntegersToFloat32Once(t *testing.T) {
 		if got.Interface() != want {
 			t.Fatalf("%T: got %v, want %v", v, got.Interface(), want)
 		}
+	}
+}
+
+func TestWritable(t *testing.T) {
+	t.Parallel()
+
+	type holder struct {
+		Exported   int
+		unexported int
+		Ptr        *int
+	}
+
+	h := &holder{unexported: 1}
+	n := 2
+
+	var nilPtr *int
+
+	tests := []struct {
+		name string
+		v    reflect.Value
+		want bool
+	}{
+		{name: "invalid", v: reflect.Value{}, want: false},
+		{name: "not addressable", v: reflect.ValueOf(3), want: false},
+		{name: "exported field", v: reflect.ValueOf(h).Elem().Field(0), want: true},
+		{name: "unexported field", v: reflect.ValueOf(h).Elem().Field(1), want: false},
+		{name: "nil pointer field", v: reflect.ValueOf(h).Elem().Field(2), want: true},
+		{name: "non-nil pointer that is not addressable", v: reflect.ValueOf(&n), want: true},
+		{name: "nil pointer that is not addressable", v: reflect.ValueOf(nilPtr), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, reflectx.Writable(tt.v))
+		})
 	}
 }

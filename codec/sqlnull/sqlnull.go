@@ -47,7 +47,7 @@ const (
 //
 // Example:
 //
-//	converter.ConvertE(row, &entity, converter.WithErrorCodecs(sqlnull.New()))
+//	convert.ConvertE(row, &entity, convert.WithErrorCodecs(sqlnull.New()))
 func New(opts ...Option) convcodec.CodecE {
 	o := newOptions(opts...)
 

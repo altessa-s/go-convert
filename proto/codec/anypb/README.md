@@ -5,7 +5,7 @@ import "github.com/altessa-s/go-convert/proto/codec/anypb"
 ```
 
 Package `anypb` provides an error codec (`convcodec.CodecE`) for conversion between `anypb.Any` and concrete protobuf messages or
-Go domain types. Register it with `converter.WithErrorCodecs` and convert with `converter.ConvertE`.
+Go domain types. Register it with `convert.WithErrorCodecs` and convert with `convert.ConvertE`.
 
 ## Conversions
 
@@ -23,12 +23,12 @@ value, such as `any("hello")`, is passed to the next codec. An `Any` whose type 
 
 ```go
 registry := anypb.NewRegistry().
-	Register(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]()).
-	Register(&wrapperspb.StringValue{}, reflect.TypeFor[Note]())
+	MustRegister(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]()).
+	MustRegister(&wrapperspb.StringValue{}, reflect.TypeFor[Note]())
 
-_, err := converter.ConvertE(src, &dst,
-	converter.WithErrorCodecs(anypb.New(anypb.WithRegistry(registry))),
-	converter.WithCodecs(tspb.New()), // converts timestamppb.Timestamp and time.Time
+_, err := convert.ConvertE(src, &dst,
+	convert.WithErrorCodecs(anypb.New(anypb.WithRegistry(registry))),
+	convert.WithCodecs(tspb.New()), // converts timestamppb.Timestamp and time.Time
 )
 ```
 
@@ -37,8 +37,10 @@ each pair (such as `tspb` above), or rely on the converter's field-by-field copy
 converted the pair, so a registered pair without one packs whatever `next` produced (for `time.Time` without `tspb`, an empty
 timestamp): register a codec for every pair. The zero value of a registered domain type is absent and packs to a nil Any.
 
-Register every pair before passing the registry to `WithRegistry`: `New` freezes it, and a later `Register` panics. `Register`
-is safe to call concurrently, and a frozen registry is safe for concurrent use.
+Register every pair before passing the registry to `WithRegistry`: `New` freezes it, and a later `Register` fails. `Register`
+returns a `RegistrationError` for a nil or interface type, a pair whose message or domain type is already registered, and a frozen
+registry; `MustRegister` panics with it instead and returns the registry for chaining. `Register` is safe to call concurrently, and
+a frozen registry is safe for concurrent use.
 
 A nil source sets the destination to its zero value.
 
@@ -50,7 +52,7 @@ A nil source sets the destination to its zero value.
 | `UnknownTypeError`  | Neither the registry nor the resolver knows the type URL of an `any` or `proto.Message` destination |
 | `Error`             | Protobuf marshaling or unmarshaling failed, or the payload exceeds `WithMaxBytes` |
 
-`converter.ConvertE` returns these errors unchanged.
+`convert.ConvertE` returns these errors unchanged.
 
 ## Options
 

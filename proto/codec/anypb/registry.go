@@ -5,7 +5,6 @@
 package anypb
 
 import (
-	"fmt"
 	"reflect"
 	"sync"
 
@@ -28,7 +27,7 @@ type Resolver interface {
 //
 // Each message type and each domain type may be registered once. Register
 // every pair before passing the Registry to [WithRegistry]: [New] freezes
-// it, and a later Register panics. Register is safe to call from several
+// it, and a later Register fails. Register is safe to call from several
 // goroutines, and a frozen Registry is safe for concurrent use.
 type Registry struct {
 	byName   map[protoreflect.FullName]registration
@@ -50,7 +49,7 @@ type registration struct {
 // Example:
 //
 //	registry := anypb.NewRegistry().
-//	    Register(&wrapperspb.StringValue{}, reflect.TypeFor[Greeting]())
+//	    MustRegister(&wrapperspb.StringValue{}, reflect.TypeFor[Greeting]())
 func NewRegistry() *Registry {
 	return &Registry{
 		byName:   make(map[protoreflect.FullName]registration),
@@ -58,51 +57,62 @@ func NewRegistry() *Registry {
 	}
 }
 
-// Register maps the type of message to the domain type and returns the
-// Registry. A pointer domain type is registered as its element type. Register
-// panics when message or domain is nil, when domain is an interface type,
-// when either type is already registered, or when the Registry was already
-// passed to [New].
-func (r *Registry) Register(message proto.Message, domain reflect.Type) *Registry {
+// Register maps the type of message to the domain type. A pointer domain
+// type is registered as its element type. Register returns a
+// [RegistrationError] and leaves the Registry unchanged when message or
+// domain is nil, when domain is an interface type, when either type is
+// already registered, or when the Registry was already passed to [New].
+func (r *Registry) Register(message proto.Message, domain reflect.Type) error {
 	if message == nil || domain == nil {
-		panic("anypb: Register called with a nil message or domain type")
+		return RegistrationError{Reason: "nil message or domain type"}
 	}
 
 	for domain.Kind() == reflect.Pointer {
 		domain = domain.Elem()
 	}
 
-	if domain.Kind() == reflect.Interface {
-		panic(fmt.Sprintf("anypb: domain type %s is an interface", domain))
-	}
-
 	messageType := message.ProtoReflect().Type()
+	name := messageType.Descriptor().FullName()
+
+	if domain.Kind() == reflect.Interface {
+		return RegistrationError{Message: name, Domain: domain, Reason: "the domain type is an interface"}
+	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.frozen {
-		panic("anypb: Register called after the registry was passed to New; register every pair first")
+		return RegistrationError{Message: name, Domain: domain, Reason: "the registry was already passed to New; register every pair first"}
 	}
 
-	name := messageType.Descriptor().FullName()
 	if _, ok := r.byName[name]; ok {
-		panic(fmt.Sprintf("anypb: message %s is already registered", name))
+		return RegistrationError{Message: name, Domain: domain, Reason: "the message type is already registered"}
 	}
 
 	if _, ok := r.byDomain[domain]; ok {
-		panic(fmt.Sprintf("anypb: domain type %s is already registered", domain))
+		return RegistrationError{Message: name, Domain: domain, Reason: "the domain type is already registered"}
 	}
 
 	entry := registration{message: messageType, domain: domain}
 	r.byName[name] = entry
 	r.byDomain[domain] = entry
 
+	return nil
+}
+
+// MustRegister is [Registry.Register] for pairs known to be valid, such as
+// registrations at program start; it panics with the [RegistrationError]
+// instead of returning it, and returns the Registry for chaining.
+func (r *Registry) MustRegister(message proto.Message, domain reflect.Type) *Registry {
+	if err := r.Register(message, domain); err != nil {
+		panic(err)
+	}
+
 	return r
 }
 
 // freeze marks the Registry as in use by a codec, so that later Register
-// calls panic instead of racing with conversions. A nil Registry is ignored.
+// calls fail instead of racing with conversions. A nil Registry is ignored.
 func (r *Registry) freeze() {
 	if r == nil {
 		return

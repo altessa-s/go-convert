@@ -98,7 +98,7 @@ func TestNew_InterfaceDestinationDelegates(t *testing.T) {
 func TestNew_RegisteredPairEdgeValues(t *testing.T) {
 	t.Parallel()
 
-	registry := anypb.NewRegistry().Register(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]())
+	registry := anypb.NewRegistry().MustRegister(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]())
 	opts := []converter.Option{
 		converter.WithErrorCodecs(anypb.New(anypb.WithRegistry(registry))),
 		converter.WithCodecs(tspb.New()),
@@ -141,15 +141,16 @@ func TestNew_InterfaceHoldingAnyUnpacks(t *testing.T) {
 	require.Equal(t, "x", dst.V.GetValue())
 }
 
-func TestRegistry_RegisterAfterNewPanics(t *testing.T) {
+func TestRegistry_RegisterAfterNew(t *testing.T) {
 	t.Parallel()
 
-	registry := anypb.NewRegistry().Register(&wrapperspb.StringValue{}, reflect.TypeFor[Note]())
+	registry := anypb.NewRegistry().MustRegister(&wrapperspb.StringValue{}, reflect.TypeFor[Note]())
 	_ = anypb.New(anypb.WithRegistry(registry))
 
-	require.PanicsWithValue(t, "anypb: Register called after the registry was passed to New; register every pair first", func() {
-		registry.Register(&wrapperspb.BytesValue{}, reflect.TypeFor[[]byte]())
-	})
+	err := registry.Register(&wrapperspb.BytesValue{}, reflect.TypeFor[[]byte]())
+	require.EqualError(t, err,
+		"anypb: register google.protobuf.BytesValue as []uint8: the registry was already passed to New; register every pair first")
+	require.Panics(t, func() { registry.MustRegister(&wrapperspb.BytesValue{}, reflect.TypeFor[[]byte]()) })
 }
 
 func TestRegistry_ConcurrentRegister(t *testing.T) {
@@ -163,8 +164,8 @@ func TestRegistry_ConcurrentRegister(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	wg.Go(func() { registry.Register(&wrapperspb.StringValue{}, reflect.TypeFor[a]()) })
-	wg.Go(func() { registry.Register(&wrapperspb.BytesValue{}, reflect.TypeFor[b]()) })
+	wg.Go(func() { registry.MustRegister(&wrapperspb.StringValue{}, reflect.TypeFor[a]()) })
+	wg.Go(func() { registry.MustRegister(&wrapperspb.BytesValue{}, reflect.TypeFor[b]()) })
 	wg.Wait()
 
 	codec := anypb.New(anypb.WithRegistry(registry))

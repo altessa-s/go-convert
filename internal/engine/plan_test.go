@@ -99,9 +99,9 @@ func TestBuildPlanChoosesSteps(t *testing.T) {
 		{name: "nil and zero modes keep fast steps", cfg: Config{IgnoreNilValues: true, IgnoreZeroValues: true}, want: fast},
 		{name: "overflow check keeps fast steps", cfg: Config{OverflowCheck: true}, want: fast},
 		{
-			name: "codecs keep assignment only",
+			name: "codecs see every field",
 			cfg:  Config{Codecs: convcodec.NewCodecsSet(passthrough)},
-			want: with(fast, map[string]stepKind{"b": stepGeneric}),
+			want: allGeneric,
 		},
 		{
 			name: "error codecs are generic",
@@ -459,7 +459,7 @@ func TestBuildPlanPlansNestedStructs(t *testing.T) {
 	e := New(Config{})
 	plan := e.planFor(src, dst)
 	require.Equal(t, map[string]stepKind{"in": stepStruct, "ptr": stepStruct, "same": stepAssign, "node": stepStruct}, planKinds(plan))
-	require.Equal(t, map[string]stepKind{"in": stepGeneric, "ptr": stepGeneric, "same": stepAssign, "node": stepGeneric},
+	require.Equal(t, map[string]stepKind{"in": stepGeneric, "ptr": stepGeneric, "same": stepGeneric, "node": stepGeneric},
 		planKinds(New(Config{Codecs: convcodec.NewCodecsSet(passthrough)}).planFor(src, dst)))
 
 	node := plan.steps[3].nested

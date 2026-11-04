@@ -29,14 +29,44 @@ var layers = []struct {
 }{
 	{".", []string{"codec", "internal/engine"}},
 	{"codec", nil},
-	{"codec/*", []string{"codec", "internal/reflect"}},
+	{"codec/*", []string{"codec", "reflectx"}},
 	{"converttest", []string{"."}},
-	{"internal/engine", []string{"codec", "internal/primitive", "internal/reflect", "internal/typeinfo"}},
-	{"internal/primitive", []string{"internal/reflect"}},
-	{"internal/reflect", nil},
+	{"internal/engine", []string{"codec", "internal/primitive", "internal/typeinfo", "reflectx"}},
+	{"internal/primitive", []string{"reflectx"}},
 	{"internal/typeinfo", nil},
-	{"proto/codec/*", []string{"codec", "internal/reflect", "proto/codec/*"}},
-	{"googletype", []string{"codec", "internal/reflect"}},
+	{"reflectx", nil},
+	{"proto/codec/*", []string{"codec", "reflectx", "proto/codec/*"}},
+	{"googletype", []string{"codec", "reflectx"}},
+}
+
+// nestedModules lists the directories holding a nested module. A nested
+// module release may be combined with a newer root release, so it must not
+// import the root module's internal packages, which carry no compatibility
+// promise.
+var nestedModules = []string{"codec/optionalcodec", "proto", "googletype"}
+
+func TestNestedModulesAreListed(t *testing.T) {
+	t.Parallel()
+
+	var found []string
+
+	err := filepath.WalkDir(".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if entry.IsDir() && path != "." && (strings.HasPrefix(entry.Name(), ".") || entry.Name() == "devtools" || entry.Name() == "bin") {
+			return filepath.SkipDir
+		}
+
+		if !entry.IsDir() && entry.Name() == "go.mod" && path != "go.mod" {
+			found = append(found, filepath.ToSlash(filepath.Dir(path)))
+		}
+
+		return nil
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, nestedModules, found)
 }
 
 func TestArchitecture(t *testing.T) {
@@ -85,6 +115,10 @@ func checkFile(t *testing.T, path string) {
 
 		if !isTest {
 			require.True(t, importAllowed(dir, imported), "%s imports %s across a layer boundary", path, imported)
+		}
+
+		if nested := nestedModuleOf(dir); nested != "" {
+			require.False(t, isRootInternal(imported), "%s: nested module %s imports the root internal package %s", path, nested, imported)
 		}
 	}
 
@@ -147,6 +181,25 @@ func importAllowed(dir, imported string) bool {
 	}
 
 	return false
+}
+
+// nestedModuleOf returns the nested module directory holding dir, or "".
+func nestedModuleOf(dir string) string {
+	for _, module := range nestedModules {
+		if dir == module || strings.HasPrefix(dir, module+"/") {
+			return module
+		}
+	}
+
+	return ""
+}
+
+// isRootInternal reports whether imported is an internal package of the
+// root module.
+func isRootInternal(imported string) bool {
+	rel, ok := strings.CutPrefix(imported, modulePath+"/")
+
+	return ok && (rel == "internal" || strings.HasPrefix(rel, "internal/"))
 }
 
 func matchDir(pattern, dir string) bool {

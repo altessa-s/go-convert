@@ -9,8 +9,7 @@ import (
 	"strings"
 
 	"github.com/altessa-s/go-convert/internal/typeinfo"
-
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
+	"github.com/altessa-s/go-convert/reflectx"
 )
 
 // isTypeCachedAssignable reports whether srcType is assignable to dstType,
@@ -41,11 +40,11 @@ func (w *walker) isTypeCachedConvertible(srcType, dstType reflect.Type) bool {
 }
 
 // isMergeableStruct reports whether t (after pointer indirection) is a struct
-// that [WithSparseMerge] can merge field-by-field, i.e. it has at least one
+// that the sparse-merge mode can merge field-by-field, i.e. it has at least one
 // exported field. Structs without exported fields (time.Time and similar
 // opaque types) cannot be merged and must be assigned wholesale.
 func (w *walker) isMergeableStruct(t reflect.Type) bool {
-	if reflectutils.IndirectType(t).Kind() != reflect.Struct {
+	if reflectx.IndirectType(t).Kind() != reflect.Struct {
 		return false
 	}
 
@@ -68,9 +67,9 @@ func (w *walker) canConvertType(src, dst reflect.Type) bool {
 // canConvertTypeStructural ignores codecs and reports only the built-in
 // structural conversions.
 func (w *walker) canConvertTypeStructural(src, dst reflect.Type) bool {
-	src = reflectutils.IndirectType(src)
+	src = reflectx.IndirectType(src)
 
-	dst = reflectutils.IndirectType(dst)
+	dst = reflectx.IndirectType(dst)
 	if src.AssignableTo(dst) || src.ConvertibleTo(dst) {
 		return true
 	}
@@ -78,7 +77,7 @@ func (w *walker) canConvertTypeStructural(src, dst reflect.Type) bool {
 	switch {
 	case src.Kind() == reflect.Struct && dst.Kind() == reflect.Struct:
 		return true
-	case src.Kind() == reflect.Struct && dst.Kind() == reflect.Slice && reflectutils.IndirectType(dst.Elem()) == src:
+	case src.Kind() == reflect.Struct && dst.Kind() == reflect.Slice && reflectx.IndirectType(dst.Elem()) == src:
 		return true
 	case src.Kind() == reflect.Slice && dst.Kind() == reflect.Slice:
 		return true
@@ -97,7 +96,7 @@ var typeMergeableCache typeinfo.Bounded[bool]
 
 // typeHasMergeableStruct reports whether t reaches a struct with exported fields through pointers, containers or interfaces.
 func typeHasMergeableStruct(t reflect.Type) bool {
-	t = reflectutils.IndirectType(t)
+	t = reflectx.IndirectType(t)
 
 	return typeMergeableCache.Get(t, func() bool {
 		return typeHasMergeableStructSeen(t, make(map[reflect.Type]bool))
@@ -106,7 +105,7 @@ func typeHasMergeableStruct(t reflect.Type) bool {
 
 // typeHasMergeableStructSeen is typeHasMergeableStruct with a guard against recursive types.
 func typeHasMergeableStructSeen(t reflect.Type, seen map[reflect.Type]bool) bool {
-	t = reflectutils.IndirectType(t)
+	t = reflectx.IndirectType(t)
 	if seen[t] {
 		return false
 	}
@@ -150,7 +149,7 @@ func isStructZero(v reflect.Value) bool {
 
 // isSparseStructEmpty reports whether v carries no update instructions: every
 // pointer/slice/map/interface field is nil and every other field is its zero
-// value. Used by [WithSparseMerge] to detect a present-but-empty nested update
+// value. Used by the sparse-merge mode to detect a present-but-empty nested update
 // struct, which signals "clear the whole field" rather than "merge nothing".
 func isSparseStructEmpty(v reflect.Value) bool {
 	// Indexing avoids the allocation of the Value.Fields iterator.
@@ -190,7 +189,7 @@ var typeSliceCache typeinfo.Bounded[bool]
 
 // typeCanContainSlice reports whether values of t can hold a slice that WithCopySlices must clone.
 func typeCanContainSlice(t reflect.Type) bool {
-	t = reflectutils.IndirectType(t)
+	t = reflectx.IndirectType(t)
 
 	return typeSliceCache.Get(t, func() bool {
 		return typeCanContainSliceSeen(t, make(map[reflect.Type]bool))
@@ -199,7 +198,7 @@ func typeCanContainSlice(t reflect.Type) bool {
 
 // typeCanContainSliceSeen is typeCanContainSlice with a guard against recursive types.
 func typeCanContainSliceSeen(t reflect.Type, seen map[reflect.Type]bool) bool {
-	t = reflectutils.IndirectType(t)
+	t = reflectx.IndirectType(t)
 	if seen[t] {
 		return false
 	}

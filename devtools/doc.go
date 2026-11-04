@@ -16,11 +16,13 @@
 // # Usage
 //
 // Make targets build or install a tool from this module before running it.
-// make generate builds optgen and gci into bin/, and make fmt builds gci
-// there; both run them from bin/, so a different version on PATH never takes
-// part:
+// make generate builds optgen, gci and golangci-lint into bin/, and make fmt
+// builds golangci-lint there; both run them from bin/, so a different version
+// on PATH never takes part. make fmt formats with golangci-lint fmt, whose gci
+// knows the standard library of the running toolchain; the standalone gci
+// only serves as the optgen formatter:
 //
-//	go -C devtools build -o "$PWD/bin/gci" github.com/daixiang0/gci
+//	go -C devtools build -o "$PWD/bin/golangci-lint" github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 //
 // The other targets install their tool from this module:
 //

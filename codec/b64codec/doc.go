@@ -11,8 +11,8 @@
 // pointers as well.
 //
 // Invalid base64 input is returned as an [*Error], so the codec is an error
-// codec ([convcodec.CodecE]) registered with converter.WithErrorCodecs;
-// converter.ConvertE returns the error unchanged. An empty string decodes to
+// codec ([convcodec.CodecE]) registered with convert.WithErrorCodecs;
+// convert.ConvertE returns the error unchanged. An empty string decodes to
 // a non-nil empty slice, keeping []byte{} apart from nil; a nil source
 // pointer sets the destination to its zero value (a nil slice, "" or a nil
 // pointer).
@@ -22,5 +22,5 @@
 //
 // Example:
 //
-//	converter.ConvertE(src, &dst, converter.WithErrorCodecs(b64codec.New(b64codec.WithEncoding(base64.RawURLEncoding))))
+//	convert.ConvertE(src, &dst, convert.WithErrorCodecs(b64codec.New(b64codec.WithEncoding(base64.RawURLEncoding))))
 package b64codec

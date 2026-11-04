@@ -17,7 +17,7 @@ func TestIgnoreZeroValuesKeepsDestination(t *testing.T) {
 	src := Source{Name: "", Age: 0}
 	dst := Dest{Name: "original", Age: 42}
 
-	converter.Convert(src, &dst, converter.WithIgnoreZeroValues())
+	converter.Convert(src, &dst, converter.WithValueMode(converter.IgnoreZeroValues))
 	require.Equal(t, "original", dst.Name)
 	require.Equal(t, 42, dst.Age)
 }
@@ -26,7 +26,7 @@ func TestIgnoreZeroValuesSkipsOnlyZeroFields(t *testing.T) {
 	src := &SrcUser{Name: "Bob", Age: 0}
 	dst := &DstUser{Name: "Original", Age: 25}
 
-	converter.Convert(src, dst, converter.WithIgnoreZeroValues())
+	converter.Convert(src, dst, converter.WithValueMode(converter.IgnoreZeroValues))
 
 	require.Equal(t, "Bob", dst.Name)
 	require.Equal(t, 25, dst.Age, "zero should be ignored")
@@ -38,12 +38,12 @@ func TestIgnoreNilValuesKeepsDestinationPointer(t *testing.T) {
 	pv := 99
 	dst.Ptr = &pv
 
-	converter.Convert(src, &dst, converter.WithIgnoreNilValues())
+	converter.Convert(src, &dst, converter.WithValueMode(converter.IgnoreNilValues))
 	require.NotNil(t, dst.Ptr)
 	require.Equal(t, 99, *dst.Ptr)
 }
 
-// Types exercising WithSparseMerge: a sparse source merged onto an existing
+// Types exercising SparseMerge: a sparse source merged onto an existing
 // destination. Source and destination are distinct types so every field flows
 // through the struct-merge path rather than a direct assignment.
 type MergeDeepSource struct{ Code *string }
@@ -138,13 +138,13 @@ func TestSparseMerge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dst := tt.dst
-			converter.Convert(&tt.src, &dst, converter.WithSparseMerge())
+			converter.Convert(&tt.src, &dst, converter.WithValueMode(converter.SparseMerge))
 			require.Equal(t, tt.want, dst)
 		})
 	}
 }
 
-// Types exercising WithSparseMerge when source and destination share the same
+// Types exercising SparseMerge when source and destination share the same
 // type: the assignability fast path must not replace nested structs wholesale.
 type MergeSameNested struct {
 	Field *string
@@ -190,7 +190,7 @@ func TestSparseMergeSameType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dst := tt.dst
-			converter.Convert(&tt.src, &dst, converter.WithSparseMerge())
+			converter.Convert(&tt.src, &dst, converter.WithValueMode(converter.SparseMerge))
 			require.Equal(t, tt.want, dst)
 		})
 	}
@@ -202,13 +202,13 @@ func TestSparseMergeDoesNotAliasSource(t *testing.T) {
 	dst := MergeSame{Nested: &MergeSameNested{Field: sp("a"), Label: sp("b")}}
 	src := MergeSame{Nested: &MergeSameNested{Field: sp("x")}}
 
-	converter.Convert(&src, &dst, converter.WithSparseMerge())
+	converter.Convert(&src, &dst, converter.WithValueMode(converter.SparseMerge))
 
 	require.NotSame(t, src.Nested, dst.Nested,
 		"destination must not alias the source nested struct")
 }
 
-// Types exercising WithSparseMerge with non-pointer nested structs: they carry
+// Types exercising SparseMerge with non-pointer nested structs: they carry
 // no presence signal, so a zero value merges normally and never clears.
 type MergeValMetaSource struct{ Note *string }
 
@@ -250,7 +250,7 @@ func TestSparseMergeNonPointerNestedStruct(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dst := tt.dst
-			converter.Convert(&tt.src, &dst, converter.WithSparseMerge())
+			converter.Convert(&tt.src, &dst, converter.WithValueMode(converter.SparseMerge))
 			require.Equal(t, tt.want, dst)
 		})
 	}

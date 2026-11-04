@@ -19,8 +19,8 @@
 // Example:
 //
 //	codec := jsonpb.New()
-//	converter.Convert(src, &dst, converter.WithCodecs(codec))
+//	convert.Convert(src, &dst, convert.WithCodecs(codec))
 //
 //	codecE := jsonpb.NewE()
-//	_, err := converter.ConvertE(src, &dst, converter.WithErrorCodecs(codecE))
+//	_, err := convert.ConvertE(src, &dst, convert.WithErrorCodecs(codecE))
 package jsonpb

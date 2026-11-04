@@ -6,18 +6,10 @@
 // optional.Optional[T] fields and matching pointer or value
 // counterparts during struct-to-struct conversion.
 //
-// Register it with the converter (and, by extension, the data/mongo
-// helpers) via WithCodecs:
+// Register it with a converter via WithCodecs:
 //
-//	conv := converter.NewShared[ModelT, EntityT](
-//	    converter.WithCodecs(optionalcodec.Codec),
-//	)
-//
-//	// or, through data/mongo:
-//	m, err := mongo.New("mydb",
-//	    mongo.WithConverterOptions(
-//	        converter.WithCodecs(optionalcodec.Codec),
-//	    ),
+//	conv := convert.New[*Model, *Entity](
+//	    convert.WithCodecs(optionalcodec.Codec),
 //	)
 //
 // # Supported shapes

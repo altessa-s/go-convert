@@ -138,7 +138,7 @@ func BenchmarkConvert_SparseMerge(b *testing.B) {
 	src := benchMerge{Name: &name, Nested: &benchMergeNested{Field: &field}}
 	dst := benchMerge{Title: &name, Nested: &benchMergeNested{Label: &field}}
 
-	conv := converter.New[*benchMerge, *benchMerge](converter.WithSparseMerge())
+	conv := converter.New[*benchMerge, *benchMerge](converter.WithValueMode(converter.SparseMerge))
 
 	b.ResetTimer()
 
@@ -248,7 +248,7 @@ func BenchmarkConvert_Embedded(b *testing.B) {
 		}
 	})
 	b.Run("handle_embedded", func(b *testing.B) {
-		conv := converter.New[benchEmbeddedSrc, *benchEmbeddedDst](converter.WithHandleEmbeddedStructs(false))
+		conv := converter.New[benchEmbeddedSrc, *benchEmbeddedDst](converter.WithEmbeddedStructs(converter.EmbeddedFill))
 
 		b.ReportAllocs()
 

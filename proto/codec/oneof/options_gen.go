@@ -3,8 +3,39 @@
 
 package oneof
 
+import (
+	"strings"
+)
+
 // Option is a functional option for configuring options.
 type Option func(o *options)
+
+// WithFallbackField sets the fallbackField option.
+//
+// fallbackField names, case-insensitively, the field converted when every
+// oneof field is nil, so a default variant is set even without data. For
+// example WithFallbackField("contractor") creates an empty Contractor
+// wrapper when all fields are nil.
+func WithFallbackField[T interface{ string | *string }](v T) Option {
+	return func(o *options) {
+		var value string
+		switch t := any(v).(type) {
+		case string:
+			value = t
+		case *string:
+			if t == nil {
+				return
+			}
+			value = *t
+		}
+		transformedValue := strings.ToLower(strings.TrimSpace(value))
+
+		if transformedValue == "" {
+			return
+		}
+		o.fallbackField = transformedValue
+	}
+}
 
 // WithIgnoreNilFields enables the ignoreNilFields option.
 //

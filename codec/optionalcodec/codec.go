@@ -14,7 +14,7 @@ import (
 
 // Codec bridges optional.Optional[T] fields and matching pointer / value
 // counterparts during struct-to-struct conversion. It is intended to be
-// registered with converter.WithCodecs(optionalcodec.Codec), and — so that
+// registered with convert.WithCodecs(optionalcodec.Codec), and — so that
 // composition (below) works — placed BEFORE any type-specific codec it should
 // compose with (e.g. tspb, durpb).
 //

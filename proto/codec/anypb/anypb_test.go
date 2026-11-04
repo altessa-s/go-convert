@@ -46,8 +46,8 @@ type protoEnvelope struct {
 
 func newRegistry() *anypb.Registry {
 	return anypb.NewRegistry().
-		Register(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]()).
-		Register(&wrapperspb.StringValue{}, reflect.TypeFor[*Note]())
+		MustRegister(&timestamppb.Timestamp{}, reflect.TypeFor[time.Time]()).
+		MustRegister(&wrapperspb.StringValue{}, reflect.TypeFor[*Note]())
 }
 
 func envelopeOptions(opts ...anypb.Option) []converter.Option {
@@ -353,25 +353,28 @@ func TestNew_InterfaceHoldingAny(t *testing.T) {
 	require.Same(t, packed, dst)
 }
 
-func TestRegistry_RegisterPanics(t *testing.T) {
+func TestRegistry_RegisterErrors(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name     string
-		register func(r *anypb.Registry)
+		name    string
+		message proto.Message
+		domain  reflect.Type
 	}{
-		{name: "nil message", register: func(r *anypb.Registry) { r.Register(nil, reflect.TypeFor[Note]()) }},
-		{name: "nil domain", register: func(r *anypb.Registry) { r.Register(&wrapperspb.StringValue{}, nil) }},
-		{name: "interface domain", register: func(r *anypb.Registry) { r.Register(&wrapperspb.StringValue{}, reflect.TypeFor[fmt.Stringer]()) }},
-		{name: "duplicate message", register: func(r *anypb.Registry) { r.Register(&wrapperspb.StringValue{}, reflect.TypeFor[string]()) }},
-		{name: "duplicate domain", register: func(r *anypb.Registry) { r.Register(&wrapperspb.BytesValue{}, reflect.TypeFor[Note]()) }},
+		{name: "nil message", domain: reflect.TypeFor[Note]()},
+		{name: "nil domain", message: &wrapperspb.StringValue{}},
+		{name: "interface domain", message: &wrapperspb.Int64Value{}, domain: reflect.TypeFor[fmt.Stringer]()},
+		{name: "duplicate message", message: &wrapperspb.StringValue{}, domain: reflect.TypeFor[string]()},
+		{name: "duplicate domain", message: &wrapperspb.BytesValue{}, domain: reflect.TypeFor[Note]()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			registry := anypb.NewRegistry().Register(&wrapperspb.StringValue{}, reflect.TypeFor[Note]())
+			registry := anypb.NewRegistry().MustRegister(&wrapperspb.StringValue{}, reflect.TypeFor[Note]())
 
-			require.Panics(t, func() { tc.register(registry) })
+			var regErr anypb.RegistrationError
+			require.ErrorAs(t, registry.Register(tc.message, tc.domain), &regErr)
+			require.Panics(t, func() { registry.MustRegister(tc.message, tc.domain) })
 		})
 	}
 }

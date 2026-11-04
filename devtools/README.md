@@ -7,9 +7,9 @@ Module `github.com/altessa-s/go-convert/devtools` pins the development tools of 
 
 | Tool            | Package                                                  | Make targets                  |
 |-----------------|----------------------------------------------------------|-------------------------------|
-| golangci-lint   | `github.com/golangci/golangci-lint/v2/cmd/golangci-lint` | `lint`                        |
+| golangci-lint   | `github.com/golangci/golangci-lint/v2/cmd/golangci-lint` | `lint`, `fmt`, `generate`     |
 | optgen          | `github.com/altessa-s/go-optgen/cmd/optgen`              | `generate` (`bin/optgen`)     |
-| gci             | `github.com/daixiang0/gci`                               | `fmt`, `generate` (`bin/gci`) |
+| gci             | `github.com/daixiang0/gci`                               | `generate` (`bin/gci`)        |
 | gosec           | `github.com/securego/gosec/v2/cmd/gosec`                 | `gosec`, `security-scan`      |
 | govulncheck     | `golang.org/x/vuln/cmd/govulncheck`                      | `security-scan`               |
 | dupl            | `github.com/mibk/dupl`                                   | `dupl`, `dupl-check`          |
@@ -30,7 +30,9 @@ The module has no behavior a test could assert (blank imports only), so it has n
 
 ```sh
 # make generate and make fmt build their tools into bin/ and run them from there.
-go -C devtools build -o "$PWD/bin/gci" github.com/daixiang0/gci
+# make fmt runs golangci-lint fmt (the formatters of .golangci.yml); the
+# standalone gci only formats optgen output, which golangci-lint fmt settles.
+go -C devtools build -o "$PWD/bin/golangci-lint" github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
 # The other targets install their tool from this module.
 go -C devtools install github.com/golangci/golangci-lint/v2/cmd/golangci-lint

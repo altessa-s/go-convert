@@ -4,7 +4,8 @@
 import convcodec "github.com/altessa-s/go-convert/codec"
 ```
 
-Package `convcodec` provides the codec interface and chain execution engine for the converter. Individual codec implementations live in subpackages.
+Package `codec` provides the codec interface and chain execution engine for the converter. This repository imports it as `convcodec`,
+which leaves `codec` free for variables holding a codec. Individual codec implementations live in subpackages.
 
 A `Codec` either handles the conversion and returns, or delegates to `next`. Codecs execute in registration order inside a `Set`.
 
@@ -12,7 +13,7 @@ A `Codec` either handles the conversion and returns, or delegates to `next`. Cod
 with `AddError`; `RunError` runs error codecs, then legacy codecs, then the
 error-returning terminal handler. `HasErrorCodecs` reports whether this path is
 needed. When registered with the converter, errors returned by `CodecE`
-propagate unchanged through `converter.ConvertE`, preserving error identity.
+propagate unchanged through `convert.ConvertE`, preserving error identity.
 The existing `Codec` and `Run` APIs are unchanged.
 
 ## Set

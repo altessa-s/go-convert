@@ -12,9 +12,9 @@ import (
 
 	"github.com/altessa-s/go-convert/internal/primitive"
 	"github.com/altessa-s/go-convert/internal/typeinfo"
+	"github.com/altessa-s/go-convert/reflectx"
 
 	convcodec "github.com/altessa-s/go-convert/codec"
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
 // noIgnorePath is a sentinel path for values that must never be matched by
@@ -186,7 +186,7 @@ var walkers = sync.Pool{New: func() any { return newWalker() }}
 // newWalker returns a walker with its codec terminal bound.
 func newWalker() *walker {
 	w := &walker{}
-	w.terminal = w.convertByKindNoPath
+	w.terminal = w.convertAfterCodecsNoPath
 
 	return w
 }
@@ -226,7 +226,7 @@ func (w *walker) descend(path string) {
 // [OverflowError] or [DepthError], or the unchanged error of a codec. dst may
 // be partially written when an error is returned.
 func (e *Engine) Convert(src, dst any) (err error) {
-	srcValue := reflectutils.IndirectValue(reflect.ValueOf(src))
+	srcValue := reflectx.IndirectValue(reflect.ValueOf(src))
 	if !srcValue.IsValid() {
 		return nil
 	}
@@ -334,7 +334,7 @@ func valueOf(v reflect.Value) any {
 // convertStruct converts one struct to another following plan, or the cached
 // plan for the two types when plan is nil.
 func (w *walker) convertStruct(path string, src reflect.Value, dst reflect.Value, nested bool, plan *structPlan) {
-	dstValue := reflectutils.IndirectValue(dst)
+	dstValue := reflectx.IndirectValue(dst)
 	if nested && src.Type() == dstValue.Type() && w.hasIgnorePathBelow(path) && w.overwritesValues() {
 		src = w.copyPrivateState(src, dstValue)
 	}
@@ -381,7 +381,7 @@ func (w *walker) copyPrivateState(src, dstValue reflect.Value) reflect.Value {
 }
 
 // fillEmbeddedDestinations converts the whole source into every embedded
-// struct of the destination ([WithHandleEmbeddedStructs]).
+// struct of the destination (convert.EmbeddedFill).
 func (w *walker) fillEmbeddedDestinations(path string, src, dstValue reflect.Value) {
 	dstInfo := w.types.Get(dstValue.Type())
 	for fieldName, fieldIndex := range dstInfo.Embedded {
@@ -396,7 +396,7 @@ func (w *walker) fillEmbeddedDestinations(path string, src, dstValue reflect.Val
 }
 
 // initEmbeddedPointer fills a nil embedded struct pointer with the converted
-// source: always when alwaysInitializeEmbeddedStruct is set (even if the
+// source: always with InitEmbeddedStructs (convert.EmbeddedFillAlways, even if the
 // result is empty), otherwise only when the converted struct has a non-zero
 // value.
 func (w *walker) initEmbeddedPointer(path, fieldName string, src, embedded reflect.Value) {
@@ -422,13 +422,13 @@ func (w *walker) convertEmbeddedSource(
 	if !dstFieldExists {
 		// A source embedded struct flattened into the destination
 		// contributes promoted fields at the parent path.
-		w.convertStruct(path, reflectutils.IndirectValue(srcFieldValue), dst, true, nil)
+		w.convertStruct(path, reflectx.IndirectValue(srcFieldValue), dst, true, nil)
 		return
 	}
 
-	reflectutils.MakeDst(&dstFieldValue, reflectutils.IndirectType(dstFieldValue.Type()))
+	reflectx.MakeDst(&dstFieldValue, reflectx.IndirectType(dstFieldValue.Type()))
 	// A destination embedded field keeps the embedded segment.
-	w.convertStruct(fieldPath, reflectutils.IndirectValue(srcFieldValue), dstFieldValue, true, nil)
+	w.convertStruct(fieldPath, reflectx.IndirectValue(srcFieldValue), dstFieldValue, true, nil)
 }
 
 // skipValue applies the field exclusion and nil/zero options before codecs.
@@ -458,7 +458,8 @@ func (w *walker) skipValue(path, fieldName string, srcValue reflect.Value) bool 
 	return false
 }
 
-// convertValueAt converts one value: skip rules, codecs, assignment, primitives, then kind dispatch.
+// convertValueAt converts one value: skip rules, codecs, then assignment,
+// primitives and kind dispatch.
 func (w *walker) convertValueAt(path, fieldName string, srcValue reflect.Value, dstValue reflect.Value) {
 	if w.skipValue(path, fieldName, srcValue) {
 		return
@@ -480,27 +481,27 @@ func (w *walker) convertValueAt(path, fieldName string, srcValue reflect.Value, 
 		return
 	}
 
-	if w.tryAssignValue(path, srcValue, dstValue) {
-		return
-	}
-
-	// When codecs are registered, route the entire dispatch through the
-	// codec chain so a codec-handled type whose Go kind is struct/slice/map
-	// is consulted before the built-in field-by-field copy below — otherwise
-	// the kind-dispatch shadows the codec and silently zeros codec-handled
-	// types like time.Time. The primitive fast-path is skipped on this
-	// branch because codecs may also intercept primitives (e.g. an enum-int
-	// codec); convertByKind converts primitives through the convertible path.
+	// When codecs are registered, every value goes through the codec chain
+	// before any built-in conversion, assignment included, so a codec sees
+	// values whose type is assignable to the destination too (a string
+	// codec on a string field) and codec-handled struct, slice or map types
+	// (time.Time) are not shadowed by the field-by-field copy. The terminal
+	// assigns or dispatches on the kind; primitives convert through the
+	// convertible path there.
 	if w.cfg.Codecs.HasCodecs() {
 		if len(w.cfg.IgnorePaths) == 0 && path != noIgnorePath {
 			w.cfg.Codecs.Run(fieldName, srcValue, dstValue, w.terminal)
 		} else {
 			w.cfg.Codecs.Run(fieldName, srcValue, dstValue,
 				func(name string, src, dst reflect.Value) {
-					w.convertByKind(path, name, src, dst)
+					w.convertAfterCodecs(path, name, src, dst)
 				})
 		}
 
+		return
+	}
+
+	if w.tryAssignValue(path, srcValue, dstValue) {
 		return
 	}
 
@@ -508,7 +509,7 @@ func (w *walker) convertValueAt(path, fieldName string, srcValue reflect.Value, 
 	// intercept primitives, so this shortcut only runs when there are none.
 	handled, overflow := primitive.Convert(srcValue, dstValue, w.cfg.OverflowCheck)
 	if overflow {
-		panic(newOverflowError(fieldName, srcValue, reflectutils.IndirectType(dstValue.Type()).Kind()))
+		panic(newOverflowError(fieldName, srcValue, reflectx.IndirectType(dstValue.Type()).Kind()))
 	}
 
 	if handled {
@@ -518,10 +519,10 @@ func (w *walker) convertValueAt(path, fieldName string, srcValue reflect.Value, 
 	w.convertByKind(path, fieldName, srcValue, dstValue)
 }
 
-// convertByKindNoPath is the cached codec terminal for converters without
-// ignore paths; it avoids a per-field closure allocation.
-func (w *walker) convertByKindNoPath(fieldName string, srcValue, dstValue reflect.Value) {
-	w.convertByKind("", fieldName, srcValue, dstValue)
+// convertAfterCodecsNoPath is the cached codec terminal for converters
+// without ignore paths; it avoids a per-field closure allocation.
+func (w *walker) convertAfterCodecsNoPath(fieldName string, srcValue, dstValue reflect.Value) {
+	w.convertAfterCodecs("", fieldName, srcValue, dstValue)
 }
 
 // convertByKind performs the built-in conversion dispatched on the source and
@@ -549,8 +550,8 @@ func (w *walker) convertByKind(path, fieldName string, srcValue reflect.Value, d
 		detachPointer(dstValue)
 	}
 
-	srcValueType := reflectutils.IndirectType(srcValue.Type())
-	dstValueType := reflectutils.IndirectType(dstValue.Type())
+	srcValueType := reflectx.IndirectType(srcValue.Type())
+	dstValueType := reflectx.IndirectType(dstValue.Type())
 	srcKind := srcValueType.Kind()
 	dstKind := dstValueType.Kind()
 
@@ -580,7 +581,7 @@ func (w *walker) convertFromStruct(path, fieldName string, srcValue, dstValue re
 		w.convertStructToStruct(path, srcValue, dstValue, dstValueType, nil)
 		return true
 	case reflect.Slice:
-		if reflectutils.IndirectType(dstValueType.Elem()) != srcValueType {
+		if reflectx.IndirectType(dstValueType.Elem()) != srcValueType {
 			return false
 		}
 
@@ -596,7 +597,7 @@ func (w *walker) convertFromStruct(path, fieldName string, srcValue, dstValue re
 // struct, allocating a nil destination pointer and applying the sparse-merge
 // clear-on-empty rule. A non-nil plan is the plan for the two struct types.
 func (w *walker) convertStructToStruct(path string, srcValue, dstValue reflect.Value, dstValueType reflect.Type, plan *structPlan) {
-	srcIndirect := reflectutils.IndirectValue(srcValue)
+	srcIndirect := reflectx.IndirectValue(srcValue)
 	srcIsNil := !srcIndirect.IsValid()
 	// Sparse merge: a present-but-empty nested struct pointer
 	// clears the destination instead of recursing. Only a pointer
@@ -614,15 +615,15 @@ func (w *walker) convertStructToStruct(path string, srcValue, dstValue reflect.V
 		return
 	}
 
-	reflectutils.MakeDst(&dstValue, dstValueType)
-	w.convertStruct(path, srcIndirect, reflectutils.IndirectValue(dstValue), true, plan)
+	reflectx.MakeDst(&dstValue, dstValueType)
+	w.convertStruct(path, srcIndirect, reflectx.IndirectValue(dstValue), true, plan)
 }
 
 // convertStructToSlice converts a struct to a slice containing that struct.
 func (w *walker) convertStructToSlice(path, fieldName string, srcValue reflect.Value, dstValue reflect.Value) {
-	dstValue.Set(reflect.MakeSlice(reflect.SliceOf(reflectutils.IndirectType(dstValue.Type()).Elem()), 0, 1))
+	dstValue.Set(reflect.MakeSlice(reflect.SliceOf(reflectx.IndirectType(dstValue.Type()).Elem()), 0, 1))
 
-	dstVal := reflect.New(reflectutils.IndirectType(dstValue.Type().Elem()))
+	dstVal := reflect.New(reflectx.IndirectType(dstValue.Type().Elem()))
 	w.convertValueAt(path, fieldName, srcValue, dstVal.Elem())
 
 	if dstValue.Type().Elem().Kind() != reflect.Pointer {
@@ -642,14 +643,14 @@ func (w *walker) convertConvertible(fieldName string, srcValue reflect.Value, ds
 	// first would leave a non-nil pointer to the zero value when the types are
 	// not convertible (for example a struct field mapped to *string), which
 	// callers cannot distinguish from an intentionally empty value.
-	dstType := reflectutils.IndirectType(dstValue.Type())
-	if !w.isTypeCachedConvertible(reflectutils.IndirectType(srcValue.Type()), dstType) {
+	dstType := reflectx.IndirectType(dstValue.Type())
+	if !w.isTypeCachedConvertible(reflectx.IndirectType(srcValue.Type()), dstType) {
 		return
 	}
 
 	// The type relation alone is not enough: a slice shorter than the
 	// destination array is convertible by type but not by value.
-	srcIndirect := reflectutils.IndirectValue(srcValue)
+	srcIndirect := reflectx.IndirectValue(srcValue)
 	if !srcIndirect.IsValid() {
 		return
 	}
@@ -662,14 +663,14 @@ func (w *walker) convertConvertible(fieldName string, srcValue reflect.Value, ds
 
 	if !scalar {
 		var ok bool
-		if converted, ok = reflectutils.ConvertValue(srcIndirect, dstType); !ok {
+		if converted, ok = reflectx.ConvertValue(srcIndirect, dstType); !ok {
 			return
 		}
 	}
 
 	dst := dstValue
-	reflectutils.MakeDst(&dst, dstType)
-	dst = reflectutils.IndirectValue(dst)
+	reflectx.MakeDst(&dst, dstType)
+	dst = reflectx.IndirectValue(dst)
 
 	if w.cfg.OverflowCheck && w.overflows(srcIndirect, dst) {
 		panic(newOverflowError(fieldName, srcIndirect, dst.Kind()))
@@ -724,7 +725,8 @@ func (w *walker) mustDescend(path string, t reflect.Type) bool {
 	return typeHasMergeableStruct(t)
 }
 
-// convertAfterCodecs supplies built-in dispatch after the error and legacy chains.
+// convertAfterCodecs is the built-in conversion ending the codec chains:
+// assignment, then kind dispatch.
 func (w *walker) convertAfterCodecs(path, name string, src, dst reflect.Value) {
 	if !w.tryAssignValue(path, src, dst) {
 		w.convertByKind(path, name, src, dst)

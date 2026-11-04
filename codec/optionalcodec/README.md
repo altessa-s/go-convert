@@ -4,11 +4,11 @@
 import "github.com/altessa-s/go-convert/codec/optionalcodec"
 ```
 
-Package `optionalcodec` provides a [`converter`](../../README.md) codec that bridges
-[`optional.Optional[T]`](https://github.com/altessa-s/go-atlas-core/tree/develop/types/optional/README.md) fields and matching pointer or value
+Package `optionalcodec` provides a [`convert`](../../README.md) codec that bridges
+[`optional.Optional[T]`](https://github.com/altessa-s/go-atlas-core/tree/main/types/optional/README.md) fields and matching pointer or value
 counterparts during struct-to-struct conversion.
 
-Use it when your domain entity carries `Optional[T]` for fields where the Mongo model (or any other DTO) still uses `*T` or the bare `T`. The codec
+Use it when your domain entity carries `Optional[T]` for fields where a storage model or DTO still uses `*T` or the bare `T`. The codec
 turns the asymmetric mapping into a no-boilerplate single-line registration.
 
 ## Supported shapes
@@ -29,21 +29,11 @@ specific pair if you need that bridge.
 
 ## Usage
 
-Register the codec when constructing the `data/mongo` client:
+Register the codec with a converter:
 
 ```go
-m, err := mongo.New("mydb",
-    mongo.WithConverterOptions(
-        converter.WithCodecs(optionalcodec.Codec),
-    ),
-)
-```
-
-Or wire it directly into a converter:
-
-```go
-conv := converter.NewShared[ModelT, EntityT](
-    converter.WithCodecs(optionalcodec.Codec),
+conv := convert.New[*Model, *Entity](
+    convert.WithCodecs(optionalcodec.Codec),
 )
 ```
 
@@ -51,7 +41,7 @@ conv := converter.NewShared[ModelT, EntityT](
 
 When one side is `Optional[T]` and the other is some type `W` that this codec does not bridge directly (e.g. `*timestamppb.Timestamp`,
 `*durationpb.Duration`), the codec unwraps / wraps the `Optional` and delegates the inner `T ↔ W` conversion to the rest of the chain. This lets the
-codec compose with type-specific bridges such as [`tspb`](../../codec/tspb/README.md) and [`durpb`](../../codec/durpb/README.md) without requiring a
+codec compose with type-specific bridges such as [`tspb`](../../proto/codec/tspb/README.md) and [`durpb`](../../proto/codec/durpb/README.md) without requiring a
 dedicated `Optional`-aware variant of each one.
 
 **Ordering matters:** register `optionalcodec.Codec` *before* the codec that handles the inner type. The chain runs codecs in registration order, so the
@@ -87,26 +77,26 @@ type ProjectPB struct {
     TTL        *durationpb.Duration
 }
 
-opts := []converter.Option{
-    converter.WithCodecs(
+opts := []convert.Option{
+    convert.WithCodecs(
         optionalcodec.Codec,             // strips/wraps Optional first
         tspb.New(tspb.WithIgnoreZero()), // bridges time.Time ↔ *Timestamp
         durpb.New(durpb.WithIgnoreZero()),
     ),
-    converter.WithIgnoreZeroValues(),
+    convert.WithValueMode(convert.IgnoreZeroValues),
 }
 
 var pb ProjectPB
-converter.Convert(&Project{DeleteTime: optional.Some(now)}, &pb, opts...)
+convert.Convert(&Project{DeleteTime: optional.Some(now)}, &pb, opts...)
 // pb.DeleteTime is a non-nil *Timestamp; pb.TTL is nil (None → nil).
 ```
 
-The reverse direction works with the same chain (omit `WithIgnoreZeroValues()` when you want the converter to write zero values explicitly).
+The reverse direction works with the same chain (omit `convert.WithValueMode(convert.IgnoreZeroValues)` when you want the converter to write zero values explicitly).
 
 ## How it works
 
 The codec uses the narrow reflection escape hatch published by
-[`go-atlas-core/types/optional`](https://github.com/altessa-s/go-atlas-core/tree/develop/types/optional) (`IsOptionalType`, `InnerType`, `GetReflect`,
+[`go-atlas-core/types/optional`](https://github.com/altessa-s/go-atlas-core/tree/main/types/optional) (`IsOptionalType`, `InnerType`, `GetReflect`,
 `SomeReflect`, `NoneReflect`). It never reads or writes `Optional`'s private layout directly; the trade-off is one extra indirection per Optional field
 but a strictly contained dependency on the type's internals.
 

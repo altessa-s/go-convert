@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
+	"github.com/altessa-s/go-convert/reflectx"
 )
 
 // Func converts the primitive value at src into the primitive value at dst.
@@ -39,12 +39,12 @@ func Lookup(from, to reflect.Kind) (Func, bool) {
 // is the zero value. With checkOverflow set, a lossy narrowing conversion
 // writes nothing and reports overflow.
 func Convert(src, dst reflect.Value, checkOverflow bool) (handled, overflow bool) {
-	srcVal := reflectutils.IndirectValue(src)
-	if !srcVal.IsValid() || !reflectutils.IsPrimitive(srcVal.Kind()) {
+	srcVal := reflectx.IndirectValue(src)
+	if !srcVal.IsValid() || !reflectx.IsPrimitive(srcVal.Kind()) {
 		return false, false
 	}
 
-	dstType := reflectutils.IndirectType(dst.Type())
+	dstType := reflectx.IndirectType(dst.Type())
 
 	fn, ok := Lookup(srcVal.Kind(), dstType.Kind())
 	if !ok {
@@ -57,10 +57,10 @@ func Convert(src, dst reflect.Value, checkOverflow bool) (handled, overflow bool
 			return false, false
 		}
 
-		reflectutils.MakeDst(&dstVal, dstType)
+		reflectx.MakeDst(&dstVal, dstType)
 	}
 
-	dstVal = reflectutils.IndirectValue(dstVal)
+	dstVal = reflectx.IndirectValue(dstVal)
 	if !dstVal.IsValid() || !dstVal.CanSet() || !srcVal.CanAddr() || !dstVal.CanAddr() {
 		return false, false
 	}

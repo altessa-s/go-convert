@@ -14,8 +14,9 @@ import (
 
 // options holds configuration options for oneof conversion behavior.
 // These options control validation, error handling, and custom transformations.
-// The map- and name-valued fields keep hand-written setters below because
-// they normalize field names and accumulate entries.
+// fieldConverters and wrapperRegistry keep hand-written setters below: one
+// takes a name and a converter per call, the other converts prototypes to
+// types, and both normalize field names and accumulate entries.
 type options struct {
 	// ignoreNilFields ([WithIgnoreNilFields]) skips nil fields during oneof
 	// conversion: when every field is nil, the conversion passes to the next
@@ -24,9 +25,15 @@ type options struct {
 	// strictValidation ([WithStrictValidation]) makes conversion fail when
 	// more than one oneof field is non-nil, enforcing exactly-one semantics.
 	strictValidation bool
-	fieldConverters  map[string]FieldConverter `opt:"-" optgen:"manual"` // Custom converters for specific fields
-	fallbackField    string                    `opt:"-" optgen:"manual"` // Field to use if all fields are nil
-	wrapperRegistry  map[string]reflect.Type   `opt:"-" optgen:"manual"` // Registry of wrapper types for struct -> oneof conversion
+	// fallbackField names, case-insensitively, the field converted when every
+	// oneof field is nil, so a default variant is set even without data. For
+	// example WithFallbackField("contractor") creates an empty Contractor
+	// wrapper when all fields are nil.
+	fallbackField string `optval:"lower"`
+	// fieldConverters holds the custom converters of specific fields.
+	fieldConverters map[string]FieldConverter `opt:"-" optgen:"manual"`
+	// wrapperRegistry holds the wrapper types for struct -> oneof conversion.
+	wrapperRegistry map[string]reflect.Type `opt:"-" optgen:"manual"`
 }
 
 // WithFieldConverter returns an option that registers a custom converter for a specific field.
@@ -48,19 +55,6 @@ func WithFieldConverter(fieldName string, converter FieldConverter) Option {
 		}
 
 		o.fieldConverters[intern.LowerString(fieldName)] = converter
-	}
-}
-
-// WithFallbackField returns an option that specifies a fallback field to use when all fields are nil.
-// This is useful when you want a default oneof variant to be set even when no data is present.
-//
-// Example:
-//
-//	codec := oneof.New(oneof.WithFallbackField("contractor"))
-//	// Will create empty Contractor wrapper if all fields are nil
-func WithFallbackField(fieldName string) Option {
-	return func(o *options) {
-		o.fallbackField = intern.LowerString(fieldName)
 	}
 }
 

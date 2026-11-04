@@ -16,7 +16,7 @@ import (
 func noopNext(string, reflect.Value, reflect.Value) error { return nil }
 
 func BenchmarkNew_EnumToString(b *testing.B) {
-	codec := enumpb.New(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower))
+	codec := enumpb.MustNew(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower))
 	src := reflect.ValueOf(typepb.Field_CARDINALITY_REPEATED)
 
 	var dst string
@@ -31,7 +31,7 @@ func BenchmarkNew_EnumToString(b *testing.B) {
 }
 
 func BenchmarkNew_StringToEnum(b *testing.B) {
-	codec := enumpb.New(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower))
+	codec := enumpb.MustNew(enumpb.WithTrimEnumPrefix(), enumpb.WithCase(enumpb.CaseLower))
 	src := reflect.ValueOf("repeated")
 
 	var dst typepb.Field_Cardinality
@@ -46,7 +46,7 @@ func BenchmarkNew_StringToEnum(b *testing.B) {
 }
 
 func BenchmarkNew_PassThrough(b *testing.B) {
-	codec := enumpb.New()
+	codec := enumpb.MustNew()
 	src := reflect.ValueOf("hello")
 
 	var dst string
@@ -61,7 +61,7 @@ func BenchmarkNew_PassThrough(b *testing.B) {
 }
 
 func BenchmarkNewMapping_EnumToGo(b *testing.B) {
-	codec := enumpb.NewMapping(cardinalities)
+	codec := enumpb.MustNewMapping(cardinalities)
 	src := reflect.ValueOf(typepb.Field_CARDINALITY_REPEATED)
 
 	var dst cardinality
@@ -76,7 +76,7 @@ func BenchmarkNewMapping_EnumToGo(b *testing.B) {
 }
 
 func BenchmarkNewMapping_GoToEnum(b *testing.B) {
-	codec := enumpb.NewMapping(cardinalities)
+	codec := enumpb.MustNewMapping(cardinalities)
 	src := reflect.ValueOf(cardinalityRepeated)
 
 	var dst typepb.Field_Cardinality

@@ -275,11 +275,11 @@ func fzOptions(d *fzDecoder) []converter.Option {
 	}
 
 	if flags&4 != 0 {
-		opts = append(opts, converter.WithSparseMerge())
+		opts = append(opts, converter.WithValueMode(converter.SparseMerge))
 	}
 
 	if flags&8 != 0 {
-		opts = append(opts, converter.WithIgnoreZeroValues())
+		opts = append(opts, converter.WithValueMode(converter.IgnoreZeroValues))
 	}
 
 	if flags&16 != 0 {
@@ -295,7 +295,7 @@ func fzOptions(d *fzDecoder) []converter.Option {
 	}
 
 	if flags&128 != 0 {
-		opts = append(opts, converter.WithIgnoreNilValues())
+		opts = append(opts, converter.WithValueMode(converter.IgnoreNilValues))
 	}
 
 	return opts
