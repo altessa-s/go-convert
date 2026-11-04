@@ -137,6 +137,93 @@ func TestBuildPlanChoosesSteps(t *testing.T) {
 	}
 }
 
+func TestIgnorePathPlansKeepLeafKinds(t *testing.T) {
+	t.Parallel()
+
+	src, dst := reflect.TypeFor[planSrc](), reflect.TypeFor[planDst]()
+	plan := New(Config{IgnorePaths: set("in.x")}).planFor(src, dst)
+
+	leaves := make(map[string]stepKind, len(plan.steps))
+	for _, step := range plan.steps {
+		require.Equal(t, step.leaf == stepPrimitive, step.leafConvert != nil)
+		leaves[step.name] = step.leaf
+	}
+
+	require.Equal(t, map[string]stepKind{
+		"planembedded": stepGeneric, "a": stepAssign, "b": stepPrimitive, "c": stepAssign,
+		"d": stepAssign, "in": stepAssign, "s": stepAssign,
+	}, leaves)
+
+	for _, step := range New(Config{}).planFor(src, dst).steps {
+		require.Equal(t, stepGeneric, step.leaf, "plans without ignore paths need no leaf kinds")
+	}
+
+	n := 5
+	in := &planSrc{A: 1, B: 2, C: "c", D: &n, In: planInner{X: 3}, S: []int{4}}
+
+	for _, tt := range []struct {
+		ignore string
+		want   planDst
+	}{
+		{"in.x", planDst{A: 1, B: 2, C: "c", D: &n, In: planInner{X: 9}, S: []int{4}}},
+		{"in", planDst{A: 1, B: 2, C: "c", D: &n, In: planInner{X: 9}, S: []int{4}}},
+		{"b", planDst{A: 1, B: 7, C: "c", D: &n, In: planInner{X: 3}, S: []int{4}}},
+		{"a", planDst{A: 7, B: 2, C: "c", D: &n, In: planInner{X: 3}, S: []int{4}}},
+	} {
+		out := planDst{A: 7, B: 7, In: planInner{X: 9}}
+		require.NoError(t, New(Config{IgnorePaths: set(tt.ignore)}).Convert(in, &out))
+		require.Equal(t, tt.want, out, tt.ignore)
+	}
+}
+
+type copyFlat struct {
+	A int
+	B string
+	S []int
+}
+
+type copyPointer struct {
+	A int
+	P *int
+}
+
+type copyCase struct {
+	Name string
+	NAME string
+}
+
+func TestPlanCopiesWholeStructs(t *testing.T) {
+	t.Parallel()
+
+	e := New(Config{})
+	require.True(t, e.planFor(reflect.TypeFor[copyFlat](), reflect.TypeFor[copyFlat]()).copyAll)
+	require.False(t, e.planFor(reflect.TypeFor[copyPointer](), reflect.TypeFor[copyPointer]()).copyAll, "nil pointers are skipped")
+	require.False(t, e.planFor(reflect.TypeFor[copyCase](), reflect.TypeFor[copyCase]()).copyAll, "names collide")
+	require.False(t, e.planFor(reflect.TypeFor[planSrc](), reflect.TypeFor[planSrc]()).copyAll, "unexported fields stay")
+	require.False(t, e.planFor(reflect.TypeFor[struct{}](), reflect.TypeFor[struct{}]()).copyAll)
+	require.False(t, New(Config{CopySlices: true}).planFor(reflect.TypeFor[copyFlat](), reflect.TypeFor[copyFlat]()).copyAll)
+
+	in := copyFlat{A: 1, B: "b", S: []int{1}}
+
+	var out copyFlat
+	require.NoError(t, e.Convert(in, &out))
+	require.Equal(t, in, out)
+
+	kept := copyFlat{A: 7, B: "keep"}
+	require.NoError(t, New(Config{IgnoreZeroValues: true}).Convert(copyFlat{A: 2}, &kept))
+	require.Equal(t, copyFlat{A: 2, B: "keep"}, kept, "the zero mode still skips fields")
+
+	w := New(Config{MaxDepth: 3}).walker()
+	defer w.release()
+
+	w.depth = 3
+	plan := w.planFor(reflect.TypeFor[copyFlat](), reflect.TypeFor[copyFlat]())
+
+	require.PanicsWithValue(t, DepthError{Limit: 3}, func() {
+		w.convertStructFields("", reflect.ValueOf(in), reflect.ValueOf(&out).Elem(), reflect.ValueOf(&out).Elem(), plan)
+	})
+}
+
 func TestBuildPlanResolvesIndices(t *testing.T) {
 	t.Parallel()
 
@@ -195,6 +282,82 @@ func TestPlanCacheIsBoundedUnderConcurrency(t *testing.T) {
 
 	wg.Wait()
 	require.LessOrEqual(t, e.plans.Len(), typeinfo.MaxTypes)
+}
+
+func TestPlanListIsBounded(t *testing.T) {
+	t.Parallel()
+
+	// A configuration of its own keeps other tests from evicting the list.
+	e := New(Config{IgnoreFields: set("plan list bound")})
+	src := reflect.TypeFor[planDst]()
+
+	for i := range maxPlansPerSource + 8 {
+		dst := syntheticStruct(i)
+		plan := e.planFor(src, dst)
+		require.Same(t, plan, e.planFor(src, dst), "plans are cached")
+	}
+
+	list := e.plans.Get(src, newPlanList)
+	require.Len(t, *list.entries.Load(), maxPlansPerSource, "the oldest plans are dropped")
+	require.Nil(t, list.find(syntheticStruct(0), e.planFlags))
+	require.NotNil(t, list.find(syntheticStruct(maxPlansPerSource+7), e.planFlags))
+}
+
+func TestConfigPlanCachesAreShared(t *testing.T) {
+	t.Parallel()
+
+	mapped := map[string]string{"a": "c"}
+
+	require.Same(t, New(Config{IgnoreFields: set("x", "y")}).plans, New(Config{IgnoreFields: set("y", "x")}).plans)
+	require.Same(t, New(Config{FieldMappings: mapped}).plans, New(Config{FieldMappings: map[string]string{"a": "c"}}).plans)
+	require.NotSame(t, New(Config{IgnoreFields: set("x")}).plans, New(Config{IgnoreFields: set("y")}).plans)
+
+	keys := map[string]Config{}
+
+	for _, cfg := range []Config{
+		{IgnoreFields: set("ab")},
+		{IgnoreFields: set("a", "b")},
+		{IgnoreFields: set("a:b")},
+		{FieldMappings: map[string]string{"ab": "c"}},
+		{FieldMappings: map[string]string{"a": "bc"}},
+		{FieldMappings: map[string]string{"a": "b", "c": "d"}},
+		{FieldMappings: map[string]string{"a": "d", "c": "b"}},
+		{IgnoreFields: set("a"), FieldMappings: map[string]string{"b": "c"}},
+		{IgnoreFields: set("b"), FieldMappings: map[string]string{"a": "c"}},
+	} {
+		key := planCacheKey(&cfg)
+		require.NotContains(t, keys, key, "configurations %v and %v share a key", keys[key], cfg)
+		keys[key] = cfg
+	}
+}
+
+func TestRootPlanRemembersTheFirstPair(t *testing.T) {
+	t.Parallel()
+
+	e := New(Config{})
+
+	var wg sync.WaitGroup
+	for i := range 32 {
+		wg.Go(func() {
+			var out planDst
+			if err := e.Convert(&planSrc{A: i}, &out); err != nil || out.A != i {
+				panic("unexpected planSrc conversion")
+			}
+
+			var node planNodeDst
+			if err := e.Convert(planNode{V: i}, &node); err != nil || node.V != int64(i) {
+				panic("unexpected planNode conversion")
+			}
+		})
+	}
+
+	wg.Wait()
+	require.Equal(t, rootReady, e.root.state.Load())
+
+	src, dst := e.root.src, e.root.dst
+	require.Same(t, e.planFor(src, dst), e.root.get(e, src, dst))
+	require.Same(t, e.planFor(reflect.TypeFor[planNode](), reflect.TypeFor[planNodeDst]()),
+		e.root.get(e, reflect.TypeFor[planNode](), reflect.TypeFor[planNodeDst]()), "other pairs use the cache")
 }
 
 func TestPlannedConversionIsConcurrencySafe(t *testing.T) {
@@ -262,4 +425,57 @@ func TestPlannedStepsKeepSemantics(t *testing.T) {
 		err = New(Config{MaxDepth: 1}).Convert(&outer{In: planInner{X: 1}}, &outerDst{})
 		require.Equal(t, DepthError{Limit: 1, Path: ""}, err)
 	})
+}
+
+type planNode struct {
+	V    int
+	Next *planNode
+}
+
+type planNodeDst struct {
+	V    int64
+	Next *planNodeDst
+}
+
+type planNestedSrc struct {
+	In   planInner
+	Ptr  *planInner
+	Same *planInner
+	Node planNode
+}
+
+type planNestedDst struct {
+	In   struct{ X int64 }
+	Ptr  **planInner
+	Same *planInner
+	Node *planNodeDst
+}
+
+func TestBuildPlanPlansNestedStructs(t *testing.T) {
+	t.Parallel()
+
+	src, dst := reflect.TypeFor[planNestedSrc](), reflect.TypeFor[planNestedDst]()
+
+	e := New(Config{})
+	plan := e.planFor(src, dst)
+	require.Equal(t, map[string]stepKind{"in": stepStruct, "ptr": stepStruct, "same": stepAssign, "node": stepStruct}, planKinds(plan))
+	require.Equal(t, map[string]stepKind{"in": stepGeneric, "ptr": stepGeneric, "same": stepAssign, "node": stepGeneric},
+		planKinds(New(Config{Codecs: convcodec.NewCodecsSet(passthrough)}).planFor(src, dst)))
+
+	node := plan.steps[3].nested
+	require.Equal(t, reflect.TypeFor[planNodeDst](), plan.steps[3].dstType)
+	require.Same(t, e.planFor(node.src, node.dst), node.get(e), "nested plans come from the cache")
+	require.Same(t, node.get(e), node.get(e), "nested plans are resolved once")
+
+	inner := &planInner{X: 4}
+
+	var out planNestedDst
+	require.NoError(t, e.Convert(&planNestedSrc{
+		In: planInner{X: 1}, Ptr: inner, Same: inner, Node: planNode{V: 2, Next: &planNode{V: 3}},
+	}, &out))
+	require.Equal(t, int64(1), out.In.X)
+	require.Equal(t, inner, *out.Ptr)
+	require.NotSame(t, inner, *out.Ptr, "a pointer of another type is converted, not shared")
+	require.Same(t, inner, out.Same)
+	require.Equal(t, &planNodeDst{V: 2, Next: &planNodeDst{V: 3}}, out.Node)
 }

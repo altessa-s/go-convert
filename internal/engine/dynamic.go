@@ -40,6 +40,12 @@ func (w *walker) convertDynamicValue(path, name string, src, dst reflect.Value, 
 		return
 	}
 
+	if !w.cfg.Codecs.HasCodecs() {
+		// An empty chain calls its terminal directly; skip the closure.
+		w.convertDynamic(path, name, src, dst, active)
+		return
+	}
+
 	w.cfg.Codecs.Run(name, src, dst, func(n string, s, d reflect.Value) {
 		w.convertDynamic(path, n, s, d, active)
 	})

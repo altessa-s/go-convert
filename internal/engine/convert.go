@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 
 	"github.com/altessa-s/go-convert/internal/primitive"
 	"github.com/altessa-s/go-convert/internal/typeinfo"
@@ -48,13 +49,53 @@ type Engine struct {
 	// namesObserved reports whether anything reads element and entry names,
 	// so building them per element can be skipped otherwise.
 	namesObserved bool
+	// skipsValues reports whether the nil or zero mode skips values.
+	skipsValues bool
 	// ignoreAncestors holds the proper ancestors of every ignore path.
 	ignoreAncestors map[string]struct{}
 	// plans caches the struct conversion plans, which depend on cfg; see
 	// [newPlanCache].
-	plans     *typeinfo.Keyed[planKey, *structPlan]
+	plans     *planCache
 	planFlags planFlags
+	// root remembers the plan of the first root struct pair.
+	root rootPlan
 }
+
+// rootPlan states.
+const (
+	rootEmpty uint32 = iota
+	rootWriting
+	rootReady
+)
+
+// rootPlan remembers the plan of the first root struct pair an engine
+// converts. An engine usually converts a single pair, which then skips the
+// plan cache lookup. The fields are written once, before state becomes
+// rootReady, and only read after observing it.
+type rootPlan struct {
+	state    atomic.Uint32
+	src, dst reflect.Type
+	plan     *structPlan
+}
+
+// get returns the plan converting src into dst for e, both struct types.
+func (r *rootPlan) get(e *Engine, src, dst reflect.Type) *structPlan {
+	if r.state.Load() == rootReady && r.src == src && r.dst == dst {
+		return r.plan
+	}
+
+	plan := e.planFor(src, dst)
+	if r.state.CompareAndSwap(rootEmpty, rootWriting) {
+		r.src, r.dst, r.plan = src, dst, plan
+		r.state.Store(rootReady)
+	}
+
+	return plan
+}
+
+// noCodecs is the codec set of engines configured without codecs. It is
+// never modified.
+var noCodecs = convcodec.NewCodecsSet()
 
 // sharedTypes is shared by every engine: struct metadata does not depend on
 // the configuration.
@@ -63,7 +104,7 @@ var sharedTypes = typeinfo.NewCache()
 // New returns an engine for cfg. Nil sets and mappings are treated as empty.
 func New(cfg Config) *Engine {
 	if cfg.Codecs == nil {
-		cfg.Codecs = convcodec.NewCodecsSet()
+		cfg.Codecs = noCodecs
 	}
 
 	if cfg.MaxDepth <= 0 {
@@ -77,6 +118,7 @@ func New(cfg Config) *Engine {
 		types: sharedTypes,
 		namesObserved: cfg.Codecs.HasCodecs() || cfg.Codecs.HasErrorCodecs() ||
 			len(cfg.IgnoreFields) > 0 || cfg.OverflowCheck,
+		skipsValues:     cfg.IgnoreNilValues || cfg.IgnoreZeroValues,
 		ignoreAncestors: ignoreAncestors(cfg.IgnorePaths),
 		plans:           plans,
 		planFlags:       flags,
@@ -90,6 +132,53 @@ type walker struct {
 	// terminal is the codec chain terminal for engines without ignore
 	// paths, bound once so the chain does not allocate a closure per field.
 	terminal convcodec.CodecHandler
+	// frames are the idle error codec terminals; see [walker.errorFrame].
+	frames []*errorFrame
+}
+
+// errorFrame is the terminal of one error codec chain. Its finish handler is
+// bound once, so running a chain does not allocate a closure per value.
+type errorFrame struct {
+	w      *walker
+	name   string
+	finish convcodec.CodecHandlerE
+}
+
+// run supplies the built-in conversion once the error codecs delegate.
+func (f *errorFrame) run(path string, src, dst reflect.Value) error {
+	f.w.convertAfterCodecs(path, f.name, src, dst)
+	return nil
+}
+
+// errorFrame takes an idle error codec terminal for the value named name.
+// A frame stays taken while its chain runs, as a codec may call the
+// terminal more than once, and is lost rather than reused when the chain
+// panics.
+func (w *walker) errorFrame(name string) *errorFrame {
+	var f *errorFrame
+	if n := len(w.frames); n > 0 {
+		f = w.frames[n-1]
+		w.frames = w.frames[:n-1]
+	} else {
+		f = &errorFrame{w: w}
+		f.finish = f.run
+	}
+
+	f.name = name
+
+	return f
+}
+
+// maxIdleFrames bounds the idle frames a walker keeps, which deep input
+// would otherwise grow to its nesting depth.
+const maxIdleFrames = 64
+
+// releaseFrame makes f idle again.
+func (w *walker) releaseFrame(f *errorFrame) {
+	if len(w.frames) < maxIdleFrames {
+		f.name = ""
+		w.frames = append(w.frames, f)
+	}
 }
 
 var walkers = sync.Pool{New: func() any { return newWalker() }}
@@ -153,7 +242,7 @@ func (e *Engine) Convert(src, dst any) (err error) {
 	defer w.release()
 
 	if srcValue.Kind() == reflect.Struct {
-		w.convertStruct("", srcValue, dstValue, false)
+		w.convertStruct("", srcValue, dstValue, false, e.root.get(e, srcValue.Type(), dstValue.Type()))
 		return nil
 	}
 
@@ -242,8 +331,9 @@ func valueOf(v reflect.Value) any {
 	return v.Interface()
 }
 
-// convertStruct converts one struct to another.
-func (w *walker) convertStruct(path string, src reflect.Value, dst reflect.Value, nested bool) {
+// convertStruct converts one struct to another following plan, or the cached
+// plan for the two types when plan is nil.
+func (w *walker) convertStruct(path string, src reflect.Value, dst reflect.Value, nested bool, plan *structPlan) {
 	dstValue := reflectutils.IndirectValue(dst)
 	if nested && src.Type() == dstValue.Type() && w.hasIgnorePathBelow(path) && w.overwritesValues() {
 		src = w.copyPrivateState(src, dstValue)
@@ -253,7 +343,11 @@ func (w *walker) convertStruct(path string, src reflect.Value, dst reflect.Value
 		w.fillEmbeddedDestinations(path, src, dstValue)
 	}
 
-	w.convertStructFields(path, src, dst, dstValue)
+	if plan == nil {
+		plan = w.planFor(src.Type(), dstValue.Type())
+	}
+
+	w.convertStructFields(path, src, dst, dstValue, plan)
 }
 
 // overwritesValues reports whether conversion writes every source value,
@@ -328,13 +422,13 @@ func (w *walker) convertEmbeddedSource(
 	if !dstFieldExists {
 		// A source embedded struct flattened into the destination
 		// contributes promoted fields at the parent path.
-		w.convertStruct(path, reflectutils.IndirectValue(srcFieldValue), dst, true)
+		w.convertStruct(path, reflectutils.IndirectValue(srcFieldValue), dst, true, nil)
 		return
 	}
 
 	reflectutils.MakeDst(&dstFieldValue, reflectutils.IndirectType(dstFieldValue.Type()))
 	// A destination embedded field keeps the embedded segment.
-	w.convertStruct(fieldPath, reflectutils.IndirectValue(srcFieldValue), dstFieldValue, true)
+	w.convertStruct(fieldPath, reflectutils.IndirectValue(srcFieldValue), dstFieldValue, true, nil)
 }
 
 // skipValue applies the field exclusion and nil/zero options before codecs.
@@ -374,10 +468,11 @@ func (w *walker) convertValueAt(path, fieldName string, srcValue reflect.Value, 
 	defer func() { w.depth-- }()
 
 	if path != noIgnorePath && w.cfg.Codecs.HasErrorCodecs() {
-		err := w.cfg.Codecs.RunError(path, fieldName, srcValue, dstValue, func(p string, src, dst reflect.Value) error {
-			w.convertAfterCodecs(p, fieldName, src, dst)
-			return nil
-		})
+		frame := w.errorFrame(fieldName)
+
+		err := w.cfg.Codecs.RunError(path, fieldName, srcValue, dstValue, frame.finish)
+		w.releaseFrame(frame)
+
 		if err != nil {
 			panic(codecError{err})
 		}
@@ -482,7 +577,7 @@ func (w *walker) convertByKind(path, fieldName string, srcValue reflect.Value, d
 func (w *walker) convertFromStruct(path, fieldName string, srcValue, dstValue reflect.Value, srcValueType, dstValueType reflect.Type) bool {
 	switch dstValueType.Kind() {
 	case reflect.Struct:
-		w.convertStructToStruct(path, srcValue, dstValue, dstValueType)
+		w.convertStructToStruct(path, srcValue, dstValue, dstValueType, nil)
 		return true
 	case reflect.Slice:
 		if reflectutils.IndirectType(dstValueType.Elem()) != srcValueType {
@@ -499,8 +594,8 @@ func (w *walker) convertFromStruct(path, fieldName string, srcValue, dstValue re
 
 // convertStructToStruct converts a (pointer to) struct into a (pointer to)
 // struct, allocating a nil destination pointer and applying the sparse-merge
-// clear-on-empty rule.
-func (w *walker) convertStructToStruct(path string, srcValue, dstValue reflect.Value, dstValueType reflect.Type) {
+// clear-on-empty rule. A non-nil plan is the plan for the two struct types.
+func (w *walker) convertStructToStruct(path string, srcValue, dstValue reflect.Value, dstValueType reflect.Type, plan *structPlan) {
 	srcIndirect := reflectutils.IndirectValue(srcValue)
 	srcIsNil := !srcIndirect.IsValid()
 	// Sparse merge: a present-but-empty nested struct pointer
@@ -520,7 +615,7 @@ func (w *walker) convertStructToStruct(path string, srcValue, dstValue reflect.V
 	}
 
 	reflectutils.MakeDst(&dstValue, dstValueType)
-	w.convertStruct(path, srcIndirect, reflectutils.IndirectValue(dstValue), true)
+	w.convertStruct(path, srcIndirect, reflectutils.IndirectValue(dstValue), true, plan)
 }
 
 // convertStructToSlice converts a struct to a slice containing that struct.
@@ -559,9 +654,17 @@ func (w *walker) convertConvertible(fieldName string, srcValue reflect.Value, ds
 		return
 	}
 
-	converted, ok := reflectutils.ConvertValue(srcIndirect, dstType)
-	if !ok {
-		return
+	// Scalar pairs always convert; they are written in place below instead
+	// of through an allocated intermediate value.
+	scalar := isScalarPair(srcIndirect.Kind(), dstType.Kind())
+
+	var converted reflect.Value
+
+	if !scalar {
+		var ok bool
+		if converted, ok = reflectutils.ConvertValue(srcIndirect, dstType); !ok {
+			return
+		}
 	}
 
 	dst := dstValue
@@ -570,6 +673,16 @@ func (w *walker) convertConvertible(fieldName string, srcValue reflect.Value, ds
 
 	if w.cfg.OverflowCheck && w.overflows(srcIndirect, dst) {
 		panic(newOverflowError(fieldName, srcIndirect, dst.Kind()))
+	}
+
+	if scalar {
+		if srcIndirect.CanInterface() && dst.CanSet() {
+			setScalar(srcIndirect, dst)
+			return
+		}
+
+		// Let Set report an unexported source or an unsettable destination.
+		converted = srcIndirect.Convert(dstType)
 	}
 
 	dst.Set(converted)

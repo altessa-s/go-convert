@@ -52,12 +52,10 @@ type options struct {
 }
 
 // config derives the immutable engine configuration from the applied options.
+// Empty sets and mappings stay nil, which the engine reads as empty, so a
+// configuration without them allocates nothing for them.
 func (o *options) config() engine.Config {
 	cfg := engine.Config{
-		Codecs:                convcodec.NewCodecsSet(o.codecs...).AddError(o.errorCodecs...),
-		IgnoreFields:          make(map[string]struct{}, len(o.ignoreFields)),
-		IgnorePaths:           make(map[string]struct{}, len(o.ignorePaths)),
-		FieldMappings:         make(map[string]string, len(o.fieldMappings)),
 		IgnoreZeroValues:      o.ignoreZeroValues,
 		IgnoreNilValues:       o.ignoreNilValues,
 		SparseMerge:           o.sparseMerge,
@@ -67,18 +65,32 @@ func (o *options) config() engine.Config {
 		OverflowCheck:         o.overflowCheck,
 		MaxDepth:              o.maxDepth,
 	}
-	for _, field := range o.ignoreFields {
-		cfg.IgnoreFields[strings.ToLower(field)] = struct{}{}
+	if len(o.codecs) > 0 || len(o.errorCodecs) > 0 {
+		cfg.Codecs = convcodec.NewCodecsSet(o.codecs...).AddError(o.errorCodecs...)
+	}
+
+	if len(o.ignoreFields) > 0 {
+		cfg.IgnoreFields = make(map[string]struct{}, len(o.ignoreFields))
+		for _, field := range o.ignoreFields {
+			cfg.IgnoreFields[strings.ToLower(field)] = struct{}{}
+		}
 	}
 
 	for _, path := range o.ignorePaths {
 		if path = strings.Trim(path, "."); path != "" {
+			if cfg.IgnorePaths == nil {
+				cfg.IgnorePaths = make(map[string]struct{}, len(o.ignorePaths))
+			}
+
 			cfg.IgnorePaths[strings.ToLower(path)] = struct{}{}
 		}
 	}
 
-	for source, destination := range o.fieldMappings {
-		cfg.FieldMappings[strings.ToLower(source)] = strings.ToLower(destination)
+	if len(o.fieldMappings) > 0 {
+		cfg.FieldMappings = make(map[string]string, len(o.fieldMappings))
+		for source, destination := range o.fieldMappings {
+			cfg.FieldMappings[strings.ToLower(source)] = strings.ToLower(destination)
+		}
 	}
 
 	return cfg

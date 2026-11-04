@@ -13,18 +13,31 @@ import (
 	reflectutils "github.com/altessa-s/go-convert/internal/reflect"
 )
 
-// isTypeCachedAssignable checks if src type is assignable to dst type using cache
+// isTypeCachedAssignable reports whether srcType is assignable to dstType,
+// answering the trivial cases directly and memoizing the rest: identical
+// types are assignable, and types of different kinds are not unless dstType
+// is an interface.
 func (w *walker) isTypeCachedAssignable(srcType, dstType reflect.Type) bool {
-	// Get type info from cache and check assignability
-	srcInfo := w.types.Get(srcType)
-	return srcInfo.AssignableTo(srcType, dstType)
+	if srcType == dstType {
+		return true
+	}
+
+	if dstType.Kind() != reflect.Interface && srcType.Kind() != dstType.Kind() {
+		return false
+	}
+
+	return w.types.Get(srcType).AssignableTo(srcType, dstType)
 }
 
-// isTypeCachedConvertible checks if src type is convertible to dst type using cache
+// isTypeCachedConvertible reports whether srcType is convertible to
+// dstType, memoizing the answer. Identical types and scalar kind pairs (see
+// [isScalarPair]) always convert.
 func (w *walker) isTypeCachedConvertible(srcType, dstType reflect.Type) bool {
-	// Get type info from cache and check convertibility
-	srcInfo := w.types.Get(srcType)
-	return srcInfo.ConvertibleTo(srcType, dstType)
+	if srcType == dstType || isScalarPair(srcType.Kind(), dstType.Kind()) {
+		return true
+	}
+
+	return w.types.Get(srcType).ConvertibleTo(srcType, dstType)
 }
 
 // isMergeableStruct reports whether t (after pointer indirection) is a struct
@@ -124,8 +137,10 @@ func typeHasExportedFields(t reflect.Type) bool {
 
 // isStructZero returns true if all fields of the struct are zero values.
 func isStructZero(v reflect.Value) bool {
-	for _, field := range v.Fields() {
-		if !field.IsZero() {
+	// Indexing avoids the allocation of the Value.Fields iterator.
+	n := v.NumField()
+	for i := range n {
+		if !v.Field(i).IsZero() {
 			return false
 		}
 	}
@@ -138,7 +153,10 @@ func isStructZero(v reflect.Value) bool {
 // value. Used by [WithSparseMerge] to detect a present-but-empty nested update
 // struct, which signals "clear the whole field" rather than "merge nothing".
 func isSparseStructEmpty(v reflect.Value) bool {
-	for _, field := range v.Fields() {
+	// Indexing avoids the allocation of the Value.Fields iterator.
+	n := v.NumField()
+	for i := range n {
+		field := v.Field(i)
 		switch field.Kind() {
 		case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Interface:
 			if !field.IsNil() {
