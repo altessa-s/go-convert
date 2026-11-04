@@ -110,7 +110,7 @@ func checkFile(t *testing.T, path string) {
 		require.NoError(t, err)
 
 		// proto and googletype are nested modules with their own protobuf dependency.
-		if dir == "." || !(strings.HasPrefix(dir, "proto") || strings.HasPrefix(dir, "googletype")) {
+		if dir == "." || !(strings.HasPrefix(dir, "proto") || dir == "googletype" || strings.HasPrefix(dir, "googletype/")) {
 			require.NotContains(t, imported, "google.golang.org/protobuf", "%s: the root module must not depend on protobuf", path)
 		}
 

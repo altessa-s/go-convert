@@ -40,8 +40,9 @@ const (
 	// ErrUnknownWeekday reports a DayOfWeek that is unspecified or out of
 	// range.
 	ErrUnknownWeekday
-	// ErrInvalidDuration reports a google.protobuf.Duration that is invalid
-	// or does not fit time.Duration.
+	// ErrInvalidDuration reports an invalid google.protobuf.Duration, such as
+	// seconds and nanos of opposite signs. A valid duration beyond the
+	// time.Duration range is not an error: it saturates.
 	ErrInvalidDuration
 )
 
