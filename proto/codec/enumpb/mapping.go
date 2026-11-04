@@ -30,6 +30,7 @@ type mappingCodec[P Enum, G comparable] struct {
 	enumName protoreflect.FullName
 	toGo     map[P]reflect.Value
 	toEnum   map[G]P
+	goValues map[P]G
 	zeroGo   G
 }
 
@@ -52,9 +53,27 @@ type mappingCodec[P Enum, G comparable] struct {
 //		userv1.Status_STATUS_BLOCKED: user.Blocked,
 //	}, enumpb.WithUnspecifiedAsEmpty())
 func NewMapping[P Enum, G comparable](table map[P]G, opts ...Option) (convcodec.CodecE, error) {
+	c, err := newMappingCodec("NewMapping", table, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.convert, nil
+}
+
+// MustNewMapping is [NewMapping] for tables known to be valid, such as
+// package-level literals; it panics with the [ConfigError] instead of
+// returning it.
+func MustNewMapping[P Enum, G comparable](table map[P]G, opts ...Option) convcodec.CodecE {
+	return must(NewMapping(table, opts...))
+}
+
+// newMappingCodec builds the codec of table for the constructor named caller,
+// which names it in a [ConfigError].
+func newMappingCodec[P Enum, G comparable](caller string, table map[P]G, opts []Option) (*mappingCodec[P, G], error) {
 	var zeroEnum P
 
-	o, err := checkedOptions("NewMapping", opts)
+	o, err := checkedOptions(caller, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -66,24 +85,19 @@ func NewMapping[P Enum, G comparable](table map[P]G, opts ...Option) (convcodec.
 		enumName: zeroEnum.Descriptor().FullName(),
 		toGo:     make(map[P]reflect.Value, len(table)),
 		toEnum:   make(map[G]P, len(table)),
+		goValues: make(map[P]G, len(table)),
 	}
 	for enum, value := range table {
 		if previous, ok := c.toEnum[value]; ok {
-			return nil, ConfigError{Func: "NewMapping", Reason: fmt.Sprintf("%v and %v both map to %v", previous, enum, value)}
+			return nil, ConfigError{Func: caller, Reason: fmt.Sprintf("%v and %v both map to %v", previous, enum, value)}
 		}
 
 		c.toEnum[value] = enum
 		c.toGo[enum] = reflect.ValueOf(&value).Elem()
+		c.goValues[enum] = value
 	}
 
-	return c.convert, nil
-}
-
-// MustNewMapping is [NewMapping] for tables known to be valid, such as
-// package-level literals; it panics with the [ConfigError] instead of
-// returning it.
-func MustNewMapping[P Enum, G comparable](table map[P]G, opts ...Option) convcodec.CodecE {
-	return must(NewMapping(table, opts...))
+	return c, nil
 }
 
 // convert handles pairs of P and G and delegates the rest to next.

@@ -10,6 +10,7 @@ Package `enumpb` provides error codecs for protobuf enums, any generated type im
 |--------------------------|---------------------------------------------------------------|
 | `New(opts...)`           | Enum and any string kind, by value name                       |
 | `NewMapping(table, ...)` | Enum `P` and a Go type `G` through a one-to-one `map[P]G`     |
+| `NewTable(table, ...)`   | The same table for direct calls: `ToGo`, `ToEnum`, and `Codec` |
 
 Names come from the enum descriptor (`EnumDescriptor.Values()`). A number, name or Go value without a counterpart fails with
 `UnknownValueError`, so register the codecs with `convert.WithErrorCodecs` and use `convert.ConvertE`, which returns the error
@@ -38,3 +39,22 @@ value other than `CaseKeep`, `CaseLower` and `CaseUpper`; `MustNew` and `MustNew
 `NewMapping` ignores the name options. Its table takes precedence over `WithUnspecifiedAsEmpty`, which only covers the zero
 number and the zero Go value when the table does not list them. `NewMapping` returns a `ConfigError` when two enum values map to the
 same Go value.
+
+## Direct conversion
+
+`NewTable` takes the table and options of `NewMapping` and converts single values without `convert.ConvertE`, for handlers that
+read one enum field. It returns the same `ConfigError` as `NewMapping`; `MustNewTable` panics with it instead, for package-level
+tables:
+
+```go
+var statuses = enumpb.MustNewTable(map[userv1.Status]user.Status{
+    userv1.Status_STATUS_ACTIVE:  user.Active,
+    userv1.Status_STATUS_BLOCKED: user.Blocked,
+}, enumpb.WithUnspecifiedAsEmpty())
+
+status, err := statuses.ToGo("user.status", req.GetUser().GetStatus())
+```
+
+A value missing from the table fails with `UnknownValueError` carrying the given path; `ToEnum` then returns the zero enum number.
+`Codec` returns the table as an error codec, the same as `NewMapping`.
+
