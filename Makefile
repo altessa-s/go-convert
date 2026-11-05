@@ -439,12 +439,18 @@ endef
 
 .PHONY: release
 # The release checks first that no tag it creates exists locally or on origin,
-# then rewrites the nested go.mod files, commits, tags and pushes atomically.
-# If any step after the check fails, it rolls back what it did locally (the
-# tags it created and the commit, by resetting main to the commit it started
-# from; the tree was clean) and says so; the atomic push did not change
-# origin. When the push reports failure, it compares the tags on origin with the
-# local ones (release-pushed) and rolls back only when none of them landed.
+# then rewrites the nested go.mod files, commits and tags. It pushes in two
+# steps because GitHub creates no push event when more than three tags are
+# pushed at once: first main and the nested tags atomically (they trigger no
+# workflow), then the root tag alone, which starts the Release workflow; its
+# check finds the nested tags already on origin. If a step before or during
+# the first push fails, it rolls back what it did locally (the tags it created
+# and the commit, by resetting main to the commit it started from; the tree
+# was clean) and says so; the atomic push did not change origin. When a push
+# reports failure, it compares the tags on origin with the local ones
+# (release-pushed): the first push rolls back only when none of its tags
+# landed; once it landed, nothing is rolled back and a failed root tag push
+# says how to push the root tag.
 release: ## Tag VERSION for the root module and <dir>/VERSION for every nested module, then push them (clean main equal to origin/main only, one push URL for origin)
 	@bash .github/scripts/check-release-version.sh "$$VERSION"
 	@$(release-preflight)
@@ -467,14 +473,23 @@ release: ## Tag VERSION for the root module and <dir>/VERSION for every nested m
 		git commit -q -m "build: require go-convert $$VERSION in the nested modules" -- $(addsuffix /go.mod,$(NESTED_MODULES)) || rollback; \
 	fi; \
 	for t in "$${tags[@]}"; do git tag -a "$$t" -m "Release $$t" || rollback; created+=("$$t"); done; \
+	all=("$${tags[@]}"); tags=("$${all[@]:1}"); \
 	refs=(); for t in "$${tags[@]}"; do refs+=("refs/tags/$$t"); done; \
 	if ! git push --atomic origin HEAD "$${refs[@]}"; then \
 		$(release-pushed); \
 		case $$pushed in \
-		yes) echo "git push failed, but origin has every release tag of $$VERSION: the release was pushed; local state is kept" >&2; exit 1 ;; \
+		yes) echo "git push failed, but origin has main and every nested tag of $$VERSION" >&2 ;; \
 		no) rollback ;; \
 		*) echo "git push failed and origin could not be verified; the local commit and tags are kept: compare "'git ls-remote --tags "$$(git remote get-url --push origin)"'" with the local tags before retrying" >&2; exit 1 ;; \
 		esac; \
+	fi; \
+	tags=("$$VERSION"); \
+	if ! git push origin "refs/tags/$$VERSION"; then \
+		$(release-pushed); \
+		if [ "$$pushed" != yes ]; then \
+			echo "main and the nested tags of $$VERSION are on origin, the root tag is not confirmed; the local tags are kept: push it with git push origin refs/tags/$$VERSION" >&2; exit 1; \
+		fi; \
+		echo "git push failed, but origin has the local $$VERSION" >&2; \
 	fi; \
 	echo "Released $$VERSION for . $(NESTED_MODULES)"
 

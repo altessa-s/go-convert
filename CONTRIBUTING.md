@@ -209,10 +209,12 @@ Options are only ever generated with go-optgen: do not hand-write `With…` opti
 The nested modules `codec/optionalcodec`, `proto` and `googletype` are released together with the root module under one version. Run
 `make release VERSION=vX.Y.Z` on a clean `main` equal to `origin/main` (it fetches first and refuses anything else) with one push URL for `origin`. It checks that none of
 the tags exists locally or on origin, then points the nested `go.mod` files at the new version, commits that, tags `vX.Y.Z` and
-`<module>/vX.Y.Z` for every nested module on one commit and pushes them atomically. When a step after the tag check fails, it deletes the tags
-it created and resets `main` to the commit it started from, and reports both; the atomic push did not change origin. When the push reports a failure, it
-compares the tags on origin with the local ones: it rolls back only when none of them landed, and keeps the local commit and tags when all of
-them landed (the response was lost) or when origin cannot be queried. The release workflow rejects a root tag without matching nested tags, a nested module that requires another version of this
+`<module>/vX.Y.Z` for every nested module on one commit, pushes `main` with the nested tags atomically and then the root tag alone (GitHub
+creates no push event, and so starts no Release workflow, when more than three tags are pushed at once). When a step after the tag check fails up to the first push, it
+deletes the tags it created and resets `main` to the commit it started from, and reports both; the atomic push did not change origin. When a push reports
+a failure, it compares the tags on origin with the local ones: the first push rolls back only when none of its tags landed and keeps the local commit and
+tags when all of them landed (the response was lost) or when origin cannot be queried; after it landed nothing is rolled back, and a failed root tag push
+keeps the local tags and prints the command that pushes the root tag. The release workflow rejects a root tag without matching nested tags, a nested module that requires another version of this
 repository, and a sub-module missing from the Makefile's `NESTED_MODULES`.
 
 Nested modules may import only exported packages of the root module, never `internal/...`, because a consumer can combine a nested module
