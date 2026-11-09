@@ -106,8 +106,9 @@ and get no exemption.
   `golangci-lint fmt` over every `*_gen.go`; the standalone `gci` binary is not used.
 - Maximum line length: **156 characters** (enforced by `lll` linter).
 - `wsl_v5` enforces blank lines around blocks and statements, and `godoclint` requires a doc comment on every exported symbol.
-- Test files are formatted like any other file and are linted by `asciicheck`, `copyloopvar`, `goprintffuncname`, `ineffassign`, `misspell`, `modernize`, `predeclared`, `unused`, `whitespace`, `wsl_v5` only; every other linter skips
-  `_test.go` files. Code behind test-only build tags (`integration` and the repository's other test tags) is linted too.
+- Test files are formatted like any other file and are linted only by
+  `asciicheck`, `copyloopvar`, `goprintffuncname`, `ineffassign`, `misspell`, `modernize`, `predeclared`, `unused`, `whitespace`, `wsl_v5`;
+  every other linter skips `_test.go` files. Code behind test-only build tags (`integration` and the repository's other test tags) is linted too.
 
 ### Import Ordering
 
@@ -183,13 +184,16 @@ root without the `replace` directives.
 | `make dupl` | Find code duplication |
 | `make dupl-check` | Fail on code duplication |
 | `make copyright` | Add copyright headers |
+| `make clean` | Remove generated artifacts (`coverage.out`, `bench.txt`) |
 | `make generate` | Build pinned optgen and golangci-lint into `bin/`, regenerate options and format them |
 | `make generate-check` | Fail when `make generate` changes, adds or removes generated files (as CI does) |
 | `make tidy` | Run go mod tidy in every module |
 | `make govulncheck` | Run govulncheck in every module |
 | `make gosec` | Run gosec in every module |
 | `make security-scan` | Run govulncheck and gosec |
-| `make nested-build-check` | Build every sub-module of `NESTED_CHECK_MODULES` (and its latest released tag) against the root without `replace` directives (a no-op when it is empty) |
+| `make ci` | Run the full CI checks locally, one step after the other (lint, vet, generated files, tests, security, dupl, nested modules) |
+| `make nested-build-check` | Vet every sub-module of `NESTED_CHECK_MODULES` and build its latest released tag against the root without `replace` directives (a no-op when it is empty) |
+| `make print-nested-check-modules` | Print the sub-module directories `make nested-build-check` checks against the root |
 | `make release` | Tag `VERSION` for the root and every nested module, then push the tags (clean `main` equal to `origin/main` only, one push URL for `origin`) |
 | `make print-nested-modules` | Print the nested module directories released with the root |
 
@@ -206,21 +210,22 @@ Options are only ever generated with go-optgen: do not hand-write `With…` opti
 
 ## Releases
 
-The nested modules `codec/optionalcodec`, `proto` and `googletype` are released together with the root module under one version. Run
-`make release VERSION=vX.Y.Z` on a clean `main` equal to `origin/main` (it fetches first and refuses anything else) with one push URL for `origin`. It checks that none of
-the tags exists locally or on origin, then points the nested `go.mod` files at the new version, commits that, tags `vX.Y.Z` and
-`<module>/vX.Y.Z` for every nested module on one commit, pushes `main` with the nested tags atomically and then the root tag alone (GitHub
-creates no push event, and so starts no Release workflow, when more than three tags are pushed at once). When a step after the tag check fails up to the first push, it
-deletes the tags it created and resets `main` to the commit it started from, and reports both; the atomic push did not change origin. When a push reports
-a failure, it compares the tags on origin with the local ones: the first push rolls back only when none of its tags landed and keeps the local commit and
-tags when all of them landed (the response was lost) or when origin cannot be queried; after it landed nothing is rolled back, and a failed root tag push
-keeps the local tags and prints the command that pushes the root tag. The release workflow rejects a root tag without matching nested tags, a nested module that requires another version of this
-repository, and a sub-module missing from the Makefile's `NESTED_MODULES`.
+The nested modules `codec/optionalcodec`, `proto` and `googletype` are released together with the root module under one version.
+Run `make release VERSION=vX.Y.Z` on a clean `main` equal to `origin/main` (it fetches first and refuses anything else) with one push URL for
+`origin`. It checks that none of the tags exists locally or on origin, then points the nested `go.mod` files at the new version, commits that,
+tags `vX.Y.Z` and `<module>/vX.Y.Z` for every nested module on one commit, pushes `main` with the nested tags atomically and then the root tag
+alone (GitHub creates no push event, and so starts no Release workflow, when more than three tags are pushed at once). When a step after the tag
+check fails up to the first push, it deletes the tags it created and resets `main` to the commit it started from, and reports both; the atomic
+push did not change origin. When a push reports a failure, it compares the tags on origin with the local ones: the first push rolls back only
+when none of its tags landed and keeps the local commit and tags when all of them landed (the response was lost) or when origin cannot be
+queried; after it landed nothing is rolled back, and a failed root tag push keeps the local tags and prints the command that pushes the root
+tag. The release workflow rejects a root tag without matching nested tags, a nested module that requires another version of this repository,
+and a sub-module missing from the Makefile's `NESTED_MODULES`.
 
 Nested modules may import only exported packages of the root module, never `internal/...`, because a consumer can combine a nested module
-release with a newer root release. `make nested-build-check` (run by `make ci` and the CI lint job) builds every sub-module of
-`NESTED_CHECK_MODULES` (the nested modules and the sub-modules released on their own), and the latest released tag of each, against the root
-without the `replace` directives; `NESTED_BUILD_ACCEPT` in the Makefile pins released tags whose breakage is accepted.
+release with a newer root release. `make nested-build-check` (run by `make ci` and the CI lint job) vets every sub-module of
+`NESTED_CHECK_MODULES` (the nested modules and the sub-modules released on their own) and builds the latest released tag of each against the
+root without the `replace` directives; `NESTED_BUILD_ACCEPT` in the Makefile pins released tags whose breakage is accepted.
 
 ## CI checks
 
