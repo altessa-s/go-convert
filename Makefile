@@ -122,6 +122,14 @@ golangci: $(BIN)/golangci-lint ## Run golangci-lint in every module without rewr
 tidy: ## Run go mod tidy in every module
 	@for m in $(MODULES); do (cd $$m && go mod tidy) || exit 1; done
 
+.PHONY: tidy-check
+# CI runs go with the default -mod=readonly and never tidies, so a go.mod or
+# go.sum that go mod tidy would change fails there ("updates to go.mod
+# needed"); make lint tidies first and would hide it, so make ci runs this
+# check before lint.
+tidy-check: ## Fail when go mod tidy would change go.mod or go.sum in every module (as CI does)
+	@for m in $(MODULES); do (cd $$m && go mod tidy -diff) || { echo "go.mod or go.sum in $$m is not tidy: run make tidy"; exit 1; }; done
+
 .PHONY: generate
 generate: $(BIN)/optgen $(BIN)/golangci-lint ## Build the pinned optgen and golangci-lint into bin/, run go generate and format the output in every module
 	@for m in $(MODULES); do (cd $$m && PATH="$$REPO_BIN:$$PATH" go generate ./...) || exit 1; done
@@ -217,21 +225,35 @@ test-coverage-func: ## Run tests and show formatted per-package coverage
 
 .PHONY: coverage
 coverage: ## Run tests with race detector and shuffle in every module, writing the profile to coverage.out
-	@echo "mode: atomic" > coverage.out
+	@# The profile is assembled in coverage.tmp and moved to coverage.out only
+	@# when the tests of every module passed and each module wrote its own
+	@# profile with the atomic header, so a failed or skipped run (GOFLAGS=-n,
+	@# say) leaves no profile.
+	@rm -f coverage.out coverage.part coverage.tmp
 	@for m in $(MODULES); do \
-	  (cd $$m && go test -race -shuffle=on -covermode=atomic -coverpkg=./... -coverprofile="$$REPO_ROOT/coverage.part" ./...) || { rm -f coverage.part; exit 1; }; \
-	  if [ -f coverage.part ]; then tail -n +2 coverage.part >> coverage.out; rm -f coverage.part; fi; \
-	done
+	  (cd $$m && go test -race -shuffle=on -covermode=atomic -coverpkg=./... -coverprofile="$$REPO_ROOT/coverage.part" ./...) || { rm -f coverage.part coverage.tmp; exit 1; }; \
+	  if [ "$$(head -n 1 coverage.part 2>/dev/null)" != "mode: atomic" ]; then echo "coverage: no atomic profile from module $$m" >&2; rm -f coverage.part coverage.tmp; exit 1; fi; \
+	  if [ -f coverage.tmp ]; then tail -n +2 coverage.part >> coverage.tmp; else cp coverage.part coverage.tmp; fi || { rm -f coverage.part coverage.tmp; exit 1; }; \
+	  rm -f coverage.part; \
+	done; \
+	mv coverage.tmp coverage.out
 
 # go tool cover cannot resolve packages of other modules from the root, so the
 # total is computed from the profile: covered statements over all statements,
 # printed in go tool cover's "total:" format. With -coverpkg every test binary
 # reports every block of its module, so each block counts once and is covered
-# when any test binary covered it.
+# when any test binary covered it. Every line is validated: the header must
+# name a cover mode and each block must read "file:l.c,l.c statements count";
+# a malformed or empty profile fails, and so does a profile without blocks
+# (go test writes the header even when no test runs).
 .PHONY: coverage-total
 coverage-total: ## Print the total statement coverage of coverage.out
-	@awk 'NR > 1 { size[$$1] = $$2; if ($$3 > 0) hit[$$1] = 1 } \
-	  END { for (b in size) { stmts += size[b]; if (b in hit) covered += size[b] } \
+	@awk 'NR == 1 { if ($$0 !~ /^mode: (set|count|atomic)$$/) bad = NR; next } \
+	  $$0 !~ /^[^ ]+:[0-9]+\.[0-9]+,[0-9]+\.[0-9]+ [0-9]+ [0-9]+$$/ { if (!bad) bad = NR; next } \
+	  { size[$$1] = $$2; if ($$3 > 0) hit[$$1] = 1 } \
+	  END { if (NR == 0) { print "coverage-total: coverage.out is empty" > "/dev/stderr"; exit 1 } \
+	        if (bad) { printf "coverage-total: malformed coverage.out line %d\n", bad > "/dev/stderr"; exit 1 } \
+	        for (b in size) { stmts += size[b]; if (b in hit) covered += size[b] } \
 	        if (stmts == 0) { print "coverage-total: no statements in coverage.out" > "/dev/stderr"; exit 1 } \
 	        printf "total:\t(statements)\t%.1f%%\n", covered * 100 / stmts }' coverage.out
 
@@ -363,9 +385,9 @@ dupl-check: $(BIN)/dupl ## Fail if dupl finds duplicates (ignoring generated fil
 .PHONY: ci
 # ci runs its steps one after the other even under make -j: lint rewrites
 # files that fmt-check and generate-check read, so they must not overlap. Each
-# step may still use -j inside.
-CI_STEPS := lint fmt-check generate-check test-all test-integration security-scan dupl-check nested-build-check
-ci: ## Run full CI checks locally, one step after the other (lint, generated files, test, security, dupl, nested modules)
+# step may still use -j inside. tidy-check runs before lint, which tidies.
+CI_STEPS := tidy-check lint vet fmt-check generate-check test-all test-integration security-scan dupl-check nested-build-check
+ci: ## Run full CI checks locally, one step after the other (tidy check, lint, vet, generated files, test, security, dupl, nested modules)
 	@for step in $(CI_STEPS); do $(MAKE) --no-print-directory $$step || exit 1; done
 
 .PHONY: clean
@@ -382,11 +404,11 @@ print-nested-modules: ## Print the nested module directories released with the r
 	@printf '%s\n' $(NESTED_MODULES)
 
 .PHONY: print-nested-check-modules
-print-nested-check-modules: ## Print the sub-module directories nested-build-check builds against the root, one per line
+print-nested-check-modules: ## Print the sub-module directories nested-build-check checks against the root, one per line
 	@printf '%s\n' $(NESTED_CHECK_MODULES)
 
 .PHONY: nested-build-check
-nested-build-check: ## Build every sub-module of NESTED_CHECK_MODULES against the root without replace directives; a no-op when it is empty (see .github/scripts/nested-build-check.sh)
+nested-build-check: ## Vet every sub-module of NESTED_CHECK_MODULES and build its latest released tag against the root without replace directives; a no-op when it is empty (see .github/scripts/nested-build-check.sh)
 	@bash .github/scripts/nested-build-check.sh
 
 # release-preflight refuses a release from anything but a clean main that
@@ -439,12 +461,18 @@ endef
 
 .PHONY: release
 # The release checks first that no tag it creates exists locally or on origin,
-# then rewrites the nested go.mod files, commits, tags and pushes atomically.
-# If any step after the check fails, it rolls back what it did locally (the
-# tags it created and the commit, by resetting main to the commit it started
-# from; the tree was clean) and says so; the atomic push did not change
-# origin. When the push reports failure, it compares the tags on origin with the
-# local ones (release-pushed) and rolls back only when none of them landed.
+# then rewrites the nested go.mod files, commits and tags. It pushes in two
+# steps because GitHub creates no push event when more than three tags are
+# pushed at once: first main and the nested tags atomically (they trigger no
+# workflow), then the root tag alone, which starts the Release workflow; its
+# check finds the nested tags already on origin. If a step before or during
+# the first push fails, it rolls back what it did locally (the tags it created
+# and the commit, by resetting main to the commit it started from; the tree
+# was clean) and says so; the atomic push did not change origin. When a push
+# reports failure, it compares the tags on origin with the local ones
+# (release-pushed): the first push rolls back only when none of its tags
+# landed; once it landed, nothing is rolled back and a failed root tag push
+# says how to push the root tag.
 release: ## Tag VERSION for the root module and <dir>/VERSION for every nested module, then push them (clean main equal to origin/main only, one push URL for origin)
 	@bash .github/scripts/check-release-version.sh "$$VERSION"
 	@$(release-preflight)
@@ -467,14 +495,23 @@ release: ## Tag VERSION for the root module and <dir>/VERSION for every nested m
 		git commit -q -m "build: require go-convert $$VERSION in the nested modules" -- $(addsuffix /go.mod,$(NESTED_MODULES)) || rollback; \
 	fi; \
 	for t in "$${tags[@]}"; do git tag -a "$$t" -m "Release $$t" || rollback; created+=("$$t"); done; \
+	all=("$${tags[@]}"); tags=("$${all[@]:1}"); \
 	refs=(); for t in "$${tags[@]}"; do refs+=("refs/tags/$$t"); done; \
 	if ! git push --atomic origin HEAD "$${refs[@]}"; then \
 		$(release-pushed); \
 		case $$pushed in \
-		yes) echo "git push failed, but origin has every release tag of $$VERSION: the release was pushed; local state is kept" >&2; exit 1 ;; \
+		yes) echo "git push failed, but origin has main and every nested tag of $$VERSION" >&2 ;; \
 		no) rollback ;; \
 		*) echo "git push failed and origin could not be verified; the local commit and tags are kept: compare "'git ls-remote --tags "$$(git remote get-url --push origin)"'" with the local tags before retrying" >&2; exit 1 ;; \
 		esac; \
+	fi; \
+	tags=("$$VERSION"); \
+	if ! git push origin "refs/tags/$$VERSION"; then \
+		$(release-pushed); \
+		if [ "$$pushed" != yes ]; then \
+			echo "main and the nested tags of $$VERSION are on origin, the root tag is not confirmed; the local tags are kept: push it with git push origin refs/tags/$$VERSION" >&2; exit 1; \
+		fi; \
+		echo "git push failed, but origin has the local $$VERSION" >&2; \
 	fi; \
 	echo "Released $$VERSION for . $(NESTED_MODULES)"
 
