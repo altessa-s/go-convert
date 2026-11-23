@@ -6,7 +6,7 @@ toolchain go1.27.4
 
 require (
 	github.com/altessa-s/go-atlas-core v0.3.5
-	github.com/altessa-s/go-convert v0.1.0
+	github.com/altessa-s/go-convert v0.1.1
 	github.com/altessa-s/go-convert/codec/optionalcodec v0.1.0
 	github.com/stretchr/testify v1.12.1
 	google.golang.org/protobuf v1.36.12
