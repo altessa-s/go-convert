@@ -11,6 +11,10 @@ updates:
       - /proto
       - /googletype
       - /devtools
+    groups:
+      go-modules:
+        patterns: ["*"]
+        group-by: dependency-name
     target-branch: develop
     schedule:
       interval: weekly

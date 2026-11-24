@@ -211,17 +211,21 @@ Options are only ever generated with go-optgen: do not hand-write `With…` opti
 
 ## Releases
 
-The nested modules `codec/optionalcodec`, `proto` and `googletype` are released together with the root module under one version.
+The nested modules `codec/optionalcodec`, `proto` and `googletype` receive matching tags when released with `make release`.
 Run `make release VERSION=vX.Y.Z` on a clean `main` equal to `origin/main` (it fetches first and refuses anything else) with one push URL for
 `origin`. It checks that none of the tags exists locally or on origin, then points the nested `go.mod` files at the new version, commits that,
 tags `vX.Y.Z` and `<module>/vX.Y.Z` for every nested module on one commit, pushes `main` with the nested tags atomically and then the root tag
-alone (GitHub creates no push event, and so starts no Release workflow, when more than three tags are pushed at once). When a step after the tag
+alone (GitHub omits tag events when more than three tags are pushed at once). When a step after the tag
 check fails up to the first push, it deletes the tags it created and resets `main` to the commit it started from, and reports both; the atomic
 push did not change origin. When a push reports a failure, it compares the tags on origin with the local ones: the first push rolls back only
 when none of its tags landed and keeps the local commit and tags when all of them landed (the response was lost) or when origin cannot be
 queried; after it landed nothing is rolled back, and a failed root tag push keeps the local tags and prints the command that pushes the root
-tag. The release workflow rejects a root tag without matching nested tags, a nested module that requires another version of this repository,
-and a sub-module missing from the Makefile's `NESTED_MODULES`.
+tag.
+
+Moirai publishes the root tag first, then updates the dependent manifests and tags each changed nested module at its own version.
+The root tag starts the GitHub Release. At a nested tag, the workflow checks its manifest against the root release in that commit's
+history and verifies that required sibling tags are reachable. The push to `main` also checks nested tags in the same batch.
+The module inventory is checked independently of which modules received tags.
 
 Nested modules may import only exported packages of the root module, never `internal/...`, because a consumer can combine a nested module
 release with a newer root release. `make nested-build-check` (run by `make ci` and the CI lint job) vets every sub-module of
