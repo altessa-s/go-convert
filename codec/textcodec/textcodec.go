@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
-	"sync/atomic"
 
 	"github.com/altessa-s/go-convert/reflectx"
 
@@ -26,13 +25,15 @@ var (
 // every call instead of being cached.
 const maxClaims = 4096
 
-// claims caches the claim decision of up to [maxClaims] source and
-// destination type pairs, so the Implements checks run once per pair rather
-// than per field: typePair -> *claim.
-var (
-	claims     sync.Map
-	claimCount atomic.Int64
-)
+// claims is shared by all text codecs.
+var claims claimCache
+
+// claimCache stores up to [maxClaims] decisions.
+type claimCache struct {
+	entries sync.Map   // typePair -> *claim
+	mu      sync.Mutex // guards publication and count
+	count   int
+}
 
 // typePair is a source and destination type, the key of [claims].
 type typePair struct{ src, dst reflect.Type }
@@ -160,11 +161,10 @@ func tryConvert(fieldPath string, src, dst reflect.Value, opts *options) (bool, 
 	return true, nil
 }
 
-// claimOf returns the cached claim decision for a source and destination
-// type, computing it on first use.
+// claimOf returns the claim decision for a source and destination type.
 func claimOf(src, dst reflect.Type) *claim {
 	key := typePair{src: src, dst: dst}
-	if cached, ok := claims.Load(key); ok {
+	if cached, ok := claims.entries.Load(key); ok {
 		c, _ := cached.(*claim)
 		return c
 	}
@@ -177,29 +177,26 @@ func claimOf(src, dst reflect.Type) *claim {
 			c.dstUnmarshaler && isText(c.srcType)
 	}
 
-	if reserveClaim() {
-		if _, loaded := claims.LoadOrStore(key, c); loaded {
-			claimCount.Add(-1)
-		}
+	return claims.publish(key, c)
+}
+
+// publish resolves concurrent misses to the stored claim. The second lookup
+// comes before the capacity check so it also finds a claim that took the last slot.
+func (cache *claimCache) publish(key typePair, c *claim) *claim {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	if cached, ok := cache.entries.Load(key); ok {
+		existing, _ := cached.(*claim)
+		return existing
+	}
+
+	if cache.count < maxClaims {
+		cache.entries.Store(key, c)
+		cache.count++
 	}
 
 	return c
-}
-
-// reserveClaim takes one of the [maxClaims] cache slots, reporting false when
-// none is left. The compare-and-swap keeps concurrent callers within the
-// bound.
-func reserveClaim() bool {
-	for {
-		n := claimCount.Load()
-		if n >= maxClaims {
-			return false
-		}
-
-		if claimCount.CompareAndSwap(n, n+1) {
-			return true
-		}
-	}
 }
 
 // isMarshaler reports whether t or *t implements encoding.TextMarshaler.

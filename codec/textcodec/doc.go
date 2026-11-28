@@ -25,9 +25,9 @@
 // sides.
 //
 // MarshalText with a pointer receiver is called on a copy of the source, so a
-// method that caches into its receiver never modifies the source. The claim
-// decision of each source and destination type pair is cached, so the
-// interface checks run once per pair.
+// method that caches into its receiver never modifies the source. A bounded
+// cache reuses claim decisions for source and destination type pairs.
+// Once the cache is full, new pairs are evaluated on each call.
 //
 // Example:
 //
